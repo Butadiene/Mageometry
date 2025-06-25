@@ -1105,6 +1105,11 @@ def diploop1_vectorized(x, y, z, ps):
 
 def condip1_vectorized(x, y, z, ps):
     """Vectorized confined dipole for plasma sheet region."""
+    # Ensure arrays
+    x = np.atleast_1d(x)
+    y = np.atleast_1d(y)
+    z = np.atleast_1d(z)
+    
     # Model coefficients for region 2
     c2 = np.array([
         6.04133, .305415, .606066e-02, .128379e-03, -.179406e-04,
@@ -1130,43 +1135,241 @@ def condip1_vectorized(x, y, z, ps):
     
     scalein = 0.08
     scaleout = 0.4
+    dx = -0.16
     
+    cps = np.cos(ps)
+    sps = np.sin(ps)
+    
+    # Initialize result with conical harmonics
     bx = np.zeros_like(x)
     by = np.zeros_like(y)
     bz = np.zeros_like(z)
     
-    # Process confined dipoles
-    for i in range(14):
-        # Calculate dipole field with exponential confinement
-        dx = x - xx2[i]
-        dy = y - yy2[i]
-        dz = z - zz2[i]
-        
-        r2 = dx**2 + dy**2 + dz**2
-        r = np.sqrt(r2)
-        r_safe = np.where(r < 1e-9, 1e-9, r)
-        
-        # Confinement factors
-        if i < 9:
-            # First 9 use scalein/scaleout
-            scale = np.where(dx < 0, scalein, scaleout)
-        else:
-            # Last 5 use fixed scale
-            scale = 0.2
-        
-        fexp = np.exp(-r / scale)
-        r5_inv = np.power(r2 + 1e-15, -2.5)
-        
-        # Add confined dipole contributions
-        factor = fexp * r5_inv
-        bx += c2[i] * factor * (3 * dx * dz)
-        by += c2[i] * factor * (3 * dy * dz)
-        bz += c2[i] * factor * (3 * dz**2 - r2)
+    # First add the conical harmonics (indices 0-4)
+    xsm = x * cps - z * sps - dx
+    zsm = z * cps + x * sps
+    ro2 = xsm**2 + y**2
+    ro = np.sqrt(ro2)
+    ro_safe = np.where(ro < 1e-9, 1e-9, ro)
     
-    # Add additional terms (indices 14+)
-    # These would follow similar patterns based on the original implementation
+    # Calculate cos/sin multiples
+    cf0 = xsm / ro_safe
+    sf0 = y / ro_safe
+    cf1 = cf0**2 - sf0**2
+    sf1 = 2 * sf0 * cf0
+    cf2 = cf1 * cf0 - sf1 * sf0
+    sf2 = sf1 * cf0 + cf1 * sf0
+    cf3 = cf2 * cf0 - sf2 * sf0
+    sf3 = sf2 * cf0 + cf2 * sf0
+    cf4 = cf3 * cf0 - sf3 * sf0
+    sf4 = sf3 * cf0 + cf3 * sf0
+    
+    cf = np.array([cf0, cf1, cf2, cf3, cf4])
+    sf = np.array([sf0, sf1, sf2, sf3, sf4])
+    
+    r2 = ro2 + zsm**2
+    r = np.sqrt(r2)
+    r_safe = np.where(r < 1e-9, 1e-9, r)
+    c = zsm / r_safe
+    s = ro / r_safe
+    ch = np.sqrt(0.5 * (1 + c))
+    sh = np.sqrt(0.5 * (1 - c))
+    ch_safe = np.where(ch < 1e-9, 1e-9, ch)
+    sh_safe = np.where(sh < 1e-9, 1e-9, sh)
+    tnh = sh / ch_safe
+    cnh = ch / sh_safe
+    
+    # Conical harmonics (indices 0-4)
+    for m in range(5):
+        m1 = m + 1
+        tnhm = tnh**m1
+        cnhm = cnh**m1
+        bt = m1 * cf[m] / (r_safe * s) * (tnhm + cnhm)
+        
+        if m == 0:
+            bf = 0.0
+        else:
+            tnhm_prev = tnh**m
+            cnhm_prev = cnh**m
+            bf = -0.5 * m1 * sf[m] / r_safe * (tnhm_prev / ch_safe**2 - cnhm_prev / sh_safe**2)
+        
+        bxsm = bt * c * cf0 - bf * sf0
+        bysm = bt * c * sf0 + bf * cf0
+        bzsm = -bt * s
+        
+        bx += c2[m] * (bxsm * cps + bzsm * sps)
+        by += c2[m] * bysm
+        bz += c2[m] * (bzsm * cps - bxsm * sps)
+    
+    # Now process the dipole terms (indices 5-31 and 32-58)
+    xsm = x * cps - z * sps
+    zsm = z * cps + x * sps
+    
+    # Indices 5-31: First set of dipoles
+    for i in range(9):
+        xd = xx2[i] * (scalein if i in [2, 4, 5] else scaleout)
+        yd = yy2[i] * (scalein if i in [2, 4, 5] else scaleout)
+        zd = zz2[i]
+        
+        # Four symmetric dipoles
+        x1, y1, z1 = xsm - xd, y - yd, zsm - zd
+        x2, y2, z2 = xsm - xd, y + yd, zsm - zd
+        x3, y3, z3 = xsm - xd, y - yd, zsm + zd
+        x4, y4, z4 = xsm - xd, y + yd, zsm + zd
+        
+        # Get dipole fields and their derivatives
+        bx1x, by1x, bz1x = dipxyz_vectorized(x1, y1, z1, 0)
+        bx2x, by2x, bz2x = dipxyz_vectorized(x2, y2, z2, 0)
+        bx3x, by3x, bz3x = dipxyz_vectorized(x3, y3, z3, 0)
+        bx4x, by4x, bz4x = dipxyz_vectorized(x4, y4, z4, 0)
+        
+        bx1y, by1y, bz1y = dipxyz_vectorized(x1, y1, z1, 1)
+        bx2y, by2y, bz2y = dipxyz_vectorized(x2, y2, z2, 1)
+        bx3y, by3y, bz3y = dipxyz_vectorized(x3, y3, z3, 1)
+        bx4y, by4y, bz4y = dipxyz_vectorized(x4, y4, z4, 1)
+        
+        bx1z, by1z, bz1z = dipxyz_vectorized(x1, y1, z1, 2)
+        bx2z, by2z, bz2z = dipxyz_vectorized(x2, y2, z2, 2)
+        bx3z, by3z, bz3z = dipxyz_vectorized(x3, y3, z3, 2)
+        bx4z, by4z, bz4z = dipxyz_vectorized(x4, y4, z4, 2)
+        
+        # X-derivative terms
+        ix = i * 3 + 5
+        bxsm = (bx1x + bx2x - bx3x - bx4x)
+        bysm = (by1x + by2x - by3x - by4x)
+        bzsm = (bz1x + bz2x - bz3x - bz4x)
+        bx += c2[ix] * (bxsm * cps + bzsm * sps)
+        by += c2[ix] * bysm
+        bz += c2[ix] * (bzsm * cps - bxsm * sps)
+        
+        # Y-derivative terms
+        iy = ix + 1
+        bxsm = (bx1y - bx2y - bx3y + bx4y)
+        bysm = (by1y - by2y - by3y + by4y)
+        bzsm = (bz1y - bz2y - bz3y + bz4y)
+        bx += c2[iy] * (bxsm * cps + bzsm * sps)
+        by += c2[iy] * bysm
+        bz += c2[iy] * (bzsm * cps - bxsm * sps)
+        
+        # Z-derivative terms
+        iz = iy + 1
+        bxsm = (bx1z + bx2z + bx3z + bx4z)
+        bysm = (by1z + by2z + by3z + by4z)
+        bzsm = (bz1z + bz2z + bz3z + bz4z)
+        bx += c2[iz] * (bxsm * cps + bzsm * sps)
+        by += c2[iz] * bysm
+        bz += c2[iz] * (bzsm * cps - bxsm * sps)
+        
+        # Indices 32-58: Second set with sps factor
+        ix2 = ix + 27
+        iy2 = iy + 27
+        iz2 = iz + 27
+        
+        # X-derivative with sps
+        bxsm = (bx1x + bx2x + bx3x + bx4x)
+        bysm = (by1x + by2x + by3x + by4x)
+        bzsm = (bz1x + bz2x + bz3x + bz4x)
+        bx += c2[ix2] * sps * (bxsm * cps + bzsm * sps)
+        by += c2[ix2] * sps * bysm
+        bz += c2[ix2] * sps * (bzsm * cps - bxsm * sps)
+        
+        # Y-derivative with sps
+        bxsm = (bx1y - bx2y + bx3y - bx4y)
+        bysm = (by1y - by2y + by3y - by4y)
+        bzsm = (bz1y - bz2y + bz3y - bz4y)
+        bx += c2[iy2] * sps * (bxsm * cps + bzsm * sps)
+        by += c2[iy2] * sps * bysm
+        bz += c2[iy2] * sps * (bzsm * cps - bxsm * sps)
+        
+        # Z-derivative with sps
+        bxsm = (bx1z + bx2z - bx3z - bx4z)
+        bysm = (by1z + by2z - by3z - by4z)
+        bzsm = (bz1z + bz2z - bz3z - bz4z)
+        bx += c2[iz2] * sps * (bxsm * cps + bzsm * sps)
+        by += c2[iz2] * sps * bysm
+        bz += c2[iz2] * sps * (bzsm * cps - bxsm * sps)
+    
+    # Indices 59-68 and 69-78: Vertical dipoles
+    for i in range(5):
+        zd = zz2[i + 9]
+        
+        # Two symmetric dipoles
+        x1, y1, z1 = xsm, y, zsm - zd
+        x2, y2, z2 = xsm, y, zsm + zd
+        
+        # Get dipole fields
+        bx1x, by1x, bz1x = dipxyz_vectorized(x1, y1, z1, 0)
+        bx2x, by2x, bz2x = dipxyz_vectorized(x2, y2, z2, 0)
+        
+        bx1z, by1z, bz1z = dipxyz_vectorized(x1, y1, z1, 2)
+        bx2z, by2z, bz2z = dipxyz_vectorized(x2, y2, z2, 2)
+        
+        # X-derivative terms (indices 59-68)
+        ix = 59 + i * 2
+        bxsm = (bx1x - bx2x)
+        bysm = (by1x - by2x)
+        bzsm = (bz1x - bz2x)
+        bx += c2[ix] * (bxsm * cps + bzsm * sps)
+        by += c2[ix] * bysm
+        bz += c2[ix] * (bzsm * cps - bxsm * sps)
+        
+        # Z-derivative terms
+        iz = ix + 1
+        bxsm = (bx1z + bx2z)
+        bysm = (by1z + by2z)
+        bzsm = (bz1z + bz2z)
+        bx += c2[iz] * (bxsm * cps + bzsm * sps)
+        by += c2[iz] * bysm
+        bz += c2[iz] * (bzsm * cps - bxsm * sps)
+        
+        # With sps factor (indices 69-78)
+        ix2 = ix + 10
+        iz2 = iz + 10
+        
+        # X-derivative with sps
+        bxsm = (bx1x + bx2x)
+        bysm = (by1x + by2x)
+        bzsm = (bz1x + bz2x)
+        bx += c2[ix2] * sps * (bxsm * cps + bzsm * sps)
+        by += c2[ix2] * sps * bysm
+        bz += c2[ix2] * sps * (bzsm * cps - bxsm * sps)
+        
+        # Z-derivative with sps
+        bxsm = (bx1z - bx2z)
+        bysm = (by1z - by2z)
+        bzsm = (bz1z - bz2z)
+        bx += c2[iz2] * sps * (bxsm * cps + bzsm * sps)
+        by += c2[iz2] * sps * bysm
+        bz += c2[iz2] * sps * (bzsm * cps - bxsm * sps)
     
     return bx, by, bz
+
+
+def dipxyz_vectorized(x, y, z, mode):
+    """Vectorized dipole field and derivatives."""
+    # Ensure arrays
+    x = np.atleast_1d(x)
+    y = np.atleast_1d(y)
+    z = np.atleast_1d(z)
+    
+    r2 = x**2 + y**2 + z**2
+    r5_inv = np.power(r2 + 1e-15, -2.5)
+    
+    if mode == 0:  # X-derivative
+        bxx = 30574.0 * r5_inv * (3 * x**2 - r2)
+        byx = 30574.0 * r5_inv * (3 * x * y)
+        bzx = 30574.0 * r5_inv * (3 * x * z)
+        return bxx, byx, bzx
+    elif mode == 1:  # Y-derivative
+        bxy = 30574.0 * r5_inv * (3 * x * y)
+        byy = 30574.0 * r5_inv * (3 * y**2 - r2)
+        bzy = 30574.0 * r5_inv * (3 * y * z)
+        return bxy, byy, bzy
+    else:  # Z-derivative
+        bxz = 30574.0 * r5_inv * (3 * x * z)
+        byz = 30574.0 * r5_inv * (3 * y * z)
+        bzz = 30574.0 * r5_inv * (3 * z**2 - r2)
+        return bxz, byz, bzz
 
 
 def interpolate_region3(x, y, z, r, r3, ps, sps, pas, tetr1n, dtet0):
@@ -1967,12 +2170,32 @@ def dipdistr_vectorized(x, y, z, mode):
 
 def fexp_vectorized(s, a):
     """Vectorized fexp function."""
-    return np.exp(a * s**2)
+    # Ensure arrays for proper broadcasting
+    s = np.atleast_1d(s)
+    
+    if np.isscalar(a):
+        if a < 0:
+            return np.sqrt(-2 * a * np.e) * s * np.exp(a * s**2)
+        else:
+            return s * np.exp(a * (s**2 - 1))
+    else:
+        return np.where(a < 0, 
+                        np.sqrt(-2 * a * np.e) * s * np.exp(a * s**2),
+                        s * np.exp(a * (s**2 - 1)))
 
 
 def fexp1_vectorized(s, a):
     """Vectorized fexp1 function."""
-    return np.where(a <= 0, np.exp(a * s**2), np.exp(a * (s**2 - 1)))
+    # Ensure arrays for proper broadcasting
+    s = np.atleast_1d(s)
+    
+    if np.isscalar(a):
+        if a <= 0:
+            return np.exp(a * s**2)
+        else:
+            return np.exp(a * (s**2 - 1))
+    else:
+        return np.where(a <= 0, np.exp(a * s**2), np.exp(a * (s**2 - 1)))
 
 
 # Utility function to handle scalar inputs
