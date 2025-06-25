@@ -14,6 +14,10 @@ for processing multiple points simultaneously.
 
 import numpy as np
 from scipy import special
+try:
+    from .condip1_exact_vectorized import condip1_exact_vectorized
+except ImportError:
+    from condip1_exact_vectorized import condip1_exact_vectorized
 
 
 def t96_vectorized(parmod, ps, x, y, z):
@@ -929,7 +933,7 @@ def birk1tot_02_vectorized(ps, x, y, z):
     # Region 2: Plasma sheet - use condip1
     if np.any(loc2):
         idx = loc2
-        bx2, by2, bz2 = condip1_vectorized(x[idx], y[idx], z[idx], ps)
+        bx2, by2, bz2 = condip1_exact_vectorized(x[idx], y[idx], z[idx], ps)
         bx[idx] = bx2
         by[idx] = by2
         bz[idx] = bz2
@@ -939,7 +943,7 @@ def birk1tot_02_vectorized(ps, x, y, z):
         idx = loc3
         bx3, by3, bz3 = interpolate_region3(
             x[idx], y[idx], z[idx], r[idx], r3[idx], ps, sps,
-            pas[idx], tetr1n[idx], dtet0
+            cpsas[idx], spsas[idx], pas[idx], tetr1n[idx], dtet0
         )
         bx[idx] = bx3
         by[idx] = by3
@@ -950,7 +954,7 @@ def birk1tot_02_vectorized(ps, x, y, z):
         idx = loc4
         bx4, by4, bz4 = interpolate_region4(
             x[idx], y[idx], z[idx], r[idx], r3[idx], ps, sps,
-            pas[idx], tetr1s[idx], dtet0
+            cpsas[idx], spsas[idx], pas[idx], tetr1s[idx], dtet0
         )
         bx[idx] = bx4
         by[idx] = by4
@@ -960,6 +964,124 @@ def birk1tot_02_vectorized(ps, x, y, z):
     bsx, bsy, bsz = birk1shld_vectorized(ps, x, y, z)
     
     return bx + bsx, by + bsy, bz + bsz
+
+
+def interpolate_region3(x, y, z, r, r3, ps, sps, cpsas, spsas, pas, tetr1n, dtet0):
+    """Interpolate between high-lat (diploop1) and plasma sheet (condip1) for north PSBL."""
+    # Ensure arrays
+    x = np.atleast_1d(x)
+    y = np.atleast_1d(y)
+    z = np.atleast_1d(z)
+    r = np.atleast_1d(r)
+    r3 = np.atleast_1d(r3)
+    cpsas = np.atleast_1d(cpsas)
+    spsas = np.atleast_1d(spsas)
+    pas = np.atleast_1d(pas)
+    tetr1n = np.atleast_1d(tetr1n)
+    
+    # Constants
+    rh, dr = 9.0, 4.0
+    cps = np.cos(ps)
+    
+    # Calculate boundary points
+    t01 = tetr1n - dtet0
+    t02 = tetr1n + dtet0
+    sqr = np.sqrt(r)
+    st01as = sqr / (r3 + 1/np.sin(t01)**6 - 1)**(1.0/6.0)
+    st02as = sqr / (r3 + 1/np.sin(t02)**6 - 1)**(1.0/6.0)
+    ct01as = np.sqrt(1 - st01as**2)
+    ct02as = np.sqrt(1 - st02as**2)
+    
+    # Northern boundary point (high-lat)
+    xas1 = r * st01as * np.cos(pas)
+    y1 = r * st01as * np.sin(pas)
+    zas1 = r * ct01as
+    
+    x1 = xas1 * cpsas + zas1 * spsas
+    z1 = -xas1 * spsas + zas1 * cpsas
+    
+    # Get field at northern boundary using diploop1
+    bx1, by1, bz1 = diploop1_vectorized(x1, y1, z1, ps)
+    
+    # Southern boundary point (plasma sheet)
+    xas2 = r * st02as * np.cos(pas)
+    y2 = r * st02as * np.sin(pas)
+    zas2 = r * ct02as
+    x2 = xas2 * cpsas + zas2 * spsas
+    z2 = -xas2 * spsas + zas2 * cpsas
+    
+    # Get field at southern boundary using condip1
+    bx2, by2, bz2 = condip1_exact_vectorized(x2, y2, z2, ps)
+    
+    # Interpolate
+    ss = np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+    ds = np.sqrt((x-x1)**2 + (y-y1)**2 + (z-z1)**2)
+    frac = ds / ss
+    
+    bx = bx1 * (1 - frac) + bx2 * frac
+    by = by1 * (1 - frac) + by2 * frac
+    bz = bz1 * (1 - frac) + bz2 * frac
+    
+    return bx, by, bz
+
+
+def interpolate_region4(x, y, z, r, r3, ps, sps, cpsas, spsas, pas, tetr1s, dtet0):
+    """Interpolate between plasma sheet (condip1) and high-lat (diploop1) for south PSBL."""
+    # Ensure arrays
+    x = np.atleast_1d(x)
+    y = np.atleast_1d(y)
+    z = np.atleast_1d(z)
+    r = np.atleast_1d(r)
+    r3 = np.atleast_1d(r3)
+    cpsas = np.atleast_1d(cpsas)
+    spsas = np.atleast_1d(spsas)
+    pas = np.atleast_1d(pas)
+    tetr1s = np.atleast_1d(tetr1s)
+    
+    # Constants
+    rh, dr = 9.0, 4.0
+    cps = np.cos(ps)
+    
+    # Calculate boundary points
+    t01 = tetr1s - dtet0
+    t02 = tetr1s + dtet0
+    sqr = np.sqrt(r)
+    st01as = sqr / (r3 + 1/np.sin(t01)**6 - 1)**(1.0/6.0)
+    st02as = sqr / (r3 + 1/np.sin(t02)**6 - 1)**(1.0/6.0)
+    ct01as = -np.sqrt(1 - st01as**2)  # Note negative for southern hemisphere
+    ct02as = -np.sqrt(1 - st02as**2)
+    
+    # Northern boundary point (plasma sheet)
+    xas1 = r * st01as * np.cos(pas)
+    y1 = r * st01as * np.sin(pas)
+    zas1 = r * ct01as
+    
+    x1 = xas1 * cpsas + zas1 * spsas
+    z1 = -xas1 * spsas + zas1 * cpsas
+    
+    # Get field at northern boundary using condip1
+    bx1, by1, bz1 = condip1_exact_vectorized(x1, y1, z1, ps)
+    
+    # Southern boundary point (high-lat)
+    xas2 = r * st02as * np.cos(pas)
+    y2 = r * st02as * np.sin(pas)
+    zas2 = r * ct02as
+    x2 = xas2 * cpsas + zas2 * spsas
+    z2 = -xas2 * spsas + zas2 * cpsas
+    
+    # Get field at southern boundary using diploop1
+    bx2, by2, bz2 = diploop1_vectorized(x2, y2, z2, ps)
+    
+    # Interpolate
+    ss = np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+    ds = np.sqrt((x-x1)**2 + (y-y1)**2 + (z-z1)**2)
+    frac = ds / ss
+    
+    bx = bx1 * (1 - frac) + bx2 * frac
+    by = by1 * (1 - frac) + by2 * frac
+    bz = bz1 * (1 - frac) + bz2 * frac
+    
+    return bx, by, bz
 
 
 def birk2tot_02_vectorized(ps, x, y, z):
@@ -1029,6 +1151,11 @@ def intercon_vectorized(x, y, z):
 
 def diploop1_vectorized(x, y, z, ps):
     """Vectorized dipole loop for high latitude region."""
+    # Ensure arrays
+    x = np.atleast_1d(x)
+    y = np.atleast_1d(y)
+    z = np.atleast_1d(z)
+    
     # Model coefficients for region 1
     c1 = np.array([
         -0.911582e-03, -0.376654e-02, -0.727423e-02, -0.270084e-02, -0.123899e-02,
@@ -1073,46 +1200,143 @@ def diploop1_vectorized(x, y, z, ps):
         xd_rot = xd * cpsas
         zd_rot = -xd * spsas
         
-        # Calculate dipole field
+        # Calculate dipole field using dipxyz_vectorized
+        # First dipole at (xd_rot, yd, zd_rot)
         dx = x - xd_rot
         dy = y - yd
         dz = z - zd_rot
-        r2_dip = dx**2 + dy**2 + dz**2
-        r5_inv = np.power(r2_dip + 1e-15, -2.5)
         
-        # Z-component contribution
-        bx += c1[i] * (3 * dx * dz * r5_inv)
-        by += c1[i] * (3 * dy * dz * r5_inv)
-        bz += c1[i] * ((3 * dz**2 - r2_dip) * r5_inv)
+        # Get Z-dipole field
+        bx1z, by1z, bz1z = dipxyz_vectorized(dx, dy, dz, 2)
         
-        # Handle symmetric y contribution
+        # Get X-dipole field
+        bx1x, by1x, bz1x = dipxyz_vectorized(dx, dy, dz, 0)
+        
+        # Handle symmetric y contribution if needed
         if np.abs(yd) > 1e-10:
             dy2 = y + yd
-            r2_dip2 = dx**2 + dy2**2 + dz**2
-            r5_inv2 = np.power(r2_dip2 + 1e-15, -2.5)
-            bx += c1[i] * (3 * dx * dz * r5_inv2)
-            by += c1[i] * (3 * dy2 * dz * r5_inv2)
-            bz += c1[i] * ((3 * dz**2 - r2_dip2) * r5_inv2)
+            bx2z, by2z, bz2z = dipxyz_vectorized(dx, dy2, dz, 2)
+            bx2x, by2x, bz2x = dipxyz_vectorized(dx, dy2, dz, 0)
+        else:
+            bx2z = by2z = bz2z = 0.0
+            bx2x = by2x = bz2x = 0.0
         
-        # X-component contribution (scaled by sps)
-        bx += c1[i + 12] * sps * ((3 * dx**2 - r2_dip) * r5_inv)
-        by += c1[i + 12] * sps * (3 * dx * dy * r5_inv)
-        bz += c1[i + 12] * sps * (3 * dx * dz * r5_inv)
+        # Z-component contribution (indices 0-11)
+        bx += c1[i] * (bx1z + bx2z)
+        by += c1[i] * (by1z + by2z)
+        bz += c1[i] * (bz1z + bz2z)
         
-        if np.abs(yd) > 1e-10:
-            bx += c1[i + 12] * sps * ((3 * dx**2 - r2_dip2) * r5_inv2)
-            by += c1[i + 12] * sps * (3 * dx * dy2 * r5_inv2)
-            bz += c1[i + 12] * sps * (3 * dx * dz * r5_inv2)
+        # X-component contribution (indices 12-23, scaled by sps)
+        bx += c1[i + 12] * (bx1x + bx2x) * sps
+        by += c1[i + 12] * (by1x + by2x) * sps
+        bz += c1[i + 12] * (bz1x + bz2x) * sps
     
     # Loop contributions
-    for i in range(2):
-        # Circle field from xcentre, radius
-        bx_circ, by_circ, bz_circ = circle_vectorized(
-            x - xcentre[i], y, z, radius[i]
-        )
-        bx += c1[24 + i] * bx_circ
-        by += c1[24 + i] * by_circ
-        bz += c1[24 + i] * bz_circ
+    # First loop uses crosslp
+    r2 = (xcentre[0] + radius[0])**2
+    r = np.sqrt(r2)
+    rmrh = r - rh
+    rprh = r + rh
+    sqm = np.sqrt(rmrh**2 + dr**2)
+    sqp = np.sqrt(rprh**2 + dr**2)
+    c = sqp - sqm
+    q = np.sqrt((rh + 1)**2 + dr**2) - np.sqrt((rh - 1)**2 + dr**2)
+    spsas = sps / r * c / q
+    cpsas = np.sqrt(1 - spsas**2)
+    xoct1 = x * cpsas - z * spsas
+    yoct1 = y
+    zoct1 = x * spsas + z * cpsas
+    
+    bxoct1, byoct1, bzoct1 = crosslp_vectorized(xoct1, yoct1, zoct1, xcentre[0], radius[0], tilt)
+    bx += c1[24] * (bxoct1 * cpsas + bzoct1 * spsas)
+    by += c1[24] * byoct1
+    bz += c1[24] * (-bxoct1 * spsas + bzoct1 * cpsas)
+    
+    # Second loop uses circle
+    r2 = (radius[1] - xcentre[1])**2
+    r = np.sqrt(r2)
+    rmrh = r - rh
+    rprh = r + rh
+    sqm = np.sqrt(rmrh**2 + dr**2)
+    sqp = np.sqrt(rprh**2 + dr**2)
+    c = sqp - sqm
+    q = np.sqrt((rh + 1)**2 + dr**2) - np.sqrt((rh - 1)**2 + dr**2)
+    spsas = sps / r * c / q
+    cpsas = np.sqrt(1 - spsas**2)
+    xoct2 = x * cpsas - z * spsas - xcentre[1]
+    yoct2 = y
+    zoct2 = x * spsas + z * cpsas
+    
+    bx_circ, by_circ, bz_circ = circle_vectorized(xoct2, yoct2, zoct2, radius[1])
+    bx += c1[25] * (bx_circ * cpsas + bz_circ * spsas)
+    by += c1[25] * by_circ
+    bz += c1[25] * (-bx_circ * spsas + bz_circ * cpsas)
+    
+    return bx, by, bz
+
+
+def dipxyz_vectorized(x, y, z, comp):
+    """
+    Vectorized version of dipxyz.
+    Returns the field component for a dipole oriented along a specific axis.
+    comp: 0 for X-dipole, 1 for Y-dipole, 2 for Z-dipole
+    """
+    # Ensure arrays
+    x = np.atleast_1d(x)
+    y = np.atleast_1d(y)
+    z = np.atleast_1d(z)
+    
+    x2 = x**2
+    y2 = y**2
+    z2 = z**2
+    r2 = x2 + y2 + z2
+    
+    # Earth's dipole moment constant
+    xmr5 = 30574 / (r2 * r2 * np.sqrt(r2))
+    xmr53 = 3 * xmr5
+    
+    if comp == 0:  # X-dipole
+        bx = xmr5 * (3 * x2 - r2)
+        by = xmr53 * x * y
+        bz = xmr53 * x * z
+    elif comp == 1:  # Y-dipole
+        bx = xmr53 * x * y
+        by = xmr5 * (3 * y2 - r2)
+        bz = xmr53 * y * z
+    else:  # Z-dipole
+        bx = xmr53 * x * z
+        by = xmr53 * y * z
+        bz = xmr5 * (3 * z2 - r2)
+    
+    return bx, by, bz
+
+
+def crosslp_vectorized(x, y, z, xc, rl, al):
+    """
+    Vectorized version of crosslp.
+    Returns field components of a pair of loops with a common center and diameter,
+    coinciding with the x axis. The loops are inclined to the equatorial plane by
+    the angle al (radians) and shifted in the positive x-direction by the distance xc.
+    """
+    # Ensure arrays
+    x = np.atleast_1d(x)
+    y = np.atleast_1d(y)
+    z = np.atleast_1d(z)
+    
+    cal = np.cos(al)
+    sal = np.sin(al)
+    
+    y1 = y * cal - z * sal
+    z1 = y * sal + z * cal
+    y2 = y * cal + z * sal
+    z2 = -y * sal + z * cal
+    
+    bx1, by1, bz1 = circle_vectorized(x - xc, y1, z1, rl)
+    bx2, by2, bz2 = circle_vectorized(x - xc, y2, z2, rl)
+    
+    bx = bx1 + bx2
+    by = (by1 + by2) * cal + (bz1 - bz2) * sal
+    bz = -(by1 - by2) * sal + (bz1 + bz2) * cal
     
     return bx, by, bz
 
@@ -1188,27 +1412,29 @@ def condip1_vectorized(x, y, z, ps):
     cf4 = cf3 * cf0 - sf3 * sf0
     sf4 = sf3 * cf0 + cf3 * sf0
     
-    cf = np.array([cf0, cf1, cf2, cf3, cf4])
-    sf = np.array([sf0, sf1, sf2, sf3, sf4])
+    # Stack arrays properly for vectorized computation
+    cf = np.stack([cf0, cf1, cf2, cf3, cf4], axis=0)
+    sf = np.stack([sf0, sf1, sf2, sf3, sf4], axis=0)
     
     r2 = ro2 + zsm**2
     r = np.sqrt(r2)
     r_safe = np.where(r < 1e-9, 1e-9, r)
     c = zsm / r_safe
     s = ro / r_safe
+    s_safe = np.where(s < 1e-9, 1e-9, s)
     ch = np.sqrt(0.5 * (1 + c))
     sh = np.sqrt(0.5 * (1 - c))
     ch_safe = np.where(ch < 1e-9, 1e-9, ch)
     sh_safe = np.where(sh < 1e-9, 1e-9, sh)
     tnh = sh / ch_safe
-    cnh = ch / sh_safe
+    cnh = ch_safe / sh_safe
     
     # Conical harmonics (indices 0-4)
     for m in range(5):
         m1 = m + 1
         tnhm = tnh**m1
         cnhm = cnh**m1
-        bt = m1 * cf[m] / (r_safe * s) * (tnhm + cnhm)
+        bt = m1 * cf[m] / (r_safe * s_safe) * (tnhm + cnhm)
         
         if m == 0:
             bf = 0.0
@@ -1396,90 +1622,6 @@ def dipxyz_vectorized(x, y, z, mode):
         return bxz, byz, bzz
 
 
-def interpolate_region3(x, y, z, r, r3, ps, sps, pas, tetr1n, dtet0):
-    """Interpolate field in northern plasma sheet boundary layer."""
-    cps = np.cos(ps)
-    t01 = tetr1n - dtet0
-    t02 = tetr1n + dtet0
-    sqr = np.sqrt(r)
-    
-    # Calculate boundary locations
-    st01as = sqr / np.power(r3 + 1.0/np.sin(t01)**6 - 1.0, 1.0/6.0)
-    st02as = sqr / np.power(r3 + 1.0/np.sin(t02)**6 - 1.0, 1.0/6.0)
-    ct01as = np.sqrt(1 - st01as**2)
-    ct02as = np.sqrt(1 - st02as**2)
-    
-    # Boundary point 1 (high-lat side)
-    xas1 = r * st01as * np.cos(pas)
-    y1 = r * st01as * np.sin(pas)
-    zas1 = r * ct01as
-    x1 = xas1 * cps + zas1 * sps
-    z1 = -xas1 * sps + zas1 * cps
-    
-    # Boundary point 2 (plasma sheet side)
-    xas2 = r * st02as * np.cos(pas)
-    y2 = r * st02as * np.sin(pas)
-    zas2 = r * ct02as
-    x2 = xas2 * cps + zas2 * sps
-    z2 = -xas2 * sps + zas2 * cps
-    
-    # Get fields at boundaries
-    bx1, by1, bz1 = diploop1_vectorized(x1, y1, z1, ps)
-    bx2, by2, bz2 = condip1_vectorized(x2, y2, z2, ps)
-    
-    # Interpolate
-    ss = np.sqrt((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2)
-    ds = np.sqrt((x - x1)**2 + (y - y1)**2 + (z - z1)**2)
-    frac = np.divide(ds, ss, out=np.zeros_like(ds), where=ss > 1e-9)
-    
-    bx = bx1 * (1 - frac) + bx2 * frac
-    by = by1 * (1 - frac) + by2 * frac
-    bz = bz1 * (1 - frac) + bz2 * frac
-    
-    return bx, by, bz
-
-
-def interpolate_region4(x, y, z, r, r3, ps, sps, pas, tetr1s, dtet0):
-    """Interpolate field in southern plasma sheet boundary layer."""
-    cps = np.cos(ps)
-    t01 = tetr1s - dtet0
-    t02 = tetr1s + dtet0
-    sqr = np.sqrt(r)
-    
-    # Calculate boundary locations
-    st01as = sqr / np.power(r3 + 1.0/np.sin(t01)**6 - 1.0, 1.0/6.0)
-    st02as = sqr / np.power(r3 + 1.0/np.sin(t02)**6 - 1.0, 1.0/6.0)
-    ct01as = -np.sqrt(1 - st01as**2)  # Negative for southern hemisphere
-    ct02as = -np.sqrt(1 - st02as**2)
-    
-    # Boundary point 1 (plasma sheet side)
-    xas1 = r * st01as * np.cos(pas)
-    y1 = r * st01as * np.sin(pas)
-    zas1 = r * ct01as
-    x1 = xas1 * cps + zas1 * sps
-    z1 = -xas1 * sps + zas1 * cps
-    
-    # Boundary point 2 (high-lat side)
-    xas2 = r * st02as * np.cos(pas)
-    y2 = r * st02as * np.sin(pas)
-    zas2 = r * ct02as
-    x2 = xas2 * cps + zas2 * sps
-    z2 = -xas2 * sps + zas2 * cps
-    
-    # Get fields at boundaries
-    bx1, by1, bz1 = condip1_vectorized(x1, y1, z1, ps)
-    bx2, by2, bz2 = diploop1_vectorized(x2, y2, z2, ps)
-    
-    # Interpolate
-    ss = np.sqrt((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2)
-    ds = np.sqrt((x - x1)**2 + (y - y1)**2 + (z - z1)**2)
-    frac = np.divide(ds, ss, out=np.zeros_like(ds), where=ss > 1e-9)
-    
-    bx = bx1 * (1 - frac) + bx2 * frac
-    by = by1 * (1 - frac) + by2 * frac
-    bz = bz1 * (1 - frac) + bz2 * frac
-    
-    return bx, by, bz
 
 
 def birk1shld_vectorized(ps, x, y, z):
@@ -1567,32 +1709,40 @@ def birk1shld_vectorized(ps, x, y, z):
 
 
 def circle_vectorized(x, y, z, radius):
-    """Vectorized circular current loop field."""
+    """Vectorized circular current loop field using same approximation as scalar version."""
+    # Ensure arrays
+    x = np.atleast_1d(x)
+    y = np.atleast_1d(y) 
+    z = np.atleast_1d(z)
+    
     rho2 = x**2 + y**2
     rho = np.sqrt(rho2)
     r22 = z**2 + (rho + radius)**2
-    r12 = z**2 + (rho - radius)**2
-    
-    # Safe division
-    r22_safe = np.where(r22 < 1e-9, 1e-9, r22)
-    xk2 = (r22 - r12) / r22_safe
-    
-    # Elliptic integrals
-    m = xk2  # special.ellipkm1 expects m = k^2
-    k_ell = special.ellipk(m)
-    e_ell = special.ellipe(m)
-    
     r2 = np.sqrt(r22)
-    r12_safe = np.where(r12 < 1e-9, 1e-9, r12)
-    rho_safe = np.where(rho < 1e-9, 1e-9, rho)
+    r12 = r22 - 4*rho*radius
+    r32 = 0.5 * (r12 + r22)
+    xk2 = 1 - r12/r22
+    xk2s = 1 - xk2
+    
+    # Use same approximations as scalar version for elliptic integrals
+    dl = np.log(1/xk2s)
+    k = (1.38629436112 + xk2s*(0.09666344259 + xk2s*(0.03590092383 + 
+         xk2s*(0.03742563713 + xk2s*0.01451196212))) +
+         dl*(0.5 + xk2s*(0.12498593597 + xk2s*(0.06880248576 + 
+         xk2s*(0.03328355346 + xk2s*0.00441787012)))))
+    e = (1 + xk2s*(0.44325141463 + xk2s*(0.0626060122 + 
+         xk2s*(0.04757383546 + xk2s*0.01736506451))) +
+         dl*xk2s*(0.2499836831 + xk2s*(0.09200180037 + 
+         xk2s*(0.04069697526 + xk2s*0.00526449639))))
     
     # Field components
-    brho = z / (rho_safe * r2) * ((rho**2 + radius**2 + z**2) / r12_safe * e_ell - k_ell)
+    brho = np.where(rho > 1e-6,
+                    z/(rho2*r2)*(r32/r12*e - k),
+                    np.pi*radius/r2*(radius-rho)/r12*z/(r32-rho2))
     
-    # Handle axis singularity
-    bx = np.where(rho > 1e-6, brho * x / rho_safe, 0.0)
-    by = np.where(rho > 1e-6, brho * y / rho_safe, 0.0)
-    bz = (k_ell - (rho**2 + radius**2 + z**2 - 2 * radius**2) / r12_safe * e_ell) / r2
+    bx = brho * x
+    by = brho * y
+    bz = (k - e*(r32 - 2*radius*radius)/r12) / r2
     
     return bx, by, bz
 
@@ -1601,10 +1751,10 @@ def birk2shl_vectorized(x, y, z, ps):
     """Vectorized shielding for Birkeland region 2."""
     # Model coefficients
     a = np.array([
-        -111.637, 124.540, 110.373, -122.009, 111.944, -129.195,
-        -110.758, 126.564, -0.786, -0.248, 0.802, 0.253,
-        10.728, 0.848, -10.968, -0.858, 13.856, 14.905,
-        10.219, 10.090, 6.340, 14.404, 12.710, 12.839
+        -111.6371348, 124.5402702, 110.3735178, -122.0095905, 111.9448247, -129.1957743,
+        -110.7586562, 126.5649012, -0.7865034384, -0.2483462721, 0.8026023894, 0.2531397188,
+        10.72890902, 0.8483902118, -10.96884315, -0.8583297219, 13.85650567, 14.90554500,
+        10.21914434, 10.09021632, 6.340382460, 14.40432686, 12.71023437, 12.83966657
     ])
     
     p = a[16:18]
@@ -2032,20 +2182,35 @@ def r2inner_vectorized(x, y, z):
     return bx, by, bz
 
 
-def crosslp_vectorized(x, y, z, xc, yc, sc):
-    """Vectorized crossed loop pair contribution."""
+def crosslp_vectorized(x, y, z, xc, rl, al):
+    """Vectorized crossed loop pair contribution.
+    Two loops with common center, inclined by angle al to equatorial plane."""
     # Ensure arrays
     x = np.atleast_1d(x)
     y = np.atleast_1d(y)
     z = np.atleast_1d(z)
     
-    # First loop
-    bx1, by1, bz1 = circle_vectorized(x - xc, y - yc, z, sc)
+    cal = np.cos(al)
+    sal = np.sin(al)
     
-    # Second loop (perpendicular)
-    bx2, by2, bz2 = circle_vectorized(x - xc, y + yc, z, sc)
+    # First loop (rotated by +al)
+    y1 = y * cal - z * sal
+    z1 = y * sal + z * cal
+    bx1, by1, bz1 = circle_vectorized(x - xc, y1, z1, rl)
     
-    return bx1 + bx2, by1 + by2, bz1 + bz2
+    # Second loop (rotated by -al)
+    y2 = y * cal + z * sal
+    z2 = -y * sal + z * cal
+    bx2, by2, bz2 = circle_vectorized(x - xc, y2, z2, rl)
+    
+    # Rotate back
+    by1_rot = by1 * cal + bz1 * sal
+    bz1_rot = -by1 * sal + bz1 * cal
+    
+    by2_rot = by2 * cal - bz2 * sal
+    bz2_rot = by2 * sal + bz2 * cal
+    
+    return bx1 + bx2, by1_rot + by2_rot, bz1_rot + bz2_rot
 
 
 def loops4_vectorized(x, y, z, xc, yc, zc, r, theta, phi):
@@ -2129,11 +2294,13 @@ def bconic_vectorized(x, y, z, nmax):
     ro2 = x**2 + y**2
     ro = np.sqrt(ro2)
     
-    # Safe division
-    ro_safe = np.where(ro < 1e-9, 1e-9, ro)
+    # Handle z-axis case (when ro = 0)
+    on_z_axis = ro < 1e-9
+    ro_safe = np.where(on_z_axis, 1e-9, ro)
     
-    cf = x / ro_safe
-    sf = y / ro_safe
+    # For points on z-axis, set cf=1, sf=0 (arbitrary but consistent)
+    cf = np.where(on_z_axis, 1.0, x / ro_safe)
+    sf = np.where(on_z_axis, 0.0, y / ro_safe)
     
     r2 = ro2 + z**2
     r = np.sqrt(r2)
@@ -2144,12 +2311,13 @@ def bconic_vectorized(x, y, z, nmax):
     ch = np.sqrt(0.5 * (1 + c))
     sh = np.sqrt(0.5 * (1 - c))
     
-    # Safe division for tanh/coth
+    # Safe division for tanh/coth and s
     ch_safe = np.where(ch < 1e-9, 1e-9, ch)
     sh_safe = np.where(sh < 1e-9, 1e-9, sh)
+    s_safe = np.where(s < 1e-9, 1e-9, s)
     
     tnh = sh / ch_safe
-    cnh = ch / sh_safe
+    cnh = ch_safe / sh_safe
     
     # Initialize output arrays
     num_points = x.shape[0] if x.ndim > 0 else 1
@@ -2176,7 +2344,8 @@ def bconic_vectorized(x, y, z, nmax):
         cnhm = cnhm1 * cnh
         
         # Calculate field components
-        bt = m1 * cfm / (r_safe * s) * (tnhm + cnhm)
+        # When on z-axis (s=0), bt calculation would be 0/0 -> set to 0
+        bt = np.where(on_z_axis, 0.0, m1 * cfm / (r_safe * s_safe) * (tnhm + cnhm))
         bf = -0.5 * m1 * sfm / r_safe * (tnhm1 / ch_safe**2 - cnhm1 / sh_safe**2)
         
         tnhm1 = tnhm

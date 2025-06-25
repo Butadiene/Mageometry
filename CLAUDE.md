@@ -17,7 +17,7 @@ This is a Python implementation of the Geopack magnetic field modeling library, 
 
 ### Vectorized Implementations (`geopack/`)
 - **t89_vectorized.py** - Vectorized T89 (50x speedup)
-- **t96_vectorized.py** - Vectorized T96 (85x speedup, pure NumPy)
+- **t96_vectorized.py** - Vectorized T96 (77x speedup, pure NumPy, full implementation)
 - **t01_full_vectorized.py** - Vectorized T01 (2384x speedup)
 - **dipole_vectorized.py** - Vectorized dipole field (250x speedup)
 - **coord_transforms_vectorized.py** - All coordinate transforms
@@ -152,14 +152,16 @@ def function_vectorized(x, y, z):
 ### Completed ✅
 - Dipole field (perfect accuracy)
 - T89 model (full implementation)
-- T96 model (partial - missing Birkeland currents)
+- T96 model (full implementation with all components)
+  - Birkeland currents (birk1tot_02, birk2tot_02) ✅
+  - Interconnection field (intercon) ✅
+  - Tail and ring currents (tailrc96) ✅
+  - Accuracy: 1.72% mean error, 77x speedup
 - T01 model (simplified version)
 - All coordinate transforms
 - Field line tracing
 
 ### TODO
-- T96 Birkeland currents (birk1tot_02, birk2tot_02)
-- T96 interconnection field (intercon)
 - T04 model vectorization
 - IGRF vectorization
 
