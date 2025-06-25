@@ -39,6 +39,9 @@ def t96_vectorized(parmod, ps, x, y, z):
     bx, by, bz : ndarray
         Magnetic field components in GSM system (nT)
     """
+    # Track if input was scalar
+    scalar_input = np.isscalar(x)
+    
     # Convert inputs to numpy arrays
     x = np.atleast_1d(x)
     y = np.atleast_1d(y)
@@ -170,7 +173,11 @@ def t96_vectorized(parmod, ps, x, y, z):
         by[idx] = oimfy[idx] - qy
         bz[idx] = oimfz[idx] - qz
     
-    return bx, by, bz
+    # Return scalar if input was scalar
+    if scalar_input:
+        return bx.item(), by.item(), bz.item()
+    else:
+        return bx, by, bz
 
 
 def calculate_internal_field(parmod, ps, xx, yy, zz, x, y, z, ys, zs,
@@ -445,26 +452,35 @@ def tailrc96_vectorized(sps, x, y, z):
     }
     
     # Coefficient arrays
-    arc = np.array([-3.087, 3.516, 18.81, -13.95, -5.497, 0.171, 2.392, -2.728, 
-                    -14.79, 11.08, 4.388, 0.0249, 0.703, -0.796, -3.835, 2.642, 
-                    -0.240, -0.729, -0.368, 0.133, 2.795, -1.078, 0.801, 0.124, 
-                    0.615, -0.220, -4.424, 1.730, -1.716, -0.230, -0.245, 0.086, 
-                    1.547, -0.656, -0.653, 0.207, 12.75, 11.37, 636.4, 1.752, 
-                    3.604, 12.83, 7.412, 9.434, 676.7, 1.701, 3.580, 14.64])
+    arc = np.array([
+        -3.087699646,3.516259114,18.81380577,-13.95772338,-5.497076303,0.1712890838,
+        2.392629189,-2.728020808,-14.79349936,11.08738083,4.388174084,0.2492163197E-01,
+        0.7030375685,-.7966023165,-3.835041334,2.642228681,-0.2405352424,-0.7297705678,
+        -0.3680255045,0.1333685557,2.795140897,-1.078379954,0.8014028630,0.1245825565,
+        0.6149982835,-0.2207267314,-4.424578723,1.730471572,-1.716313926,-0.2306302941,
+        -0.2450342688,0.8617173961E-01,1.54697858,-0.6569391113,-0.6537525353,0.2079417515,
+        12.75434981,11.37659788,636.4346279,1.752483754,3.604231143,12.83078674,
+        7.412066636,9.434625736,676.7557193,1.701162737,3.580307144,14.64298662])
     
-    atail2 = np.array([.874, -.911, 2.209, -2.159, -7.059, 5.924, -1.916, 1.996, 
-                       -3.877, 3.947, 11.38, -8.343, 1.194, -1.244, 3.738, -4.406, 
-                       -20.66, 3.020, .218, -.099, -.927, .155, .699, -.081, 
-                       -.756, .468, 4.266, -.371, -3.920, .022, .703, -.549, 
-                       -6.675, .827, -2.234, -1.622, 5.187, 6.802, 39.13, 2.784, 
-                       6.979, 25.71, 4.495, 8.068, 93.47, 4.158, 9.313, 57.18])
+    atail2 = np.array([
+        .8747515218,-.9116821411,2.209365387,-2.159059518,-7.059828867,5.924671028,
+        -1.916935691,1.996707344,-3.877101873,3.947666061,11.38715899,-8.343210833,
+        1.194109867,-1.244316975,3.73895491,-4.406522465,-20.66884863,3.020952989,
+        .2189908481,-.09942543549,-.927225562,.1555224669,.6994137909,-.08111721003,
+        -.7565493881,.4686588792,4.266058082,-.3717470262,-3.920787807,.02298569870,
+        .7039506341,-.5498352719,-6.675140817,.8279283559,-2.234773608,-1.622656137,
+        5.187666221,6.802472048,39.13543412,2.784722096,6.979576616,25.71716760,
+        4.495005873,8.068408272,93.47887103,4.158030104,9.313492566,57.18240483])
     
-    atail3 = np.array([-19091., -3011., 20582., 4242., -2377., -1504., 19884., 2725., 
-                       -21389., -3990., 2401., 1548., -946., 490., 986., -489., 
-                       -67.9, 8.71, -45.1, -10.7, 210.7, 11.41, -178.0, .755, 
-                       339.3, 9.90, 69.5, -118.0, 22.8, 45.9, -425., 15.4, 
-                       118.2, 65.5, -201., -14.5, 19.6, 20.3, 86.4, 22.5, 
-                       23.4, 48.4, 24.6, 123.5, 223.5, 39.5, 65.8, 266.2])
+    atail3 = np.array([
+        -19091.95061,-3011.613928,20582.16203,4242.918430,-2377.091102,-1504.820043,
+        19884.04650,2725.150544,-21389.04845,-3990.475093,2401.610097,1548.171792,
+        -946.5493963,490.1528941,986.9156625,-489.3265930,-67.99278499,8.711175710,
+        -45.15734260,-10.76106500,210.7927312,11.41764141,-178.0262808,.7558830028,
+        339.3806753,9.904695974,69.50583193,-118.0271581,22.85935896,45.91014857,
+        -425.6607164,15.47250738,118.2988915,65.58594397,-201.4478068,-14.57062940,
+        19.69877970,20.30095680,86.45407420,22.50403727,23.41617329,48.48140573,
+        24.61031329,123.5395974,223.5367692,39.50824342,65.83385762,266.2948657])
     
     # Ring current
     wx, wy, wz = shlcar3x3_vectorized(arc, x, y, z, sps)
@@ -509,47 +525,45 @@ def shlcar3x3_vectorized(a, x, y, z, sps):
                 r = a[39 + k]
                 s = a[45 + k]
                 
+                if m == 0:
+                    cypi = np.cos(y / p)
+                    sypi = np.sin(y / p)
+                    szrk = np.sin(z / r)
+                    czrk = np.cos(z / r)
+                    sqpr = np.sqrt(1 / p**2 + 1 / r**2)
+                    epr = np.exp(x * sqpr)
+                    
+                    dx = -sqpr * epr * cypi * szrk
+                    dy = epr / p * sypi * szrk
+                    dz = -epr / r * cypi * czrk
+                else:  # m == 1
+                    cyqi = np.cos(y / q)
+                    syqi = np.sin(y / q)
+                    czsk = np.cos(z / s)
+                    szsk = np.sin(z / s)
+                    sqqs = np.sqrt(1 / q**2 + 1 / s**2)
+                    eqs = np.exp(x * sqqs)
+                    
+                    dx = -sps * sqqs * eqs * cyqi * czsk
+                    dy = sps * eqs / q * syqi * czsk
+                    dz = sps * eqs / s * cyqi * szsk
+                
                 for n in range(2):
-                    if m == 0:
-                        cypi = np.cos(y / p)
-                        sypi = np.sin(y / p)
-                        szrk = np.sin(z / r)
-                        czrk = np.cos(z / r)
-                        sqpr = np.sqrt(1 / p**2 + 1 / r**2)
-                        epr = np.exp(x * sqpr)
-                        
-                        dx_base = -sqpr * epr * cypi * szrk
-                        dy_base = epr / p * sypi * szrk
-                        dz_base = -epr / r * cypi * czrk
-                        
-                        if n == 0:
-                            hx += a[l] * dx_base
-                            hy += a[l] * dy_base
-                            hz += a[l] * dz_base
+                    if n == 0:
+                        hx += a[l] * dx
+                        hy += a[l] * dy
+                        hz += a[l] * dz
+                    else:
+                        if m == 0:
+                            # For n=1, reuse dx,dy,dz and multiply by cps
+                            hx += a[l] * dx * cps
+                            hy += a[l] * dy * cps
+                            hz += a[l] * dz * cps
                         else:
-                            hx += a[l] * dx_base * cps
-                            hy += a[l] * dy_base * cps
-                            hz += a[l] * dz_base * cps
-                    else:  # m == 1
-                        cyqi = np.cos(y / q)
-                        syqi = np.sin(y / q)
-                        czsk = np.cos(z / s)
-                        szsk = np.sin(z / s)
-                        sqqs = np.sqrt(1 / q**2 + 1 / s**2)
-                        eqs = np.exp(x * sqqs)
-                        
-                        dx_base = -sps * sqqs * eqs * cyqi * czsk
-                        dy_base = sps * eqs / q * syqi * czsk
-                        dz_base = sps * eqs / s * cyqi * szsk
-                        
-                        if n == 0:
-                            hx += a[l] * dx_base
-                            hy += a[l] * dy_base
-                            hz += a[l] * dz_base
-                        else:
-                            hx += a[l] * dx_base * s3ps
-                            hy += a[l] * dy_base * s3ps
-                            hz += a[l] * dz_base * s3ps
+                            # For n=1, reuse dx,dy,dz and multiply by s3ps
+                            hx += a[l] * dx * s3ps
+                            hy += a[l] * dy * s3ps
+                            hz += a[l] * dz * s3ps
                     
                     l += 1
     
@@ -1105,6 +1119,16 @@ def diploop1_vectorized(x, y, z, ps):
 
 def condip1_vectorized(x, y, z, ps):
     """Vectorized confined dipole for plasma sheet region."""
+    # Global constants from original T96 
+    dx = -0.16
+    scalein = 0.08
+    scaleout = 0.4
+    
+    # Dipole positions from original T96
+    xx2 = np.array([-10.,-7,-4,-4,0,4,4,7,10,0,0,0,0,0])
+    yy2 = np.array([3.,6,3,9,6,3,9,6,3,0,0,0,0,0])
+    zz2 = np.array([20.,20,4,20,4,4,20,20,20,2,3,4.5,7,10])
+    
     # Ensure arrays
     x = np.atleast_1d(x)
     y = np.atleast_1d(y)
@@ -2040,33 +2064,59 @@ def loops4_vectorized(x, y, z, xc, yc, zc, r, theta, phi):
     by_total = np.zeros_like(y)
     bz_total = np.zeros_like(z)
     
-    # Loop over 4 quadrants
-    for sign_y in [-1, 1]:
-        for sign_z in [-1, 1]:
-            # Transform to loop coordinates
-            xs = (x - xc) * cp + sign_y * (y - sign_y * yc) * sp
-            yss = sign_y * (y - sign_y * yc) * cp - (x - xc) * sp
-            zs = z - sign_z * zc
-            
-            xss = xs * ct - zs * st
-            zss = zs * ct + xs * st
-            
-            # Get field from circular loop
-            bxss, bys, bzss = circle_vectorized(xss, yss, zss, r)
-            
-            # Transform back
-            bxs = bxss * ct + bzss * st
-            bzl = bzss * ct - bxss * st
-            
-            bxl = bxs * cp - sign_y * bys * sp
-            byl = sign_y * (bxs * sp + bys * cp)
-            
-            # Add to total
-            bx_total += bxl
-            by_total += byl
-            bz_total += bzl
+    # 1st quadrant:
+    xs = (x - xc) * cp + (y - yc) * sp
+    yss = (y - yc) * cp - (x - xc) * sp
+    zs = z - zc
+    xss = xs * ct - zs * st
+    zss = zs * ct + xs * st
     
-    return bx_total, by_total, bz_total
+    bxss, bys, bzss = circle_vectorized(xss, yss, zss, r)
+    bxs = bxss * ct + bzss * st
+    bz1 = bzss * ct - bxss * st
+    bx1 = bxs * cp - bys * sp
+    by1 = bxs * sp + bys * cp
+    
+    # 2nd quadrant:
+    xs = (x - xc) * cp - (y + yc) * sp
+    yss = (y + yc) * cp + (x - xc) * sp
+    zs = z - zc
+    xss = xs * ct - zs * st
+    zss = zs * ct + xs * st
+    
+    bxss, bys, bzss = circle_vectorized(xss, yss, zss, r)
+    bxs = bxss * ct + bzss * st
+    bz2 = bzss * ct - bxss * st
+    bx2 = bxs * cp + bys * sp
+    by2 = -bxs * sp + bys * cp
+    
+    # 3rd quadrant:
+    xs = -(x - xc) * cp + (y + yc) * sp
+    yss = -(y + yc) * cp - (x - xc) * sp
+    zs = z + zc
+    xss = xs * ct - zs * st
+    zss = zs * ct + xs * st
+    
+    bxss, bys, bzss = circle_vectorized(xss, yss, zss, r)
+    bxs = bxss * ct + bzss * st
+    bz3 = bzss * ct - bxss * st
+    bx3 = -bxs * cp - bys * sp
+    by3 = bxs * sp - bys * cp
+    
+    # 4th quadrant:
+    xs = -(x - xc) * cp - (y - yc) * sp
+    yss = -(y - yc) * cp + (x - xc) * sp
+    zs = z + zc
+    xss = xs * ct - zs * st
+    zss = zs * ct + xs * st
+    
+    bxss, bys, bzss = circle_vectorized(xss, yss, zss, r)
+    bxs = bxss * ct + bzss * st
+    bz4 = bzss * ct - bxss * st
+    bx4 = -bxs * cp + bys * sp
+    by4 = -bxs * sp - bys * cp
+    
+    return bx1 + bx2 + bx3 + bx4, by1 + by2 + by3 + by4, bz1 + bz2 + bz3 + bz4
 
 
 def bconic_vectorized(x, y, z, nmax):
