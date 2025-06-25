@@ -1860,16 +1860,16 @@ def r2sheet_vectorized(x, y, z):
     
     # Calculate transition functions
     t1x = xks / np.sqrt(xks**2 + pnonx[5]**2)
-    t2x = pnonx[6]**3 / np.power(xks**2 + pnonx[6]**2, 1.5)
-    t3x = xks / np.power(xks**2 + pnonx[7]**2, 2.5) * 3.493856 * pnonx[7]**4
+    t2x = pnonx[6]**3 / np.sqrt(xks**2 + pnonx[6]**2)**3
+    t3x = xks / np.sqrt(xks**2 + pnonx[7]**2)**5 * 3.493856 * pnonx[7]**4
     
     t1y = xks / np.sqrt(xks**2 + pnony[5]**2)
-    t2y = pnony[6]**3 / np.power(xks**2 + pnony[6]**2, 1.5)
-    t3y = xks / np.power(xks**2 + pnony[7]**2, 2.5) * 3.493856 * pnony[7]**4
+    t2y = pnony[6]**3 / np.sqrt(xks**2 + pnony[6]**2)**3
+    t3y = xks / np.sqrt(xks**2 + pnony[7]**2)**5 * 3.493856 * pnony[7]**4
     
     t1z = xks / np.sqrt(xks**2 + pnonz[5]**2)
-    t2z = pnonz[6]**3 / np.power(xks**2 + pnonz[6]**2, 1.5)
-    t3z = xks / np.power(xks**2 + pnonz[7]**2, 2.5) * 3.493856 * pnonz[7]**4
+    t2z = pnonz[6]**3 / np.sqrt(xks**2 + pnonz[6]**2)**3
+    t3z = xks / np.sqrt(xks**2 + pnonz[7]**2)**5 * 3.493856 * pnonz[7]**4
     
     # Calculate geometric factors
     rho2 = x**2 + y**2
@@ -1886,6 +1886,7 @@ def r2sheet_vectorized(x, y, z):
     c2p = c1p**2 - s1p**2
     s3p = s2p * c1p + c2p * s1p
     c3p = c2p * c1p - s2p * s1p
+    s4p = s3p * c1p + c3p * s1p
     ct = z / r_safe
     st = rho / r_safe
     
@@ -1930,26 +1931,26 @@ def r2sheet_vectorized(x, y, z):
                 c2p * (a_coef[72] + a_coef[73]*t1x + a_coef[74]*t2x + a_coef[75]*t3x) +
                 c3p * (a_coef[76] + a_coef[77]*t1x + a_coef[78]*t2x + a_coef[79]*t3x)))
     
-    by = (s1y * ((b_coef[0] + b_coef[1]*t1y + b_coef[2]*t2y + b_coef[3]*t3y) +
-                 s1p * (b_coef[4] + b_coef[5]*t1y + b_coef[6]*t2y + b_coef[7]*t3y) +
-                 s2p * (b_coef[8] + b_coef[9]*t1y + b_coef[10]*t2y + b_coef[11]*t3y) +
-                 s3p * (b_coef[12] + b_coef[13]*t1y + b_coef[14]*t2y + b_coef[15]*t3y)) +
-          s2y * ((b_coef[16] + b_coef[17]*t1y + b_coef[18]*t2y + b_coef[19]*t3y) +
-                 s1p * (b_coef[20] + b_coef[21]*t1y + b_coef[22]*t2y + b_coef[23]*t3y) +
-                 s2p * (b_coef[24] + b_coef[25]*t1y + b_coef[26]*t2y + b_coef[27]*t3y) +
-                 s3p * (b_coef[28] + b_coef[29]*t1y + b_coef[30]*t2y + b_coef[31]*t3y)) +
-          s3y * ((b_coef[32] + b_coef[33]*t1y + b_coef[34]*t2y + b_coef[35]*t3y) +
-                 s1p * (b_coef[36] + b_coef[37]*t1y + b_coef[38]*t2y + b_coef[39]*t3y) +
-                 s2p * (b_coef[40] + b_coef[41]*t1y + b_coef[42]*t2y + b_coef[43]*t3y) +
-                 s3p * (b_coef[44] + b_coef[45]*t1y + b_coef[46]*t2y + b_coef[47]*t3y)) +
-          s4y * ((b_coef[48] + b_coef[49]*t1y + b_coef[50]*t2y + b_coef[51]*t3y) +
-                 s1p * (b_coef[52] + b_coef[53]*t1y + b_coef[54]*t2y + b_coef[55]*t3y) +
-                 s2p * (b_coef[56] + b_coef[57]*t1y + b_coef[58]*t2y + b_coef[59]*t3y) +
-                 s3p * (b_coef[60] + b_coef[61]*t1y + b_coef[62]*t2y + b_coef[63]*t3y)) +
-          s5y * ((b_coef[64] + b_coef[65]*t1y + b_coef[66]*t2y + b_coef[67]*t3y) +
-                 s1p * (b_coef[68] + b_coef[69]*t1y + b_coef[70]*t2y + b_coef[71]*t3y) +
-                 s2p * (b_coef[72] + b_coef[73]*t1y + b_coef[74]*t2y + b_coef[75]*t3y) +
-                 s3p * (b_coef[76] + b_coef[77]*t1y + b_coef[78]*t2y + b_coef[79]*t3y)))
+    by = (s1y * (s1p * (b_coef[0] + b_coef[1]*t1y + b_coef[2]*t2y + b_coef[3]*t3y) +
+                 s2p * (b_coef[4] + b_coef[5]*t1y + b_coef[6]*t2y + b_coef[7]*t3y) +
+                 s3p * (b_coef[8] + b_coef[9]*t1y + b_coef[10]*t2y + b_coef[11]*t3y) +
+                 s4p * (b_coef[12] + b_coef[13]*t1y + b_coef[14]*t2y + b_coef[15]*t3y)) +
+          s2y * (s1p * (b_coef[16] + b_coef[17]*t1y + b_coef[18]*t2y + b_coef[19]*t3y) +
+                 s2p * (b_coef[20] + b_coef[21]*t1y + b_coef[22]*t2y + b_coef[23]*t3y) +
+                 s3p * (b_coef[24] + b_coef[25]*t1y + b_coef[26]*t2y + b_coef[27]*t3y) +
+                 s4p * (b_coef[28] + b_coef[29]*t1y + b_coef[30]*t2y + b_coef[31]*t3y)) +
+          s3y * (s1p * (b_coef[32] + b_coef[33]*t1y + b_coef[34]*t2y + b_coef[35]*t3y) +
+                 s2p * (b_coef[36] + b_coef[37]*t1y + b_coef[38]*t2y + b_coef[39]*t3y) +
+                 s3p * (b_coef[40] + b_coef[41]*t1y + b_coef[42]*t2y + b_coef[43]*t3y) +
+                 s4p * (b_coef[44] + b_coef[45]*t1y + b_coef[46]*t2y + b_coef[47]*t3y)) +
+          s4y * (s1p * (b_coef[48] + b_coef[49]*t1y + b_coef[50]*t2y + b_coef[51]*t3y) +
+                 s2p * (b_coef[52] + b_coef[53]*t1y + b_coef[54]*t2y + b_coef[55]*t3y) +
+                 s3p * (b_coef[56] + b_coef[57]*t1y + b_coef[58]*t2y + b_coef[59]*t3y) +
+                 s4p * (b_coef[60] + b_coef[61]*t1y + b_coef[62]*t2y + b_coef[63]*t3y)) +
+          s5y * (s1p * (b_coef[64] + b_coef[65]*t1y + b_coef[66]*t2y + b_coef[67]*t3y) +
+                 s2p * (b_coef[68] + b_coef[69]*t1y + b_coef[70]*t2y + b_coef[71]*t3y) +
+                 s3p * (b_coef[72] + b_coef[73]*t1y + b_coef[74]*t2y + b_coef[75]*t3y) +
+                 s4p * (b_coef[76] + b_coef[77]*t1y + b_coef[78]*t2y + b_coef[79]*t3y)))
     
     bz = (s1z * ((c_coef[0] + c_coef[1]*t1z + c_coef[2]*t2z + c_coef[3]*t3z) +
                  c1p * (c_coef[4] + c_coef[5]*t1z + c_coef[6]*t2z + c_coef[7]*t3z) +
