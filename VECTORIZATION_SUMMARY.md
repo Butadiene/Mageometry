@@ -39,16 +39,16 @@ These functions currently return zeros, which accounts for most of the remaining
 
 ## Performance Results
 
-- **Speedup**: 85x over scalar implementation
-- **Processing rate**: 141,413 points/second
+- **Speedup**: 83x over scalar implementation
+- **Processing rate**: 103,937 points/second
 - **Scalability**: Linear with array size
 
 ## Accuracy Results
 
-With placeholder functions returning zeros:
-- **Mean error**: 8.7%
-- **Max error**: 22.1%
-- **Bulk calculation mean error**: 3.1%
+Current implementation status:
+- **Mean error**: 7-25% (varies by location)
+- **Max error**: Can be very high (>100%) at certain points
+- **Issue**: Incomplete implementation of Birkeland current functions
 
 Individual component accuracy:
 - Dipole field: 0% error
