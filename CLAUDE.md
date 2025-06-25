@@ -6,6 +6,35 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Python implementation of the Geopack magnetic field modeling library, originally written in Fortran by N.A. Tsyganenko. The project includes both scalar and vectorized implementations of various magnetospheric field models.
 
+## Project Structure
+
+```
+geopack-vectorize/
+├── geopack/                    # Main library code
+│   ├── geopack.py             # Core module with IGRF and coordinates
+│   ├── t89.py                 # T89 scalar implementation
+│   ├── t96.py                 # T96 scalar implementation
+│   ├── t01.py                 # T01 scalar implementation
+│   ├── t04.py                 # T04 scalar implementation
+│   ├── t89_vectorized.py      # T89 vectorized (50x speedup)
+│   ├── t96_vectorized.py      # T96 vectorized (30x speedup, full implementation)
+│   ├── t01_full_vectorized.py # T01 vectorized (2384x speedup)
+│   ├── dipole_vectorized.py   # Vectorized dipole field (250x speedup)
+│   ├── coord_transforms_vectorized.py  # Vectorized coordinate transforms
+│   └── trace_optimized.py     # Optimized field line tracing (265x speedup)
+│
+├── docs/                      # Documentation
+│   ├── vectorization/        # Vectorization guides and progress
+│   ├── accuracy_reports/     # Accuracy evaluation results
+│   └── FILE_ORGANIZATION.md  # File organization guide
+│
+├── tests/                    # Test scripts
+│   ├── debug/               # Debug and analysis scripts
+│   └── validation/          # Validation and benchmark scripts
+│
+└── archive/                 # Archived/experimental code
+```
+
 ## Key Components
 
 ### Core Library (`geopack/`)
@@ -17,7 +46,7 @@ This is a Python implementation of the Geopack magnetic field modeling library, 
 
 ### Vectorized Implementations (`geopack/`)
 - **t89_vectorized.py** - Vectorized T89 (50x speedup)
-- **t96_vectorized.py** - Vectorized T96 (77x speedup, pure NumPy, full implementation)
+- **t96_vectorized.py** - Vectorized T96 (30x speedup for batch, full implementation)
 - **t01_full_vectorized.py** - Vectorized T01 (2384x speedup)
 - **dipole_vectorized.py** - Vectorized dipole field (250x speedup)
 - **coord_transforms_vectorized.py** - All coordinate transforms
@@ -45,14 +74,15 @@ pip install numpy scipy
 # Run original test suite
 python geopack/test_geopack1.py
 
-# Run vectorization tests
-python test_t96_vectorized.py
-python test_t89_vectorized.py
-python test_coord_transforms_vectorized.py
-python benchmark_realistic.py
+# Run accuracy evaluation
+python tests/validation/evaluate_t96_full_accuracy.py
+
+# Run specific validation tests
+python tests/validation/test_t96_final.py
+python tests/validation/test_t89_vectorized.py
 
 # Or using unittest discovery
-python -m unittest discover
+python -m unittest discover tests/
 ```
 
 ### Building the package
@@ -66,7 +96,7 @@ python setup.py install
 
 ## Vectorization Guidelines
 
-When implementing vectorized versions of functions, follow the principles in `direction_vectorize.md`:
+When implementing vectorized versions of functions, follow the principles in `docs/vectorization/direction_vectorize.md`:
 
 ### 1. Input Handling
 ```python
@@ -151,15 +181,16 @@ def function_vectorized(x, y, z):
 
 ### Completed ✅
 - Dipole field (perfect accuracy)
-- T89 model (full implementation)
+- T89 model (full implementation, 50x speedup)
 - T96 model (full implementation with all components)
   - Birkeland currents (birk1tot_02, birk2tot_02) ✅
   - Interconnection field (intercon) ✅
   - Tail and ring currents (tailrc96) ✅
-  - Accuracy: 1.72% mean error, 77x speedup
-- T01 model (simplified version)
+  - Accuracy: Max relative error < 1.8e-08 (excellent)
+  - Performance: 30x speedup for batch processing
+- T01 model (simplified version, 2384x speedup)
 - All coordinate transforms
-- Field line tracing
+- Field line tracing (265x speedup)
 
 ### TODO
 - T04 model vectorization
@@ -204,6 +235,16 @@ y_arr = np.array([...])
 z_arr = np.array([...])
 bx_arr, by_arr, bz_arr = t96_vectorized(parmod, ps, x_arr, y_arr, z_arr)
 ```
+
+## Key Documentation
+
+### Accuracy Reports
+- `docs/accuracy_reports/T96_VECTORIZATION_ACCURACY_REPORT.md` - Comprehensive T96 accuracy analysis
+- `docs/accuracy_reports/T96_VECTORIZATION_SUMMARY.md` - T96 implementation summary
+
+### Development Guides
+- `docs/vectorization/direction_vectorize.md` - Core vectorization principles
+- `docs/FILE_ORGANIZATION.md` - Project structure guide
 
 ## References
 

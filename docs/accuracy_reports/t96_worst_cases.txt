@@ -1,0 +1,92 @@
+Top 10 worst cases by relative error:
+
+Case 1:
+  Position: (-45.735270, 5.020243, -0.674255)
+  Parameters: Pdyn=7.779, Dst=-75.9, ByIMF=-0.274, BzIMF=-3.473
+  Tilt: -15.32 degrees
+  Scalar: (6.551219, -0.291969, 2.460755)
+  Vector: (6.551219, -0.291969, 2.460755)
+  Difference: (-9.27e-09, 7.26e-09, -1.25e-07)
+  Relative error: 1.80e-08
+
+Case 2:
+  Position: (-38.314246, 1.208450, -0.187064)
+  Parameters: Pdyn=7.876, Dst=-197.5, ByIMF=-5.268, BzIMF=-7.051
+  Tilt: 8.77 degrees
+  Scalar: (-12.678799, -0.018944, 4.212267)
+  Vector: (-12.678799, -0.018944, 4.212267)
+  Difference: (2.29e-08, -3.36e-09, -2.01e-07)
+  Relative error: 1.51e-08
+
+Case 3:
+  Position: (-32.261371, -9.423296, 0.011530)
+  Parameters: Pdyn=5.701, Dst=-181.2, ByIMF=9.828, BzIMF=-5.766
+  Tilt: -19.19 degrees
+  Scalar: (4.909961, 1.608051, 4.205009)
+  Vector: (4.909961, 1.608051, 4.205009)
+  Difference: (-3.95e-10, -1.36e-08, -7.92e-08)
+  Relative error: 1.21e-08
+
+Case 4:
+  Position: (-31.639338, -9.040407, 1.384397)
+  Parameters: Pdyn=4.632, Dst=-84.9, ByIMF=-4.318, BzIMF=0.518
+  Tilt: 27.38 degrees
+  Scalar: (0.160864, -0.497019, 2.388482)
+  Vector: (0.160864, -0.497019, 2.388482)
+  Difference: (-3.27e-09, 2.20e-09, -2.67e-08)
+  Relative error: 1.10e-08
+
+Case 5:
+  Position: (-22.734668, 13.532240, 0.188899)
+  Parameters: Pdyn=3.617, Dst=11.3, ByIMF=2.136, BzIMF=-6.286
+  Tilt: -18.54 degrees
+  Scalar: (-0.268248, -0.040848, 2.495666)
+  Vector: (-0.268248, -0.040848, 2.495666)
+  Difference: (5.89e-09, 1.54e-08, -1.99e-08)
+  Relative error: 1.03e-08
+
+Case 6:
+  Position: (-41.187563, -9.844914, -4.798041)
+  Parameters: Pdyn=9.485, Dst=48.5, ByIMF=8.514, BzIMF=-0.570
+  Tilt: -24.30 degrees
+  Scalar: (-18.361509, -1.140658, 2.646553)
+  Vector: (-18.361509, -1.140658, 2.646553)
+  Difference: (6.14e-09, -1.75e-08, -1.91e-07)
+  Relative error: 1.03e-08
+
+Case 7:
+  Position: (-43.608056, 0.043938, 3.070930)
+  Parameters: Pdyn=7.392, Dst=-51.2, ByIMF=-8.240, BzIMF=-6.210
+  Tilt: 5.89 degrees
+  Scalar: (15.510538, -0.326791, 2.685551)
+  Vector: (15.510538, -0.326791, 2.685550)
+  Difference: (-2.70e-09, -9.94e-12, -1.54e-07)
+  Relative error: 9.77e-09
+
+Case 8:
+  Position: (-35.093938, -8.305718, -3.508253)
+  Parameters: Pdyn=9.929, Dst=-31.4, ByIMF=7.318, BzIMF=-4.286
+  Tilt: -16.24 degrees
+  Scalar: (-18.655557, -1.547760, 3.611201)
+  Vector: (-18.655557, -1.547760, 3.611201)
+  Difference: (1.42e-08, -4.17e-09, -1.73e-07)
+  Relative error: 9.10e-09
+
+Case 9:
+  Position: (0.697616, 1.533923, 2.506659)
+  Parameters: Pdyn=3.508, Dst=30.8, ByIMF=-5.541, BzIMF=-8.313
+  Tilt: 16.78 degrees
+  Scalar: (-0.963924, -16.179085, -8.107135)
+  Vector: (-0.963924, -16.179085, -8.107135)
+  Difference: (1.01e-07, -1.45e-08, -9.52e-09)
+  Relative error: 5.64e-09
+
+Case 10:
+  Position: (-27.965116, 3.060273, -1.225481)
+  Parameters: Pdyn=8.944, Dst=-23.2, ByIMF=-8.446, BzIMF=-1.970
+  Tilt: 4.96 degrees
+  Scalar: (-21.155560, 0.829127, 0.978384)
+  Vector: (-21.155560, 0.829127, 0.978384)
+  Difference: (2.19e-08, -8.15e-09, -1.07e-07)
+  Relative error: 5.16e-09
+
