@@ -43,13 +43,16 @@ def t96_vectorized(parmod, ps, x, y, z):
     bx, by, bz : ndarray
         Magnetic field components in GSM system (nT)
     """
-    # Track if input was scalar
-    scalar_input = np.isscalar(x)
+    # Track if all inputs were scalar
+    scalar_input = np.isscalar(x) and np.isscalar(y) and np.isscalar(z)
     
     # Convert inputs to numpy arrays
     x = np.atleast_1d(x)
     y = np.atleast_1d(y)
     z = np.atleast_1d(z)
+    
+    # Broadcast arrays to same shape
+    x, y, z = np.broadcast_arrays(x, y, z)
     
     # Extract parameters
     pdyn, dst, byimf, bzimf = parmod[0:4]
