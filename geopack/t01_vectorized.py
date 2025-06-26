@@ -179,9 +179,12 @@ def extall_vectorized(iopgen, iopt, iopb, iopr, a, ntot, pdyn, dst, byimf, bzimf
     xss = x.copy()
     zss = z.copy()
     
+    # Use fixed RH2 value from scalar version
+    rh2 = -5.2
+    
     # Vectorized iteration (typically converges in 3-5 iterations)
     for _ in range(10):  # Maximum iterations
-        rh = rh0 + a[41] * (zss / r) ** 2
+        rh = rh0 + rh2 * (zss / r) ** 2
         sinpsas = sps / (1 + (r / rh) ** 3) ** 0.33333333
         cospsas = np.sqrt(1 - sinpsas**2)
         zss_new = x * sinpsas + z * cospsas
@@ -399,20 +402,17 @@ def shlcar3x3_vectorized(x, y, z, ps):
     y = np.atleast_1d(y)
     z = np.atleast_1d(z)
     
-    # Coefficients for cartesian harmonics
+    # 36 coefficients arranged as 18 pairs
     a = np.array([
-        -901.2327248, 895.8011176, -817.6208321, 
-        -845.5880889, 86.58542841, 336.8781402, 
-        -329.3619944, -311.2947120, 31.94469304,
-        308.6011161, 1.108499952, -178.7273264,
-        -135.3661268, -163.8340965, 1.268504980,
-        211.0306584, 190.0770005, 46.68410317,
-        70.27632151, -80.40293968, 9.477694716,
-        -43.48696686, -57.46048793, -4.435456436,
-        59.62562556, 62.45797660, -21.33287025,
-        -22.18570434, -2.041006865, 5.676859735,
-        12.11087245, 11.40532200, 3.157577227,
-        5.011418206, -1.159126037, 0.831229176
+        -901.2327248, 895.8011176, -817.6208321, -845.5880889,
+        86.58542841, 336.8781402, -329.3619944, -311.2947120,
+        31.94469304, 308.6011161, 1.108499952, -178.7273264,
+        -135.3661268, -163.8340965, 1.268504980, 211.0306584,
+        190.0770005, 46.68410317, 70.27632151, -80.40293968,
+        9.477694716, -43.48696686, -57.46048793, -4.435456436,
+        59.62562556, 62.45797660, -21.33287025, -22.18570434,
+        -2.041006865, 5.676859735, 12.11087245, 11.40532200,
+        3.157577227, 5.011418206, -1.159126037, 0.831229176
     ])
     
     cps = np.cos(ps)
@@ -425,24 +425,36 @@ def shlcar3x3_vectorized(x, y, z, ps):
     hz = np.zeros_like(z)
     
     l = 0
-    for m in range(2):  # m = 1, 2
-        for i in range(3):  # i = 1, 2, 3
-            for k in range(3):  # k = 1, 2, 3
-                exp_term = np.exp(x / (a[l+12] if m == 0 else a[l+12]))
-                
-                if m == 0:  # m = 1
-                    coeff = (a[l] + a[l+1] * s3ps) * exp_term
-                    hx += coeff * z**k * y**i
-                    hy += coeff * i * z**k * y**(i-1) * (a[l+12] if m == 0 else a[l+12])
-                    hz += coeff * k * z**(k-1) * y**i * (a[l+12] if m == 0 else a[l+12])
+    for m in range(1, 3):  # m = 1, 2
+        for i in range(1, 4):  # i = 1, 2, 3
+            for k in range(1, 4):  # k = 1, 2, 3
+                if m == 1:
+                    # Use pairs of coefficients
+                    coeff = a[l] + a[l+1] * s3ps
+                    hx += coeff * z**k * y**i * np.exp(x / 3.0)
+                    
+                    # Handle y**(i-1) and z**(k-1) safely
+                    if i > 1:
+                        hy += coeff * i * z**k * y**(i-1) * np.exp(x / 3.0) / 3.0
+                    if k > 1:
+                        hz += coeff * k * z**(k-1) * y**i * np.exp(x / 3.0) / 3.0
                 else:  # m = 2
                     cypi = a[l] * cps + a[l+1] * sps
                     sypi = a[l] * sps - a[l+1] * cps
-                    hx += exp_term * (cypi * z**k * y**i + sypi * z**i * y**k)
-                    hy += exp_term * (cypi * i * z**k * y**(i-1) * a[l+12] + 
-                                     sypi * k * z**i * y**(k-1) * a[l+12])
-                    hz += exp_term * (cypi * k * z**(k-1) * y**i * a[l+12] + 
-                                     sypi * i * z**(i-1) * y**k * a[l+12])
+                    exp_factor = np.exp(x / 3.0)
+                    
+                    hx += exp_factor * (cypi * z**k * y**i + sypi * z**i * y**k)
+                    
+                    # Safe computation of derivatives
+                    if i > 1:
+                        hy += exp_factor * cypi * i * z**k * y**(i-1) / 3.0
+                    if k > 1:
+                        hy += exp_factor * sypi * k * z**i * y**(k-1) / 3.0
+                    
+                    if k > 1:
+                        hz += exp_factor * cypi * k * z**(k-1) * y**i / 3.0
+                    if i > 1:
+                        hz += exp_factor * sypi * i * z**(i-1) * y**k / 3.0
                 
                 l += 2
     
