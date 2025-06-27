@@ -18,7 +18,6 @@ geopack-vectorize/
 │   ├── t04.py                 # T04 scalar implementation
 │   ├── t89_vectorized.py      # T89 vectorized (50x speedup)
 │   ├── t96_vectorized.py      # T96 vectorized (30x speedup, full implementation)
-│   ├── t01_full_vectorized.py # T01 vectorized (2384x speedup)
 │   ├── dipole_vectorized.py   # Vectorized dipole field (250x speedup)
 │   ├── coord_transforms_vectorized.py  # Vectorized coordinate transforms
 │   └── trace_optimized.py     # Optimized field line tracing (265x speedup)
@@ -47,7 +46,6 @@ geopack-vectorize/
 ### Vectorized Implementations (`geopack/`)
 - **t89_vectorized.py** - Vectorized T89 (50x speedup)
 - **t96_vectorized.py** - Vectorized T96 (30x speedup for batch, full implementation)
-- **t01_full_vectorized.py** - Vectorized T01 (2384x speedup)
 - **dipole_vectorized.py** - Vectorized dipole field (250x speedup)
 - **coord_transforms_vectorized.py** - All coordinate transforms
 - **trace_optimized.py** - Optimized field line tracing (265x speedup)
@@ -188,11 +186,11 @@ def function_vectorized(x, y, z):
   - Tail and ring currents (tailrc96) ✅
   - Accuracy: Max relative error < 1.8e-08 (excellent)
   - Performance: 30x speedup for batch processing
-- T01 model (simplified version, 2384x speedup)
 - All coordinate transforms
 - Field line tracing (265x speedup)
 
 ### TODO
+- T01 model vectorization (complex due to iterative algorithms)
 - T04 model vectorization
 - IGRF vectorization
 

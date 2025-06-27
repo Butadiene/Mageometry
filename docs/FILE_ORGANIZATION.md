@@ -11,7 +11,6 @@ geopack-vectorize/
 │   ├── t96.py                 # T96 scalar implementation
 │   ├── t96_vectorized.py      # T96 vectorized implementation (complete)
 │   ├── t01.py                 # T01 scalar implementation
-│   ├── t01_full_vectorized.py # T01 vectorized implementation
 │   ├── t04.py                 # T04 scalar implementation
 │   ├── dipole_vectorized.py   # Vectorized dipole field
 │   ├── coord_transforms_vectorized.py  # Vectorized coordinate transforms
@@ -68,7 +67,6 @@ geopack-vectorize/
 ### Production Code
 - `geopack/t96_vectorized.py` - Complete vectorized T96 with 30x speedup
 - `geopack/t89_vectorized.py` - Vectorized T89 with 50x speedup
-- `geopack/t01_full_vectorized.py` - Vectorized T01 with 2384x speedup
 
 ### Documentation
 - `CLAUDE.md` - Development guidelines and project overview
