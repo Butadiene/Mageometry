@@ -16,15 +16,26 @@ Test results are attached in `./test_geopack1.md` to demonstrate that the Python
 
 
 ## Installation
-The package requires Python pre-installed and depends on the `numpy` and `scipy` packages. I've only tested the Python `geopack` on Mac OS in Python 3.6. Performance on other platform and other versions of Python is unclear.
+The package requires Python 3.7+ and depends on `numpy` and `scipy`. It works on all platforms (Windows, Mac, Linux).
 
-To install the Python `geopack` through `pip`, type `> pip3 install geopack` in the terminal.
+### From GitHub Release (Recommended)
+```bash
+# Download the latest release
+wget https://github.com/tsssss/geopack/releases/download/v1.0.12/geopack-1.0.12.tar.gz
+pip install geopack-1.0.12.tar.gz
+```
 
-To install the **latest** version, manually install it on a Mac (and hopefully Linux):
+### From PyPI
+```bash
+pip install geopack
+```
 
-1. Download the latest package at https://github.com/tsssss/geopack/. 
-2. Unzip it, open a terminal, and `cd` to the unzipped directory
-3. Install the package to Python by typing `python3 setup.py install` in the terminal
+### From Source (Development)
+```bash
+git clone https://github.com/tsssss/geopack.git
+cd geopack
+pip install -e .
+```
 
 ## Donate via PayPal
 I've been working on this package in my spare time. If you find this project helpful, please consider supporting it by buying me a coffee.
