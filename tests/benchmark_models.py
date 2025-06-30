@@ -12,9 +12,8 @@ import os
 from tabulate import tabulate
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-import geopack.geopack as geopack
+import geopack
 from geopack import t89, t96, t01, t04
 from geopack import t89_vectorized, t96_vectorized, t01_vectorized, t04_vectorized
 
