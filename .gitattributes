@@ -1,0 +1,9 @@
+# Files not for distribution
+CLAUDE.md export-ignore
+CLEANUP_SUMMARY.md export-ignore
+docs/ export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore
+
+# Jupyter notebook filters
+*.ipynb filter=nbstripout
