@@ -2,18 +2,18 @@
 
 ## Interface Alignment Summary
 
-All three vectorized models (T89, T96, T01) have **fully aligned interfaces** ✓
+All four vectorized models (T89, T96, T01, T04) have **fully aligned interfaces** ✓
 
 ### Common Interface Features
 
-| Feature | T89 | T96 | T01 | Status |
-|---------|-----|-----|-----|--------|
-| Scalar detection | `np.isscalar(x) and np.isscalar(y) and np.isscalar(z)` | ✓ | ✓ | ✓ |
-| Array conversion | `np.atleast_1d()` | ✓ | ✓ | ✓ |
-| Scalar return | `.item()` for scalar inputs | ✓ | ✓ | ✓ |
-| Mixed inputs | Broadcasting support | ✓ | ✓ | ✓ |
-| NumPy docstring | Consistent format | ✓ | ✓ | ✓ |
-| Module header | Vectorization principles | ✓ | ✓ | ✓ |
+| Feature | T89 | T96 | T01 | T04 | Status |
+|---------|-----|-----|-----|-----|--------|
+| Scalar detection | `np.isscalar(x) and np.isscalar(y) and np.isscalar(z)` | ✓ | ✓ | ✓ | ✓ |
+| Array conversion | `np.atleast_1d()` | ✓ | ✓ | ✓ | ✓ |
+| Scalar return | `.item()` for scalar inputs | ✓ | ✓ | ✓ | ✓ |
+| Mixed inputs | Broadcasting support | ✓ | ✓ | ✓ | ✓ |
+| NumPy docstring | Consistent format | ✓ | ✓ | ✓ | ✓ |
+| Module header | Vectorization principles | ✓ | ✓ | ✓ | ✓ |
 
 ### Function Signatures
 
@@ -41,6 +41,14 @@ def t01_vectorized(parmod, ps, x, y, z):
     # x, y, z: coordinates
 ```
 
+**T04**:
+```python
+def t04_vectorized(parmod, ps, x, y, z):
+    # parmod: [pdyn, dst, byimf, bzimf, w1, w2, w3, w4, w5, w6]
+    # ps: dipole tilt
+    # x, y, z: coordinates
+```
+
 ## Performance and Accuracy
 
 ### T89 Vectorized
@@ -58,13 +66,19 @@ def t01_vectorized(parmod, ps, x, y, z):
 - **Speedup**: 15-100x depending on array size
 - **Status**: Production ready ✓
 
+### T04 Vectorized
+- **Accuracy**: <4e-08 nT maximum error
+- **Speedup**: 17-75x depending on array size
+- **Status**: Production ready ✓
+
 ## Test Coverage
 
 | Model | Unit Tests | Accuracy Tests | Performance Tests | Notebook |
 |-------|------------|----------------|-------------------|----------|
 | T89 | ✓ | ✓ | ✓ | ✓ |
 | T96 | ✓ | ✓ | ✓ | ✓ |
-| T01 | ✓ | ✓ | ✓ | - |
+| T01 | ✓ | ✓ | ✓ | ✓ |
+| T04 | ✓ | ✓ | ✓ | - |
 
 ## Key Files
 
@@ -83,6 +97,13 @@ def t01_vectorized(parmod, ps, x, y, z):
 - Implementation: `geopack/t01_vectorized.py`
 - Tests: `tests/validation/test_t01_vectorized.py`
 - Accuracy: `tests/validation/evaluate_t01_accuracy.py`
+- Notebook: `notebooks/t01_vectorized_evaluation.ipynb`
+
+### T04
+- Implementation: `geopack/t04_vectorized.py`
+- Tests: `tests/validation/test_t04_vectorized.py`
+- Accuracy: `tests/validation/test_t04_quick.py`
+- Report: `docs/accuracy_reports/T04_VECTORIZATION_ACCURACY_REPORT.md`
 
 ## Usage Example
 
@@ -112,10 +133,10 @@ bx, by, bz = t01_vectorized(parmod, ps, x, 2.0, z)
 
 ## Conclusion
 
-All three vectorized models (T89, T96, T01) have:
+All four vectorized models (T89, T96, T01, T04) have:
 - ✅ Identical interface behavior
-- ✅ Excellent accuracy (machine precision to 1e-8)
-- ✅ Significant performance improvements (15-50x)
+- ✅ Excellent accuracy (machine precision to 4e-08 nT)
+- ✅ Significant performance improvements (15-75x)
 - ✅ Full test coverage
 - ✅ Production-ready status
 
