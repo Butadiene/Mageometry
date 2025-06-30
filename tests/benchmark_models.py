@@ -78,16 +78,16 @@ def main():
     results = []
     
     print("\nBenchmarking T89...")
-    results.append(benchmark_model('T89', t89.t89, t89_vectorized, kp, ps))
+    results.append(benchmark_model('T89', t89, t89_vectorized, kp, ps))
     
     print("Benchmarking T96...")
-    results.append(benchmark_model('T96', t96.t96, t96_vectorized, parmod_t96, ps))
+    results.append(benchmark_model('T96', t96, t96_vectorized, parmod_t96, ps))
     
     print("Benchmarking T01...")
-    results.append(benchmark_model('T01', t01.t01, t01_vectorized, parmod_t01, ps))
+    results.append(benchmark_model('T01', t01, t01_vectorized, parmod_t01, ps))
     
     print("Benchmarking T04...")
-    results.append(benchmark_model('T04', t04.t04, t04_vectorized, parmod_t04, ps))
+    results.append(benchmark_model('T04', t04, t04_vectorized, parmod_t04, ps))
     
     # Display results
     print("\n" + "=" * 60)

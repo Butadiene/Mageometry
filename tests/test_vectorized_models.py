@@ -52,7 +52,7 @@ class TestVectorizedAccuracy:
         
         errors = []
         for i in range(n_test):
-            bx_s, by_s, bz_s = t89.t89(self.kp, self.ps, x[i], y[i], z[i])
+            bx_s, by_s, bz_s = t89(self.kp, self.ps, x[i], y[i], z[i])
             bx_v, by_v, bz_v = t89_vectorized(self.kp, self.ps, x[i], y[i], z[i])
             
             b_mag_s = np.sqrt(bx_s**2 + by_s**2 + bz_s**2)
@@ -73,7 +73,7 @@ class TestVectorizedAccuracy:
         
         errors = []
         for i in range(n_test):
-            bx_s, by_s, bz_s = t96.t96(self.parmod_t96, self.ps, x[i], y[i], z[i])
+            bx_s, by_s, bz_s = t96(self.parmod_t96, self.ps, x[i], y[i], z[i])
             bx_v, by_v, bz_v = t96_vectorized(self.parmod_t96, self.ps, x[i], y[i], z[i])
             
             b_mag_s = np.sqrt(bx_s**2 + by_s**2 + bz_s**2)
@@ -94,7 +94,7 @@ class TestVectorizedAccuracy:
         
         errors = []
         for i in range(n_test):
-            bx_s, by_s, bz_s = t01.t01(self.parmod_t01, self.ps, x[i], y[i], z[i])
+            bx_s, by_s, bz_s = t01(self.parmod_t01, self.ps, x[i], y[i], z[i])
             bx_v, by_v, bz_v = t01_vectorized(self.parmod_t01, self.ps, x[i], y[i], z[i])
             
             b_mag_s = np.sqrt(bx_s**2 + by_s**2 + bz_s**2)
@@ -115,7 +115,7 @@ class TestVectorizedAccuracy:
         
         errors = []
         for i in range(n_test):
-            bx_s, by_s, bz_s = t04.t04(self.parmod_t04, self.ps, x[i], y[i], z[i])
+            bx_s, by_s, bz_s = t04(self.parmod_t04, self.ps, x[i], y[i], z[i])
             bx_v, by_v, bz_v = t04_vectorized(self.parmod_t04, self.ps, x[i], y[i], z[i])
             
             b_mag_s = np.sqrt(bx_s**2 + by_s**2 + bz_s**2)
@@ -151,7 +151,7 @@ class TestVectorizedPerformance:
         # Time scalar
         t0 = time.time()
         for i in range(100):
-            _ = t89.t89(self.kp, self.ps, x[i], y[i], z[i])
+            _ = t89(self.kp, self.ps, x[i], y[i], z[i])
         t_scalar = (time.time() - t0) * n_points / 100
         
         # Time vectorized
@@ -172,7 +172,7 @@ class TestVectorizedPerformance:
         # Time scalar
         t0 = time.time()
         for i in range(100):
-            _ = t96.t96(self.parmod_t96, self.ps, x[i], y[i], z[i])
+            _ = t96(self.parmod_t96, self.ps, x[i], y[i], z[i])
         t_scalar = (time.time() - t0) * n_points / 100
         
         # Time vectorized

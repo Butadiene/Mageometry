@@ -71,10 +71,10 @@ class KnownValues(unittest.TestCase):
         self.assertTrue(approx_eq(self.test['dip_gsw'], geopack.dip_gsw(*self.test['r_gsw']), 1e-3))
 
         # test external models.
-        self.assertTrue(approx_eq(self.test['t89'], t89.t89(*self.test['par1'])))
-        self.assertTrue(approx_eq(self.test['t96'], t96.t96(*self.test['par2'])))
-        self.assertTrue(approx_eq(self.test['t01'], t01.t01(*self.test['par2'])))
-        self.assertTrue(approx_eq(self.test['t04'], t04.t04(*self.test['par2'])))
+        self.assertTrue(approx_eq(self.test['t89'], t89(*self.test['par1'])))
+        self.assertTrue(approx_eq(self.test['t96'], t96(*self.test['par2'])))
+        self.assertTrue(approx_eq(self.test['t01'], t01(*self.test['par2'])))
+        self.assertTrue(approx_eq(self.test['t04'], t04(*self.test['par2'])))
 
         # test coord transform, which returns B in nT.
         self.assertTrue(approx_eq(self.test['r_mag'], geopack.geomag(*self.test['r_geo'], 1)))
