@@ -40,8 +40,9 @@ def t96_vectorized(parmod, ps, x, y, z):
         
     Returns
     -------
-    bx, by, bz : ndarray
-        Magnetic field components in GSM system (nT)
+    bx, by, bz : ndarray or float
+        Magnetic field components in GSM system (nT).
+        Returns scalars if all inputs were scalars.
     """
     # Track if all inputs were scalar
     scalar_input = np.isscalar(x) and np.isscalar(y) and np.isscalar(z)

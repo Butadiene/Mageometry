@@ -45,8 +45,9 @@ def t01_vectorized(parmod, ps, x, y, z):
         
     Returns
     -------
-    bx, by, bz : ndarray
-        Magnetic field components in GSM system (nT)
+    bx, by, bz : ndarray or float
+        Magnetic field components in GSM system (nT).
+        Returns scalars if all inputs were scalars.
         
     References
     ----------
