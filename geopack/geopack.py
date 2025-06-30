@@ -1,5 +1,4 @@
 import numpy as np
-from geopack import t89,t96,t01,t04
 import os.path
 import datetime
 from urllib.request import urlopen, Request
