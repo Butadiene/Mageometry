@@ -73,10 +73,11 @@ def t01_vectorized(parmod, ps, x, y, z):
         4.10546, 1.13665, 0.05506, 0.97669, 0.21164, 0.64594, 1.12556, 0.01389,
         1.02978, 0.02968, 0.15821, 9.00519, 28.17582, 1.35285, 0.42279])
 
-    # The disclaimer below is temporarily disabled:
-    if np.any(x < -20):
-       print('Attention: the model is valid sunward from x=-15 re only, while you are trying to use it at x=', x[x < -20])
-       raise ValueError
+    # Handle invalid X values by clipping instead of raising error
+    invalid_mask = x < -15
+    if np.any(invalid_mask):
+        print(f'Warning: T01 model is valid only for X > -15 Re. Clipping {np.sum(invalid_mask)} points to X = -15 Re.')
+        x = np.where(invalid_mask, -15, x)
 
     pdyn = parmod[0]
     dst_ast = parmod[1]*0.8-13.*np.sqrt(pdyn)

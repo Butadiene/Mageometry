@@ -13,6 +13,7 @@ for processing multiple points simultaneously.
 """
 
 import numpy as np
+import warnings
 
 
 def t04_vectorized(parmod, ps, x, y, z):
@@ -76,9 +77,11 @@ def t04_vectorized(parmod, ps, x, y, z):
         1.33199,.405553,1.6229,.699074,1.26131,2.42297,.537116,.619441])
 
 
-    if np.any(x < -20):
-       print('Attention: the model is valid sunward from x=-15 re only, while you are trying to use it at x=', x[x < -20])
-       raise ValueError
+    # Handle invalid X values by clipping instead of raising error
+    invalid_mask = x < -15
+    if np.any(invalid_mask):
+        print(f'Warning: T04 model is valid only for X > -15 Re. Clipping {np.sum(invalid_mask)} points to X = -15 Re.')
+        x = np.where(invalid_mask, -15, x)
 
     iopgen,ioptt,iopb,iopr = [0,0,0,0]
 
@@ -88,8 +91,11 @@ def t04_vectorized(parmod, ps, x, y, z):
     w1,w2,w3,w4,w5,w6 = parmod[4:10]
     pss,xx,yy,zz = [ps,x,y,z]
 
-    bx,by,bz = extern(iopgen,ioptt,iopb,iopr,a,69,pdyn,dst_ast,bximf,byimf,bzimf,
-        w1,w2,w3,w4,w5,w6,pss,xx,yy,zz)
+    # Suppress warnings for expected singularities (e.g., at origin)
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=RuntimeWarning)
+        bx,by,bz = extern(iopgen,ioptt,iopb,iopr,a,69,pdyn,dst_ast,bximf,byimf,bzimf,
+            w1,w2,w3,w4,w5,w6,pss,xx,yy,zz)
     
     # Return scalar if input was scalar
     if scalar_input:
