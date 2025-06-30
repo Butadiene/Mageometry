@@ -1,52 +1,68 @@
+"""
+Vectorized implementation of the T01 magnetospheric magnetic field model.
+
+This implementation follows the principles outlined in direction_vectorize.md:
+1. All functions accept NumPy arrays for x, y, z coordinates
+2. Conditional logic uses np.where instead of if/else
+3. Safe division using np.divide with where parameter
+4. No global variables - all parameters passed explicitly
+5. Proper array initialization with np.zeros_like()
+
+The vectorized version provides significant performance improvements
+for processing multiple points simultaneously.
+"""
+
 import numpy as np
 
 def t01_vectorized(parmod, ps, x, y, z):
     """
+    Vectorized version of the T01 magnetic field model.
+    
     Release date of this version: August 8, 2001.
-
-    Latest modifications/bugs removed: June 24, 2006:  replaced coefficients in:
-        (i)   data statement in function ap,
-        (ii)  data c_sy statement in subroutine full_rc, and
-        (iii) data a statement in subroutine t01_01.
-    This correction was needed because of a bug found in the symmetric ring current module.
-    Its impact is a minor (a few percent) change of the model field in the inner magnetosphere.
-
-    Attention: The model is based on data taken sunward from x=-15Re, and hence becomes
-    invalid at larger tailward distances !!!
-
-
+    Latest modifications/bugs removed: June 24, 2006.
+    
     A data-based model of the external (i.e., without earth's contribution) part of the
-    magnetospheric magnetic field, calibrated by
-        (1) solar wind pressure pdyn (nanopascals),
-        (2) dst (nanotesla)
-        (3) byimf (nanotesla)
-        (4) bzimf (nanotesla)
-        (5) g1-index
-        (6) g2-index  (see Tsyganenko [2001] for an exact definition of these two indices)
-
-    (C) Copr. 2001, Nikolai A. Tsyganenko, USRA, Code 690.2, NASA GSFC Greenbelt, MD 20771, USA
-
-    REFERENCE:
+    magnetospheric magnetic field, calibrated by solar wind and geomagnetic parameters.
+    
+    Attention: The model is based on data taken sunward from x=-15Re, and hence becomes
+    invalid at larger tailward distances!
+    
+    Parameters
+    ----------
+    parmod : array_like
+        10-element array containing model parameters:
+        [0] - solar wind pressure pdyn (nanopascals)
+        [1] - dst (nanotesla)
+        [2] - byimf (nanotesla)
+        [3] - bzimf (nanotesla)
+        [4] - g1-index
+        [5] - g2-index (see Tsyganenko [2001] for definition)
+        [6-9] - unused
+    ps : float
+        Geodipole tilt angle in radians
+    x, y, z : array_like
+        GSM coordinates in Re (Earth radii)
+        
+    Returns
+    -------
+    bx, by, bz : ndarray
+        Magnetic field components in GSM system (nT)
+        
+    References
+    ----------
     N. A. Tsyganenko, A new data-based model of the near magnetosphere magnetic field:
-        1. Mathematical structure. 2. Parameterization and fitting to observations. (submitted to JGR, July 2001)
-
-    :param parmod: The elements are
-        (1) solar wind pressure pdyn (nanopascals)
-        (2) dst (nanotesla)
-        (3) byimf (nanotesla)
-        (4) bzimf (nanotesla)
-        (5) g1-index
-        (6) g2-index  (see Tsyganenko [2001] for an exact definition of these two indices)
-        (7) the geodipole tilt angle ps (radians)
-        (8-10) x,y,z -  GSM position (Re)
-    :param ps: geo-dipole tilt angle in radius.
-    :param x,y,z: GSM coordinates in Re (1 Re = 6371.2 km). Can be scalars or NumPy arrays.
-    :return: bx,by,bz. Field components in GSM system, in nT.
-        Computed as a sum of contributions from principal field sources.
+    1. Mathematical structure. 2. Parameterization and fitting to observations. 
+    (submitted to JGR, July 2001)
+    
+    (C) Copr. 2001, Nikolai A. Tsyganenko, USRA, Code 690.2, NASA GSFC
     """
-    # Check if input is scalar
-    scalar_input = np.isscalar(x)
-    x, y, z = np.atleast_1d(x), np.atleast_1d(y), np.atleast_1d(z)
+    # Track if all inputs were scalar
+    scalar_input = np.isscalar(x) and np.isscalar(y) and np.isscalar(z)
+    
+    # Convert inputs to numpy arrays
+    x = np.atleast_1d(x)
+    y = np.atleast_1d(y)
+    z = np.atleast_1d(z)
 
     a = np.array([
         1.00000, 2.47341, 0.40791, 0.30429, -0.10637, -0.89108, 3.29350,
@@ -601,8 +617,9 @@ def warped(iopt,ps, x,y,z):
     rho_safe = np.where(rho==0, 1e-9, rho)
 
     phi=np.arctan2(z,y)
-    cphi=np.divide(y, rho, out=np.ones_like(y, dtype=float), where=rho!=0)
-    sphi=np.divide(z, rho, out=np.zeros_like(z, dtype=float), where=rho!=0)
+    # Ensure proper broadcasting for mixed scalar/array inputs
+    cphi = np.where(rho != 0, y / rho, 1.0)
+    sphi = np.where(rho != 0, z / rho, 0.0)
 
     rr4l4=rho/(rho2**2+xl**4)
 
@@ -751,8 +768,8 @@ def taildisk(d0,deltadx,deltady, x,y,z):
 
     rho=np.sqrt(x**2+y**2)
     rho_safe = np.where(rho==0, 1e-9, rho)
-    drhodx=np.divide(x, rho, out=np.zeros_like(x, dtype=float), where=rho!=0)
-    drhody=np.divide(y, rho, out=np.zeros_like(y, dtype=float), where=rho!=0)
+    drhodx = np.where(rho != 0, x / rho, 0.0)
+    drhody = np.where(rho != 0, y / rho, 0.0)
 
     dex=np.exp(x/7)
     d=d0+deltady*(y/20)**2+deltadx*dex
@@ -1089,10 +1106,10 @@ def one_cone(a,x,y,z):
     bphi   = rsr*bfast*(drsdr*dtsdt-drsdt*dtsdr)
 
     rho_safe = np.where(rho==0, 1e-9, rho)
-    s=np.divide(rho, r, out=np.zeros_like(rho, dtype=float), where=r!=0)
-    c=np.divide(z, r, out=np.zeros_like(z, dtype=float), where=r!=0)
-    sf=np.divide(y, rho, out=np.zeros_like(y, dtype=float), where=rho!=0)
-    cf=np.divide(x, rho, out=np.ones_like(x, dtype=float), where=rho!=0)
+    s = np.where(r != 0, rho / r, 0.0)
+    c = np.where(r != 0, z / r, 0.0)
+    sf = np.where(rho != 0, y / rho, 0.0)
+    cf = np.where(rho != 0, x / rho, 1.0)
 
     be=br*s+btheta*c
 
@@ -1500,7 +1517,7 @@ def ap(r,sint,cost):
         + dl*(0.5+xk2s*(0.12498593597+xk2s*(0.06880248576+xk2s*(0.03328355346+xk2s*0.00441787012))))
     ele = 1+xk2s*(0.44325141463+xk2s*(0.0626060122+xk2s*(0.04757383546+xk2s*0.01736506451)))\
         + dl*xk2s*(0.2499836831+xk2s*(0.09200180037+xk2s*(0.04069697526+xk2s*0.00526449639)))
-    aphi1=np.divide(((1-xk2*0.5)*elk-ele), xkrho12, out=np.zeros_like(xkrho12), where=xkrho12!=0)
+    aphi1 = np.where(xkrho12 != 0, ((1-xk2*0.5)*elk-ele) / xkrho12, 0.0)
 
     p=(rrc2+rhos)**2+zs**2+dd2**2
     p_safe = np.where(p==0, 1e-9, p)
@@ -1514,7 +1531,7 @@ def ap(r,sint,cost):
         + dl*(0.5+xk2s*(0.12498593597+xk2s*(0.06880248576+xk2s*(0.03328355346+xk2s*0.00441787012))))
     ele = 1+xk2s*(0.44325141463+xk2s*(0.0626060122+xk2s*(0.04757383546+xk2s*0.01736506451)))\
         + dl*xk2s*(0.2499836831+xk2s*(0.09200180037+xk2s*(0.04069697526+xk2s*0.00526449639)))
-    aphi2=np.divide(((1-xk2*0.5)*elk-ele), xkrho12, out=np.zeros_like(xkrho12), where=xkrho12!=0)
+    aphi2 = np.where(xkrho12 != 0, ((1-xk2*0.5)*elk-ele) / xkrho12, 0.0)
 
     ap_val=a1*aphi1+a2*aphi2
     return np.where(prox, ap_val*sint/sint1, ap_val)
@@ -1632,7 +1649,7 @@ def apprc(r,sint,cost):
         + dl*(0.5+xk2s*(0.12498593597+xk2s*(0.06880248576+xk2s*(0.03328355346+xk2s*0.00441787012))))
     ele = 1 + xk2s*(0.44325141463+xk2s*(0.0626060122+xk2s*(0.04757383546+xk2s*0.01736506451)))\
         + dl*xk2s*(0.2499836831+xk2s*(0.09200180037+xk2s*(0.04069697526+xk2s*0.00526449639)))
-    aphi1=np.divide(((1-xk2*0.5)*elk-ele), xkrho12, out=np.zeros_like(xkrho12), where=xkrho12!=0)
+    aphi1 = np.where(xkrho12 != 0, ((1-xk2*0.5)*elk-ele) / xkrho12, 0.0)
 
     p=(rrc2+rhos)**2+zs**2+dd2**2
     p_safe = np.where(p==0, 1e-9, p)
@@ -1646,7 +1663,7 @@ def apprc(r,sint,cost):
         + dl*(0.5+xk2s*(0.12498593597+xk2s*(0.06880248576+xk2s*(0.03328355346+xk2s*0.00441787012))))
     ele = 1 + xk2s*(0.44325141463+xk2s*(0.0626060122+xk2s*(0.04757383546+xk2s*0.01736506451)))\
         + dl*xk2s*(0.2499836831+xk2s*(0.09200180037+xk2s*(0.04069697526+xk2s*0.00526449639)))
-    aphi2=np.divide(((1-xk2*0.5)*elk-ele), xkrho12, out=np.zeros_like(xkrho12), where=xkrho12!=0)
+    aphi2 = np.where(xkrho12 != 0, ((1-xk2*0.5)*elk-ele) / xkrho12, 0.0)
 
     apprc_val=a1*aphi1+a2*aphi2
     return np.where(prox, apprc_val*sint/sint1, apprc_val)
