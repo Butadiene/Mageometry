@@ -39,7 +39,7 @@ from .igrf_vectorized import (
     igrf_geo_vectorized, igrf_gsm_vectorized, igrf_gsw_vectorized
 )
 
-__version__ = '1.0.12'
+__version__ = '1.0.13'
 
 __all__ = [
     # Core functions
