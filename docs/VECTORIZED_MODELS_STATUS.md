@@ -83,26 +83,24 @@ def t04_vectorized(parmod, ps, x, y, z):
 ## Key Files
 
 ### T89
-- Implementation: `geopack/t89_vectorized.py`
-- Tests: `tests/validation/evaluate_t89_accuracy.py`
-- Benchmark: `tests/validation/benchmark_t89_performance.py`
-- Notebook: `notebooks/t89_vectorized_evaluation.ipynb`
+- Implementation: `geopack/vectorized/t89_vectorized.py`
+- Tests: `tests/test_vectorized_models.py`
+- Notebook: `examples/notebooks/t89_vectorized_evaluation.ipynb`
 
 ### T96
-- Implementation: `geopack/t96_vectorized.py`
-- Tests: `tests/validation/test_t96_final.py`
-- Accuracy: `tests/validation/evaluate_t96_full_accuracy.py`
+- Implementation: `geopack/vectorized/t96_vectorized.py`
+- Tests: `tests/test_vectorized_models.py`
+- Notebook: `examples/notebooks/t96_vectorized_evaluation.ipynb`
 
 ### T01
-- Implementation: `geopack/t01_vectorized.py`
-- Tests: `tests/validation/test_t01_vectorized.py`
-- Accuracy: `tests/validation/evaluate_t01_accuracy.py`
-- Notebook: `notebooks/t01_vectorized_evaluation.ipynb`
+- Implementation: `geopack/vectorized/t01_vectorized.py`
+- Tests: `tests/test_vectorized_models.py`
+- Notebook: `examples/notebooks/t01_vectorized_evaluation.ipynb`
 
 ### T04
-- Implementation: `geopack/t04_vectorized.py`
-- Tests: `tests/validation/test_t04_vectorized.py`
-- Accuracy: `tests/validation/test_t04_quick.py`
+- Implementation: `geopack/vectorized/t04_vectorized.py`
+- Tests: `tests/test_vectorized_models.py`
+- Notebook: `examples/notebooks/t04_vectorized_evaluation.ipynb`
 - Report: `docs/accuracy_reports/T04_VECTORIZATION_ACCURACY_REPORT.md`
 
 ## Usage Example
@@ -111,9 +109,7 @@ All models follow the same pattern:
 
 ```python
 import numpy as np
-from geopack.t89_vectorized import t89_vectorized
-from geopack.t96_vectorized import t96_vectorized
-from geopack.t01_vectorized import t01_vectorized
+from geopack import t89_vectorized, t96_vectorized, t01_vectorized, t04_vectorized
 
 # Scalar inputs → scalar outputs
 bx, by, bz = t89_vectorized(3, 0.2, 5.0, 2.0, 1.0)

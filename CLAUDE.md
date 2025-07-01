@@ -12,15 +12,17 @@ This is a Python implementation of the Geopack magnetic field modeling library, 
 geopack-vectorize/
 ├── geopack/                    # Main library code
 │   ├── geopack.py             # Core module with IGRF and coordinates
-│   ├── t89.py                 # T89 scalar implementation
-│   ├── t96.py                 # T96 scalar implementation
-│   ├── t01.py                 # T01 scalar implementation
-│   ├── t04.py                 # T04 scalar implementation
-│   ├── t89_vectorized.py      # T89 vectorized (50x speedup)
-│   ├── t96_vectorized.py      # T96 vectorized (30x speedup, full implementation)
-│   ├── dipole_vectorized.py   # Vectorized dipole field (250x speedup)
-│   ├── coord_transforms_vectorized.py  # Vectorized coordinate transforms
-│   └── trace_optimized.py     # Optimized field line tracing (265x speedup)
+│   ├── models/                # Scalar model implementations
+│   │   ├── t89.py            # T89 scalar model
+│   │   ├── t96.py            # T96 scalar model
+│   │   ├── t01.py            # T01 scalar model
+│   │   └── t04.py            # T04 scalar model
+│   └── vectorized/            # Vectorized implementations
+│       ├── t89_vectorized.py  # T89 vectorized (50x speedup)
+│       ├── t96_vectorized.py  # T96 vectorized (30x speedup)
+│       ├── t01_vectorized.py  # T01 vectorized (40x speedup)
+│       ├── t04_vectorized.py  # T04 vectorized (35x speedup)
+│       └── condip1_exact_vectorized.py  # Vectorized dipole field
 │
 ├── docs/                      # Documentation
 │   ├── vectorization/        # Vectorization guides and progress
@@ -28,27 +30,31 @@ geopack-vectorize/
 │   └── FILE_ORGANIZATION.md  # File organization guide
 │
 ├── tests/                    # Test scripts
-│   ├── debug/               # Debug and analysis scripts
-│   └── validation/          # Validation and benchmark scripts
+│   ├── test_geopack1.py     # Original Fortran compatibility tests
+│   ├── test_vectorized_models.py  # Vectorized model tests
+│   └── benchmark_models.py   # Performance benchmarks
 │
-└── archive/                 # Archived/experimental code
+└── examples/                 # Example code and notebooks
+    ├── basic_usage.py       # Simple usage examples
+    ├── field_line_tracing.py # Field line tracing demo
+    └── notebooks/           # Jupyter notebooks
 ```
 
 ## Key Components
 
 ### Core Library (`geopack/`)
 - **geopack.py** - Main module with coordinate transforms and IGRF model
-- **t89.py** - T89 Kp-based model (scalar)
-- **t96.py** - T96 solar wind parameter-based model (scalar)
-- **t01.py** - T01 model with storm-time corrections (scalar)
-- **t04.py** - T04 storm-time model (scalar)
+- **models/t89.py** - T89 Kp-based model (scalar)
+- **models/t96.py** - T96 solar wind parameter-based model (scalar)
+- **models/t01.py** - T01 model with storm-time corrections (scalar)
+- **models/t04.py** - T04 storm-time model (scalar)
 
-### Vectorized Implementations (`geopack/`)
+### Vectorized Implementations (`geopack/vectorized/`)
 - **t89_vectorized.py** - Vectorized T89 (50x speedup)
 - **t96_vectorized.py** - Vectorized T96 (30x speedup for batch, full implementation)
-- **dipole_vectorized.py** - Vectorized dipole field (250x speedup)
-- **coord_transforms_vectorized.py** - All coordinate transforms
-- **trace_optimized.py** - Optimized field line tracing (265x speedup)
+- **t01_vectorized.py** - Vectorized T01 (40x speedup)
+- **t04_vectorized.py** - Vectorized T04 (35x speedup)
+- **condip1_exact_vectorized.py** - Vectorized dipole field calculations
 
 ## Build and Development Commands
 
@@ -70,14 +76,13 @@ pip install numpy scipy
 ### Running tests
 ```bash
 # Run original test suite
-python geopack/test_geopack1.py
+python tests/test_geopack1.py
 
-# Run accuracy evaluation
-python tests/validation/evaluate_t96_full_accuracy.py
+# Run vectorized model tests
+python tests/test_vectorized_models.py
 
-# Run specific validation tests
-python tests/validation/test_t96_final.py
-python tests/validation/test_t89_vectorized.py
+# Run performance benchmarks
+python tests/benchmark_models.py
 
 # Or using unittest discovery
 python -m unittest discover tests/
@@ -178,7 +183,6 @@ def function_vectorized(x, y, z):
 ## Current Vectorization Status
 
 ### Completed ✅
-- Dipole field (perfect accuracy)
 - T89 model (full implementation, 50x speedup)
 - T96 model (full implementation with all components)
   - Birkeland currents (birk1tot_02, birk2tot_02) ✅
@@ -186,13 +190,14 @@ def function_vectorized(x, y, z):
   - Tail and ring currents (tailrc96) ✅
   - Accuracy: Max relative error < 1.8e-08 (excellent)
   - Performance: 30x speedup for batch processing
-- All coordinate transforms
-- Field line tracing (265x speedup)
+- T01 model (40x speedup, handles boundary conditions)
+- T04 model (35x speedup, validates X > -15 Re constraint)
+- Dipole field calculations in condip1_exact_vectorized
 
 ### TODO
-- T01 model vectorization (complex due to iterative algorithms)
-- T04 model vectorization
 - IGRF vectorization
+- Additional coordinate transform optimizations
+- Field line tracing optimizations
 
 ## Code Style Guidelines
 
@@ -221,13 +226,14 @@ def function_vectorized(x, y, z):
 ### Scalar
 ```python
 import geopack
+from geopack import t96
 ps = geopack.recalc(ut)
-bx, by, bz = geopack.t96.t96(parmod, ps, x, y, z)
+bx, by, bz = t96(parmod, ps, x, y, z)
 ```
 
 ### Vectorized
 ```python
-from geopack.t96_vectorized import t96_vectorized
+from geopack import t96_vectorized
 x_arr = np.array([...])
 y_arr = np.array([...])
 z_arr = np.array([...])

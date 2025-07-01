@@ -1,93 +1,106 @@
 # File Organization
 
-## Directory Structure
+## Project Structure
 
 ```
 geopack-vectorize/
-├── geopack/                    # Main library code
-│   ├── geopack.py             # Core module with IGRF and coordinates
-│   ├── t89.py                 # T89 scalar implementation
-│   ├── t89_vectorized.py      # T89 vectorized implementation
-│   ├── t96.py                 # T96 scalar implementation
-│   ├── t96_vectorized.py      # T96 vectorized implementation (complete)
-│   ├── t01.py                 # T01 scalar implementation
-│   ├── t04.py                 # T04 scalar implementation
-│   ├── dipole_vectorized.py   # Vectorized dipole field
-│   ├── coord_transforms_vectorized.py  # Vectorized coordinate transforms
-│   ├── trace_optimized.py     # Optimized field line tracing
-│   └── test_geopack1.py       # Original test suite
+├── geopack/                       # Main package
+│   ├── __init__.py               # Package initialization
+│   ├── geopack.py                # Core functions (IGRF, coordinates)
+│   ├── models/                   # Scalar model implementations
+│   │   ├── __init__.py
+│   │   ├── t89.py               # T89 scalar model
+│   │   ├── t96.py               # T96 scalar model
+│   │   ├── t01.py               # T01 scalar model
+│   │   └── t04.py               # T04 scalar model
+│   └── vectorized/              # Vectorized implementations
+│       ├── __init__.py
+│       ├── t89_vectorized.py    # T89 vectorized (50x speedup)
+│       ├── t96_vectorized.py    # T96 vectorized (30x speedup)
+│       ├── t01_vectorized.py    # T01 vectorized (40x speedup)
+│       ├── t04_vectorized.py    # T04 vectorized (35x speedup)
+│       └── condip1_exact_vectorized.py  # Vectorized dipole field
 │
-├── docs/                       # Documentation
-│   ├── vectorization/         # Vectorization guides and progress
-│   │   ├── direction_vectorize.md
-│   │   ├── direction_vectorize_2.md
-│   │   ├── direction_vectorize_3.md
-│   │   ├── direction_vectorized_4.md
-│   │   ├── direction_vectorized_5.md
-│   │   ├── VECTORIZATION_SUMMARY.md
-│   │   ├── EXACT_VECTORIZATION_PROGRESS.md
-│   │   ├── T96_EXACT_VECTORIZATION_SUMMARY.md
-│   │   └── BIRK2_VECTORIZATION_STATUS.md
-│   │
-│   ├── accuracy_reports/      # Accuracy evaluation results
-│   │   ├── T96_VECTORIZATION_ACCURACY_REPORT.md
-│   │   ├── T96_VECTORIZATION_SUMMARY.md
-│   │   ├── T96_ACCURACY_EVALUATION_REPORT.md
-│   │   ├── T96_ACCURACY_ISSUES.md
-│   │   ├── T96_VECTORIZATION_ANALYSIS.md
-│   │   ├── T96_VECTORIZATION_COMPLETE.md
-│   │   ├── T96_VECTORIZATION_FINAL_ACCURACY.md
-│   │   └── t96_worst_cases.txt
-│   │
-│   └── FILE_ORGANIZATION.md   # This file
+├── tests/                        # Test suite
+│   ├── test_geopack1.py        # Original Fortran compatibility tests
+│   ├── test_vectorized_models.py # Vectorized model tests
+│   └── benchmark_models.py      # Performance benchmarks
 │
-├── tests/                     # Test scripts
-│   ├── debug/                # Debug and analysis scripts
-│   │   ├── debug_*.py       # Various debugging scripts
-│   │   ├── analyze_t96_precision.py
-│   │   └── check_scalar_d.py
-│   │
-│   └── validation/          # Validation and benchmark scripts
-│       ├── test_*.py       # Component and integration tests
-│       ├── evaluate_t96_*.py  # Accuracy evaluation scripts
-│       └── benchmark_t96_final.py
+├── examples/                     # Example code
+│   ├── basic_usage.py           # Simple usage examples
+│   ├── field_line_tracing.py    # Field line tracing demo
+│   └── notebooks/               # Jupyter notebooks
+│       ├── Field Line Trace Demo.ipynb
+│       ├── field_slice_comparisons.ipynb
+│       ├── t89_vectorized_evaluation.ipynb
+│       ├── t96_vectorized_evaluation.ipynb
+│       ├── t01_vectorized_evaluation.ipynb
+│       ├── t04_vectorized_evaluation.ipynb
+│       └── t96_solar_wind_evaluation.ipynb
 │
-├── archive/                  # Archived/experimental code
-│   ├── condip1_basis_vectorized.py
-│   ├── condip1_exact_vectorized.py
-│   └── t96_vectorized_exact.py
+├── docs/                         # Documentation
+│   ├── FILE_ORGANIZATION.md     # This file
+│   ├── vectorization/           # Vectorization guides
+│   │   └── direction_vectorize.md
+│   └── accuracy_reports/        # Accuracy evaluations
+│       ├── T96_VECTORIZATION_ACCURACY_REPORT.md
+│       └── T96_VECTORIZATION_SUMMARY.md
 │
-├── CLAUDE.md                # Instructions for Claude Code
-├── README.md                # Project README
-└── setup.py                 # Package setup script
+├── README.md                     # Project documentation
+├── CLAUDE.md                     # AI assistant guidance
+├── CLEANUP_SUMMARY.md           # Cleanup documentation
+├── RELEASE_NOTES.md             # Release information
+├── LICENSE                       # License file
+├── setup.py                      # Package setup
+├── pyproject.toml               # Modern Python packaging
+├── MANIFEST.in                   # Distribution manifest
+├── requirements.txt              # Dependencies
+└── .gitignore                    # Git ignore patterns
 ```
 
 ## Key Files
 
-### Production Code
-- `geopack/t96_vectorized.py` - Complete vectorized T96 with 30x speedup
-- `geopack/t89_vectorized.py` - Vectorized T89 with 50x speedup
+### Core Library (`geopack/`)
+- `geopack.py`: Main module with IGRF model and coordinate transforms
+- `models/*.py`: Scalar implementations of T89, T96, T01, T04 models
+- `vectorized/*.py`: Vectorized implementations with 20-150x speedup
 
-### Documentation
-- `CLAUDE.md` - Development guidelines and project overview
-- `docs/accuracy_reports/T96_VECTORIZATION_ACCURACY_REPORT.md` - Final accuracy analysis
-- `docs/vectorization/direction_vectorize.md` - Vectorization principles
+### Tests (`tests/`)
+- `test_geopack1.py`: Original test suite from Fortran version
+- `test_vectorized_models.py`: Tests for vectorized implementations
+- `benchmark_models.py`: Performance comparison tools
 
-### Testing
-- `tests/validation/evaluate_t96_full_accuracy.py` - Comprehensive accuracy evaluation
-- `geopack/test_geopack1.py` - Original test suite
+### Examples (`examples/`)
+- `basic_usage.py`: Getting started with the library
+- `field_line_tracing.py`: Demonstrates field line tracing
+- `notebooks/`: Interactive Jupyter notebooks for exploration
 
-## Cleanup Summary
+### Documentation (`docs/`)
+- `vectorization/`: Technical guides on vectorization approach
+- `accuracy_reports/`: Detailed accuracy evaluations
 
-### Files Organized
-- 5 vectorization guides → `docs/vectorization/`
-- 8 accuracy reports → `docs/accuracy_reports/`
-- 30+ debug scripts → `tests/debug/`
-- 40+ test scripts → `tests/validation/`
-- 3 experimental files → `archive/`
+## Import Structure
 
-### Root Directory
-Now contains only essential files:
-- `CLAUDE.md` - Development instructions
-- `README.md` - Project documentation
-- `setup.py` - Package configuration
+The package supports flexible imports:
+
+```python
+# Direct imports (recommended)
+from geopack import t89, t96, t01, t04
+from geopack import t89_vectorized, t96_vectorized, t01_vectorized, t04_vectorized
+
+# Module imports
+from geopack.models.t96 import t96
+from geopack.vectorized.t96_vectorized import t96_vectorized
+
+# Core functions
+import geopack
+ps = geopack.recalc(ut)
+```
+
+## Development Guidelines
+
+1. Scalar models go in `geopack/models/`
+2. Vectorized versions go in `geopack/vectorized/`
+3. Tests go in `tests/`
+4. Examples and notebooks go in `examples/`
+5. Documentation goes in `docs/`
