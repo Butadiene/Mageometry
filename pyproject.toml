@@ -47,10 +47,10 @@ examples = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tsssss/geopack"
-Documentation = "https://github.com/tsssss/geopack#readme"
-Repository = "https://github.com/tsssss/geopack"
-Issues = "https://github.com/tsssss/geopack/issues"
+Homepage = "https://github.com/Butadiene/geopack-vectorize"
+Documentation = "https://github.com/Butadiene/geopack-vectorize#readme"
+Repository = "https://github.com/Butadiene/geopack-vectorize"
+Issues = "https://github.com/Butadiene/geopack-vectorize/issues"
 
 [tool.setuptools]
 packages = ["geopack", "geopack.models", "geopack.vectorized"]

@@ -12,7 +12,7 @@ setuptools.setup(
     description='Python implementation of geopack and Tsyganenko models with optimized vectorization',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url= 'https://github.com/tsssss/geopack',
+    url= 'https://github.com/Butadiene/geopack-vectorize',
     install_requires= ['numpy','scipy'],
     platforms= ['any'],
     license= 'MIT',
