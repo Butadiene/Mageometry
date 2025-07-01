@@ -240,6 +240,26 @@ z_arr = np.array([...])
 bx_arr, by_arr, bz_arr = t96_vectorized(parmod, ps, x_arr, y_arr, z_arr)
 ```
 
+## Example Notebooks
+
+The `examples/notebooks/` directory contains comprehensive evaluation notebooks:
+
+### Model Evaluations
+- **t89_vectorized_evaluation.ipynb** - T89 model performance and accuracy tests
+- **t96_vectorized_evaluation.ipynb** - T96 model comprehensive evaluation
+- **t96_solar_wind_evaluation.ipynb** - T96 behavior under different solar wind conditions
+- **t01_vectorized_evaluation.ipynb** - T01 model with storm-time corrections
+- **t04_vectorized_evaluation.ipynb** - T04 storm-time model evaluation
+
+### Comparisons
+- **field_slice_comparisons.ipynb** - Visual comparisons of magnetic field patterns
+
+All notebooks include execution outputs demonstrating:
+- Accuracy validation (< 1e-8 relative error)
+- Performance benchmarks (30-50x speedup)
+- Edge case handling
+- Visualization of field patterns
+
 ## Key Documentation
 
 ### Accuracy Reports
