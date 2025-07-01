@@ -36,7 +36,6 @@ geopack-vectorize/
 │
 └── examples/                 # Example code and notebooks
     ├── basic_usage.py       # Simple usage examples
-    ├── field_line_tracing.py # Field line tracing demo
     └── notebooks/           # Jupyter notebooks
 ```
 
@@ -49,12 +48,16 @@ geopack-vectorize/
 - **models/t01.py** - T01 model with storm-time corrections (scalar)
 - **models/t04.py** - T04 storm-time model (scalar)
 
-### Vectorized Implementations (`geopack/vectorized/`)
-- **t89_vectorized.py** - Vectorized T89 (50x speedup)
-- **t96_vectorized.py** - Vectorized T96 (30x speedup for batch, full implementation)
-- **t01_vectorized.py** - Vectorized T01 (40x speedup)
-- **t04_vectorized.py** - Vectorized T04 (35x speedup)
-- **condip1_exact_vectorized.py** - Vectorized dipole field calculations
+### Vectorized Implementations
+- **vectorized/** - Vectorized field models
+  - **t89_vectorized.py** - Vectorized T89 (50x speedup)
+  - **t96_vectorized.py** - Vectorized T96 (30x speedup for batch, full implementation)
+  - **t01_vectorized.py** - Vectorized T01 (40x speedup)
+  - **t04_vectorized.py** - Vectorized T04 (35x speedup)
+  - **condip1_exact_vectorized.py** - Vectorized dipole field calculations
+- **igrf_vectorized.py** - Vectorized IGRF implementation (9-13x speedup)
+- **coordinates_vectorized.py** - Vectorized coordinate transformations (25-60x speedup)
+- **coordinates_vectorized_complex.py** - Vectorized spherical/Cartesian conversions
 
 ## Build and Development Commands
 
@@ -193,11 +196,13 @@ def function_vectorized(x, y, z):
 - T01 model (40x speedup, handles boundary conditions)
 - T04 model (35x speedup, validates X > -15 Re constraint)
 - Dipole field calculations in condip1_exact_vectorized
+- IGRF vectorization (9-13x speedup, exact compatibility)
+- Coordinate transformations (25-60x speedup for all systems)
 
 ### TODO
-- IGRF vectorization
-- Additional coordinate transform optimizations
-- Field line tracing optimizations
+- GPU acceleration support
+- Parallel processing optimizations
+- Advanced field line integration methods
 
 ## Code Style Guidelines
 
@@ -244,6 +249,13 @@ bx_arr, by_arr, bz_arr = t96_vectorized(parmod, ps, x_arr, y_arr, z_arr)
 
 The `examples/notebooks/` directory contains comprehensive evaluation notebooks:
 
+### Tutorial Notebooks
+- **01_coordinate_transformations_guide.ipynb** - Comprehensive guide to coordinate systems
+- **02_magnetic_field_models_guide.ipynb** - Field model demonstrations and comparisons
+- **03_performance_comparison.ipynb** - Performance benchmarks for all vectorized functions
+- **04_accuracy_validation.ipynb** - Thorough accuracy validation across all implementations
+- **05_igrf_vectorized_guide.ipynb** - IGRF usage guide with practical examples
+
 ### Model Evaluations
 - **t89_vectorized_evaluation.ipynb** - T89 model performance and accuracy tests
 - **t96_vectorized_evaluation.ipynb** - T96 model comprehensive evaluation
@@ -268,6 +280,8 @@ All notebooks include execution outputs demonstrating:
 
 ### Development Guides
 - `docs/vectorization/direction_vectorize.md` - Core vectorization principles
+- `docs/vectorization/COORDINATE_TRANSFORMATIONS_VECTORIZED.md` - Coordinate transformation guide
+- `docs/vectorization/IGRF_VECTORIZATION_SUMMARY.md` - IGRF implementation details
 - `docs/FILE_ORGANIZATION.md` - Project structure guide
 
 ## References
