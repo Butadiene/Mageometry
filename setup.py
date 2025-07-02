@@ -6,7 +6,7 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 
 setuptools.setup(
     name='geopack-vectorized',
-    version='1.0.13',
+    version='1.1.0',
     author='Sheng Tian',
     author_email='ts0110@atmos.ucla.edu',
     description='Python implementation of geopack and Tsyganenko models with optimized vectorization',

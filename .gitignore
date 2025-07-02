@@ -3,50 +3,58 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-*.egg-info/
-dist/
-build/
-
-# Virtual environments
+.Python
 venv/
+ENV/
 env/
-.venv/
 .env
-test_env/
 
-# IDE
-.vscode/
+# Development
+*.log
+*.swp
+*.swo
+*~
 .idea/
-*.code-workspace
+.vscode/
+*.sublime-*
 
 # Jupyter
 .ipynb_checkpoints/
+*.ipynb_checkpoints
 
-# Testing and coverage
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
 .pytest_cache/
 .coverage
 htmlcov/
-*.cover
+.tox/
+.nox/
 
-# OS files
-.DS_Store
-Thumbs.db
-*~
-*.swp
-*.swo
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
 
-# Project specific
-# IGRF coefficient files (downloaded)
-geopack/igrf_coeffs/*
-!geopack/igrf_coeffs/.gitkeep
+# Documentation build
+docs/_build/
+docs/_static/
+docs/_templates/
 
-# Performance profiling
-*.prof
-*.stats
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
 
-# Data files
-*.npy
-*.npz
-*.mat
-!test_data/*.npy
-!test_data/*.npz
+# Data files that should not be tracked
+*.dat.gz
+*.dat.bz2
+
+# Local configuration
+config.local
+settings.local
