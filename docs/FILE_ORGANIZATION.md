@@ -19,7 +19,9 @@ geopack-vectorize/
 │       ├── t96_vectorized.py    # T96 vectorized (30x speedup)
 │       ├── t01_vectorized.py    # T01 vectorized (40x speedup)
 │       ├── t04_vectorized.py    # T04 vectorized (35x speedup)
-│       └── condip1_exact_vectorized.py  # Vectorized dipole field
+│       ├── condip1_exact_vectorized.py  # Vectorized dipole field
+│       ├── trace_field_lines_vectorized.py  # Field line tracing (recommended)
+│       └── trace_field_lines_vectorized_nointerp.py  # Field line tracing (validation)
 │
 ├── tests/                        # Test suite
 │   ├── test_geopack1.py        # Original Fortran compatibility tests
@@ -30,7 +32,17 @@ geopack-vectorize/
 │   ├── basic_usage.py           # Simple usage examples
 │   ├── field_line_tracing.py    # Field line tracing demo
 │   └── notebooks/               # Jupyter notebooks
-│       ├── Field Line Trace Demo.ipynb
+│       ├── 01_coordinate_transformations_guide.ipynb
+│       ├── 02_magnetic_field_models_guide.ipynb
+│       ├── 03_performance_comparison.ipynb
+│       ├── 04_accuracy_validation.ipynb
+│       ├── 05_igrf_vectorized_guide.ipynb
+│       ├── 06_field_line_tracing_guide.ipynb
+│       ├── 07_field_line_tracing_performance_benchmark.ipynb
+│       ├── 08_advanced_field_line_applications.ipynb
+│       ├── 09_field_line_tracing_path_accuracy_validation.ipynb
+│       ├── 10_field_line_tracing_algorithm_validation.ipynb
+│       ├── 11_field_line_tracing_comprehensive_comparison.ipynb
 │       ├── field_slice_comparisons.ipynb
 │       ├── t89_vectorized_evaluation.ipynb
 │       ├── t96_vectorized_evaluation.ipynb
@@ -87,6 +99,9 @@ The package supports flexible imports:
 # Direct imports (recommended)
 from geopack import t89, t96, t01, t04
 from geopack import t89_vectorized, t96_vectorized, t01_vectorized, t04_vectorized
+
+# Field line tracing
+from geopack.trace_field_lines_vectorized import trace_vectorized
 
 # Module imports
 from geopack.models.t96 import t96

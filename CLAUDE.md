@@ -22,7 +22,9 @@ geopack-vectorize/
 │       ├── t96_vectorized.py  # T96 vectorized (30x speedup)
 │       ├── t01_vectorized.py  # T01 vectorized (40x speedup)
 │       ├── t04_vectorized.py  # T04 vectorized (35x speedup)
-│       └── condip1_exact_vectorized.py  # Vectorized dipole field
+│       ├── condip1_exact_vectorized.py  # Vectorized dipole field
+│       ├── trace_field_lines_vectorized.py  # Vectorized field line tracing (recommended)
+│       └── trace_field_lines_vectorized_nointerp.py  # Vectorized tracing (validation only)
 │
 ├── docs/                      # Documentation
 │   ├── vectorization/        # Vectorization guides and progress
@@ -55,6 +57,8 @@ geopack-vectorize/
   - **t01_vectorized.py** - Vectorized T01 (40x speedup)
   - **t04_vectorized.py** - Vectorized T04 (35x speedup)
   - **condip1_exact_vectorized.py** - Vectorized dipole field calculations
+  - **trace_field_lines_vectorized.py** - Vectorized field line tracing with boundary interpolation (30-50x speedup, recommended)
+  - **trace_field_lines_vectorized_nointerp.py** - Vectorized tracing without interpolation (validation only)
 - **igrf_vectorized.py** - Vectorized IGRF implementation (9-13x speedup)
 - **coordinates_vectorized.py** - Vectorized coordinate transformations (25-60x speedup)
 - **coordinates_vectorized_complex.py** - Vectorized spherical/Cartesian conversions
@@ -198,11 +202,12 @@ def function_vectorized(x, y, z):
 - Dipole field calculations in condip1_exact_vectorized
 - IGRF vectorization (9-13x speedup, exact compatibility)
 - Coordinate transformations (25-60x speedup for all systems)
+- Field line tracing (30-50x speedup, with accurate boundary handling)
 
 ### TODO
 - GPU acceleration support
 - Parallel processing optimizations
-- Advanced field line integration methods
+- Additional field line integration methods
 
 ## Code Style Guidelines
 
@@ -262,6 +267,14 @@ The `examples/notebooks/` directory contains comprehensive evaluation notebooks:
 - **t96_solar_wind_evaluation.ipynb** - T96 behavior under different solar wind conditions
 - **t01_vectorized_evaluation.ipynb** - T01 model with storm-time corrections
 - **t04_vectorized_evaluation.ipynb** - T04 storm-time model evaluation
+
+### Field Line Tracing
+- **06_field_line_tracing_guide.ipynb** - Getting started with field line tracing
+- **07_field_line_tracing_performance_benchmark.ipynb** - Performance benchmarks
+- **08_advanced_field_line_applications.ipynb** - Advanced usage examples
+- **09_field_line_tracing_path_accuracy_validation.ipynb** - Path-level accuracy analysis
+- **10_field_line_tracing_algorithm_validation.ipynb** - Algorithm validation
+- **11_field_line_tracing_comprehensive_comparison.ipynb** - Detailed comparison of implementations
 
 ### Comparisons
 - **field_slice_comparisons.ipynb** - Visual comparisons of magnetic field patterns

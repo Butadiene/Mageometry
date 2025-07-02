@@ -5,7 +5,7 @@ This python `geopack` has integrated two modules originally written in Fortran: 
 
 ## 🚀 New: High-Performance Vectorized Implementations
 
-**Version 1.0.12 introduces vectorized implementations of all Tsyganenko models with 20-150x performance improvements!**
+**Version 1.1.0 introduces vectorized implementations of all Tsyganenko models with 20-150x performance improvements, plus vectorized field line tracing!**
 
 ### Performance Comparison
 | Model | Scalar (1000 points) | Vectorized (1000 points) | Speedup |
@@ -53,8 +53,8 @@ The package requires Python 3.7+ and depends on `numpy` and `scipy`. It works on
 ### From GitHub Release (Recommended)
 ```bash
 # Download the latest release
-wget https://github.com/tsssss/geopack/releases/download/v1.0.12/geopack-1.0.12.tar.gz
-pip install geopack-1.0.12.tar.gz
+wget https://github.com/tsssss/geopack/releases/download/v1.1.0/geopack-1.1.0.tar.gz
+pip install geopack-1.1.0.tar.gz
 ```
 
 ### From PyPI
@@ -335,7 +335,7 @@ print(bx.shape)  # (100, 50) - same as input!
 
 The library provides two vectorized field line tracing implementations:
 
-### 1. `trace_field_lines_vectorized.py` (RECOMMENDED)
+### 1. `trace_field_lines_vectorized` (RECOMMENDED)
 - **Production implementation** with accurate boundary interpolation
 - Use this for all scientific applications
 - Boundary accuracy: < 0.4 km (< 0.00006 Re)
@@ -357,17 +357,27 @@ xf_array, yf_array, zf_array, status_array = trace_vectorized(
 )
 ```
 
-### 2. `trace_field_lines_vectorized_nointerp.py` (Validation only)
+### 2. `trace_field_lines_vectorized_nointerp` (Validation only)
 - Matches scalar implementation's boundary behavior exactly
 - Only for validation/testing to verify vectorization correctness
 - Boundary accuracy: ~1500 km (~0.23 Re)
 - Should NOT be used for production code
 - Located in: `geopack/trace_field_lines_vectorized_nointerp.py`
 
+```python
+from geopack.trace_field_lines_vectorized_nointerp import trace_vectorized
+
+# For validation/testing only
+xf, yf, zf, status = trace_vectorized(x0, y0, z0, dir=1, rlim=30)
+```
+
 For detailed examples and comparisons, see the notebooks in `examples/notebooks/`:
-- `11_field_line_tracing_comprehensive_comparison.ipynb` - Detailed comparison of both implementations
-- `09_field_line_tracing_path_accuracy_validation.ipynb` - Path-level accuracy analysis
+- `06_field_line_tracing_guide.ipynb` - Getting started with field line tracing
 - `07_field_line_tracing_performance_benchmark.ipynb` - Performance benchmarks
+- `08_advanced_field_line_applications.ipynb` - Advanced usage examples
+- `09_field_line_tracing_path_accuracy_validation.ipynb` - Path-level accuracy analysis
+- `10_field_line_tracing_algorithm_validation.ipynb` - Algorithm validation
+- `11_field_line_tracing_comprehensive_comparison.ipynb` - Detailed comparison of both implementations
 
 
 ## Package Interface

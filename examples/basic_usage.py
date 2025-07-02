@@ -6,6 +6,10 @@ This script demonstrates how to use both scalar and vectorized versions
 of the magnetospheric field models.
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 import datetime
 import geopack
@@ -78,7 +82,7 @@ print(f"Throughput: {n_test/t_vector:.0f} points/second")
 print("\n=== Coordinate Transformations ===")
 # Convert from GSM to GEO coordinates
 x_gsm, y_gsm, z_gsm = 5.0, 0.0, 0.0
-x_geo, y_geo, z_geo = geopack.geogsw(x_gsm, y_gsm, z_gsm, -1)
+x_geo, y_geo, z_geo = geopack.geogsm(x_gsm, y_gsm, z_gsm, -1)
 print(f"GSM: ({x_gsm}, {y_gsm}, {z_gsm}) Re")
 print(f"GEO: ({x_geo:.3f}, {y_geo:.3f}, {z_geo:.3f}) Re")
 

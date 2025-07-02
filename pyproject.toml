@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "geopack-vectorized"
-version = "1.0.13"
+version = "1.1.0"
 description = "Python implementation of geopack and Tsyganenko models with optimized vectorization"
 authors = [
     {name = "Sheng Tian", email = "ts0110@atmos.ucla.edu"}

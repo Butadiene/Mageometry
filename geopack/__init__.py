@@ -39,8 +39,11 @@ from .igrf_vectorized import (
     igrf_geo_vectorized, igrf_gsm_vectorized, igrf_gsw_vectorized
 )
 
+# Field line tracing
+from .trace_field_lines_vectorized import trace_vectorized
 
-__version__ = '1.0.13'
+
+__version__ = '1.1.0'
 
 __all__ = [
     # Core functions
@@ -60,5 +63,7 @@ __all__ = [
     'gswgsm_vectorized', 'sphcar_vectorized', 'bspcar_vectorized', 
     'bcarsp_vectorized',
     # Vectorized IGRF functions
-    'igrf_geo_vectorized', 'igrf_gsm_vectorized', 'igrf_gsw_vectorized'
+    'igrf_geo_vectorized', 'igrf_gsm_vectorized', 'igrf_gsw_vectorized',
+    # Field line tracing
+    'trace_vectorized'
 ]

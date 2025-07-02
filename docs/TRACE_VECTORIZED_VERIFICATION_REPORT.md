@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The `trace_vectorized` implementation with integrated boundary fix has been thoroughly tested and verified. The implementation provides excellent accuracy, significant performance improvements, and robust handling of edge cases.
+The `trace_field_lines_vectorized` implementation with integrated boundary fix has been thoroughly tested and verified. The implementation provides excellent accuracy, significant performance improvements, and robust handling of edge cases.
 
 ## Key Findings
 
@@ -105,7 +105,7 @@ The integrated boundary fix provides:
 
 ## Conclusion
 
-The `trace_vectorized` implementation with integrated boundary fix is **verified and production-ready**. It provides:
+The `trace_field_lines_vectorized` implementation with integrated boundary fix is **verified and production-ready**. It provides:
 
 - **Excellent accuracy** matching scalar implementation
 - **Significant performance gains** for batch processing
@@ -123,10 +123,12 @@ The implementation can be used with confidence as a drop-in replacement for the 
 
 ## Files and Tests
 
-- Implementation: `geopack/trace_vectorized.py`
-- Validation notebook: `examples/notebooks/09_trace_vectorization_validation.ipynb`
-- Test suite: `tests/test_trace_vectorized_verification_streamlined.py`
-- Quick check: `tests/test_quick_verification.py`
+- Implementation: `geopack/trace_field_lines_vectorized.py`
+- Validation notebooks: 
+  - `examples/notebooks/09_field_line_tracing_path_accuracy_validation.ipynb`
+  - `examples/notebooks/10_field_line_tracing_algorithm_validation.ipynb`
+  - `examples/notebooks/11_field_line_tracing_comprehensive_comparison.ipynb`
+- Test suite: `tests/test_trace_field_lines_vectorized.py`
 
 ---
 *Report generated: January 2025*
