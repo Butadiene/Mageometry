@@ -53,11 +53,11 @@ The package requires Python 3.7+ and depends on `numpy` and `scipy`. It works on
 
 ### Install from GitHub Release
 ```bash
-# Download the latest release (v1.1.1)
-wget https://github.com/Butadiene/geopack-vectorize/releases/download/v1.1.1/geopack_vectorized-1.1.1.tar.gz
+# Download the latest release (v1.1.2)
+wget https://github.com/Butadiene/geopack-vectorize/releases/download/v1.1.2/geopack_vectorized-1.1.2.tar.gz
 # Extract and install
-tar -xzf geopack_vectorized-1.1.1.tar.gz
-cd geopack_vectorized-1.1.1
+tar -xzf geopack_vectorized-1.1.2.tar.gz
+cd geopack_vectorized-1.1.2
 python setup.py install
 ```
 
