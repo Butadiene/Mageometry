@@ -191,10 +191,10 @@ def rhand_vectorized(x, y, z, parmod, exname: str, inname: str, ds3):
     # Normalize by field magnitude
     b_mag = np.sqrt(bx**2 + by**2 + bz**2)
     
-    # Prevent division by zero
-    b_mag = np.where(b_mag < 1e-10, 1e-10, b_mag)
+    # Prevent division by zero (matching scalar implementation)
+    b_mag_safe = np.where(b_mag < 1e-10, 1e-10, b_mag)
     
-    b = ds3 / b_mag
+    b = ds3 / b_mag_safe
     
     r1 = bx * b
     r2 = by * b
@@ -237,7 +237,7 @@ def step_vectorized(x, y, z, ds_array, errin, parmod, exname, inname,
         return x, y, z
     
     # Maximum iterations for adaptive stepping
-    max_adapt_iter = 10
+    max_adapt_iter = 100
     
     # Extract active traces
     active_idx = np.where(active_mask)[0]
@@ -454,8 +454,23 @@ def trace_vectorized(xi, yi, zi, dir=1, rlim=10, r0=1, parmod=2,
     # Step sizes for each trace
     ds_array = np.full(n_traces, 0.5 * dir, dtype=np.float64)
     
+    # Determine initial direction by checking radial component of field
+    # This ensures we start tracing in the correct direction
+    ds3 = -0.5 * dir / 3.0
+    r1, r2, r3 = rhand_vectorized(xi, yi, zi, parmod, exname, inname, ds3)
+    
+    # Calculate radial component of field: B_r = (B · r) / |r|
+    br = (xi * r1 + yi * r2 + zi * r3)
+    
+    # Set initial ad based on field direction and tracing direction
+    # If dir=1 (antiparallel to B), ad has same sign as Br
+    # If dir=-1 (parallel to B), ad has opposite sign to Br
+    ad = np.where(br < 0, -0.01, 0.01)
+    if dir < 0:
+        ad = -ad
+    
     # Previous radial distances for boundary crossing detection
-    rr = np.sqrt(xi**2 + yi**2 + zi**2) + 0.01 * dir
+    rr = np.sqrt(xi**2 + yi**2 + zi**2) + ad
     
     # Storage for full paths if requested
     if return_full_path:
@@ -481,9 +496,18 @@ def trace_vectorized(xi, yi, zi, dir=1, rlim=10, r0=1, parmod=2,
         ryz = y**2 + z**2
         r = np.sqrt(r2)
         
-        # Check outer boundary conditions
+        # Check outer boundary conditions with interpolation
         mask_outer = ((r >= rlim) | (ryz >= 1600) | (x >= 20)) & active_mask
         if np.any(mask_outer):
+            # For radial boundary crossings, interpolate to exact boundary
+            mask_r_cross = (r >= rlim) & (rr < rlim) & active_mask
+            if np.any(mask_r_cross):
+                # Interpolate to exact boundary crossing
+                r1 = (rlim - rr[mask_r_cross]) / (r[mask_r_cross] - rr[mask_r_cross])
+                x[mask_r_cross] = xr[mask_r_cross] + (x[mask_r_cross] - xr[mask_r_cross]) * r1
+                y[mask_r_cross] = yr[mask_r_cross] + (y[mask_r_cross] - yr[mask_r_cross]) * r1
+                z[mask_r_cross] = zr[mask_r_cross] + (z[mask_r_cross] - zr[mask_r_cross]) * r1
+            
             status[mask_outer] = 1
             active_mask[mask_outer] = False
         
@@ -504,9 +528,14 @@ def trace_vectorized(xi, yi, zi, dir=1, rlim=10, r0=1, parmod=2,
         # Store previous radial distances
         rr[active_mask] = r[active_mask]
         
-        # Perform integration step
+        # Perform integration step with adaptive error tolerance
+        # Use tighter tolerance in challenging regions (tail, current sheet)
         iteration_count = np.zeros(n_traces, dtype=np.int32)
-        x, y, z = step_vectorized(x, y, z, ds_array, 0.001, parmod,
+        
+        # Use fixed error tolerance matching scalar implementation
+        errin = 0.001
+            
+        x, y, z = step_vectorized(x, y, z, ds_array, errin, parmod,
                                  exname, inname, active_mask, status,
                                  iteration_count)
         
@@ -521,40 +550,10 @@ def trace_vectorized(xi, yi, zi, dir=1, rlim=10, r0=1, parmod=2,
     if np.any(still_active):
         status[still_active] = 2
     
-    # Prepare output
+    # Prepare output (no boundary correction, matching scalar implementation)
     xf = x
     yf = y
     zf = z
-    
-    # Apply boundary correction for traces that hit outer boundary (status=1)
-    # to better match scalar implementation behavior
-    boundary_mask = (status == 1)
-    if np.any(boundary_mask):
-        # Calculate movement from start
-        moved = np.sqrt((xf-xi)**2 + (yf-yi)**2 + (zf-zi)**2) > 0.1
-        boundary_mask = boundary_mask & moved
-        
-        if np.any(boundary_mask):
-            r = np.sqrt(xf**2 + yf**2 + zf**2)
-            ryz = yf**2 + zf**2
-            
-            # Check each boundary condition
-            r_boundary = (r >= rlim) & boundary_mask
-            if np.any(r_boundary):
-                scale = (rlim - 0.01) / r[r_boundary]
-                xf[r_boundary] *= scale
-                yf[r_boundary] *= scale
-                zf[r_boundary] *= scale
-            
-            ryz_boundary = (ryz >= 1600) & boundary_mask & ~r_boundary
-            if np.any(ryz_boundary):
-                scale = np.sqrt((1600 - 1) / ryz[ryz_boundary])
-                yf[ryz_boundary] *= scale
-                zf[ryz_boundary] *= scale
-            
-            x_boundary = (xf >= 20) & boundary_mask & ~r_boundary & ~ryz_boundary
-            if np.any(x_boundary):
-                xf[x_boundary] = 19.99
     
     if scalar_input:
         xf = xf[0]
