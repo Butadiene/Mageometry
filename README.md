@@ -51,16 +51,14 @@ Test results are attached in `./test_geopack1.md` to demonstrate that the Python
 
 The package requires Python 3.7+ and depends on `numpy` and `scipy`. It works on all platforms (Windows, Mac, Linux).
 
-### Quick Install from PyPI (Recommended)
-```bash
-pip install geopack
-```
-
 ### Install from GitHub Release
 ```bash
-# Download and install the latest release (v1.1.0)
+# Download the latest release (v1.1.0)
 wget https://github.com/tsssss/geopack/releases/download/v1.1.0/geopack-1.1.0.tar.gz
-pip install geopack-1.1.0.tar.gz
+# Extract and install
+tar -xzf geopack-1.1.0.tar.gz
+cd geopack-1.1.0
+python setup.py install
 ```
 
 ### Install from Source (Development)
@@ -70,7 +68,7 @@ git clone https://github.com/tsssss/geopack.git
 cd geopack
 
 # Install in development mode
-pip install -e .
+python setup.py develop
 ```
 
 ### Conda Installation
@@ -79,9 +77,9 @@ If you're using Anaconda or Miniconda:
 # First ensure conda-forge channel is added
 conda config --add channels conda-forge
 
-# Install geopack and dependencies
+# Install dependencies
 conda install numpy scipy
-pip install geopack
+# Then follow the installation from source instructions above
 ```
 
 ### Verify Installation

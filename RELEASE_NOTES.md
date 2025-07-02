@@ -13,11 +13,6 @@
 - Comprehensive test suite and benchmarks
 - Example notebooks and scripts
 
-## Installation
-```bash
-pip install geopack-1.0.12.tar.gz
-```
-
 ## Quick Start
 ```python
 from geopack import t96, t96_vectorized

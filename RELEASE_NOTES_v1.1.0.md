@@ -100,16 +100,3 @@ Function names remain the same - only module names changed for clarity.
 ### 🙏 Acknowledgments
 This release represents a complete vectorization of the geopack library, making it suitable for modern large-scale space physics computations while maintaining the accuracy of the original Fortran implementations.
 
----
-
-## Installation
-```bash
-pip install geopack-vectorized==1.1.0
-```
-
-## Upgrade from 1.0.x
-```bash
-pip install --upgrade geopack-vectorized
-```
-
-No breaking changes - all vectorized functions are drop-in replacements for scalar versions.

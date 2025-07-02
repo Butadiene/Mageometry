@@ -30,7 +30,7 @@ Update version numbers in these files:
 # Clean install test
 python -m venv test_env
 source test_env/bin/activate  # Windows: test_env\Scripts\activate
-pip install -e .
+python setup.py develop
 python tests/test_geopack1.py
 python tests/test_vectorized_models.py
 deactivate
@@ -60,56 +60,27 @@ git push origin master
 # Clean previous builds
 rm -rf dist/ build/ *.egg-info
 
-# Install build tools
-pip install --upgrade build twine
+# Build source distribution
+python setup.py sdist
 
-# Build source distribution and wheel
-python -m build
-
-# Check the built packages
+# Check the built package
 ls -la dist/
 # Should see:
 # - geopack_vectorized-1.1.0.tar.gz
-# - geopack_vectorized-1.1.0-py3-none-any.whl
 ```
 
 ### 3. Test Distribution
 ```bash
-# Test installation from built wheel
-pip install dist/geopack_vectorized-1.1.0-py3-none-any.whl
+# Test installation from built package
+tar -xzf dist/geopack_vectorized-1.1.0.tar.gz
+cd geopack_vectorized-1.1.0
+python setup.py install
 
 # Run basic import test
 python -c "import geopack; print(geopack.__version__)"
-
-# Uninstall test version
-pip uninstall geopack-vectorized
 ```
 
-### 4. Upload to PyPI
-
-#### Test PyPI First (Recommended)
-```bash
-# Upload to Test PyPI
-twine upload --repository testpypi dist/*
-
-# Test installation from Test PyPI
-pip install --index-url https://test.pypi.org/simple/ geopack-vectorized
-
-# Verify it works
-python -c "import geopack; print(geopack.__version__)"
-```
-
-#### Production PyPI
-```bash
-# Upload to PyPI (requires PyPI account and API token)
-twine upload dist/*
-
-# Will prompt for:
-# Username: __token__
-# Password: <your-pypi-api-token>
-```
-
-### 5. GitHub Release
+### 4. GitHub Release
 1. Go to https://github.com/Butadiene/geopack-vectorize/releases
 2. Click "Create a new release"
 3. Choose the tag you created (v1.1.0)
@@ -118,40 +89,14 @@ twine upload dist/*
 6. Attach the built files from `dist/`
 7. Click "Publish release"
 
-### 6. Post-Release Verification
+### 5. Post-Release Verification
 ```bash
-# Wait 5-10 minutes for PyPI to update, then test
-pip install --upgrade geopack-vectorized
+# Download from GitHub release and test
+wget https://github.com/Butadiene/geopack-vectorize/releases/download/v1.1.0/geopack_vectorized-1.1.0.tar.gz
+tar -xzf geopack_vectorized-1.1.0.tar.gz
+cd geopack_vectorized-1.1.0
+python setup.py install
 python -c "import geopack; print(geopack.__version__)"
-```
-
-## PyPI Setup (First Time Only)
-
-### 1. Create PyPI Account
-- Register at https://pypi.org/account/register/
-- Verify email address
-- Enable 2FA (highly recommended)
-
-### 2. Create API Token
-- Go to https://pypi.org/manage/account/
-- Scroll to "API tokens"
-- Click "Add API token"
-- Name: "geopack-vectorized-upload"
-- Scope: "Project: geopack-vectorized" (or "Entire account" for first upload)
-- Copy the token (starts with `pypi-`)
-
-### 3. Configure Token
-```bash
-# Option 1: Use keyring (recommended)
-pip install keyring
-keyring set https://upload.pypi.org/legacy/ __token__
-# Paste your token when prompted
-
-# Option 2: Create .pypirc file (less secure)
-# Create ~/.pypirc with:
-[pypi]
-username = __token__
-password = pypi-xxxxx-your-token-here
 ```
 
 ## Version Numbering
@@ -170,26 +115,22 @@ Examples:
 
 ### Build Errors
 ```bash
-# Ensure latest tools
-pip install --upgrade pip setuptools wheel build
+# Ensure latest setuptools
+python -m pip install --upgrade setuptools
 
 # Clear caches
 rm -rf build/ dist/ *.egg-info __pycache__
 find . -type d -name __pycache__ -exec rm -rf {} +
 ```
 
-### Upload Errors
-- **401 Unauthorized**: Check API token is correct
-- **400 Bad Request**: Package name might already exist
-- **File already exists**: Version already uploaded (bump version number)
-
 ### Installation Issues
 ```bash
-# Force reinstall
-pip install --force-reinstall --no-cache-dir geopack-vectorized
+# If installation fails, try:
+python setup.py install --user
 
-# Check installed version
-pip show geopack-vectorized
+# Or install dependencies first:
+python -m pip install numpy scipy
+python setup.py install
 ```
 
 ## Maintenance Tasks
@@ -219,12 +160,9 @@ git tag -a v1.1.0 -m "Release version 1.1.0"
 git push origin master --tags
 
 # 4. Build
-python -m build
+python setup.py sdist
 
-# 5. Upload
-twine upload dist/*
-
-# 6. Create GitHub release
+# 5. Create GitHub release and upload dist/*.tar.gz
 ```
 
 ## Contact
