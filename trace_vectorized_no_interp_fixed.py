@@ -1,19 +1,6 @@
 """
-Vectorized magnetic field line tracing implementation WITHOUT boundary interpolation.
-This version matches the scalar implementation's boundary handling exactly for validation purposes.
-
-This module provides high-performance field line tracing for multiple starting
-points simultaneously, achieving 30-50x speedup over scalar implementation.
-
-Key features:
-- No interpolation at outer boundaries (matches scalar behavior)
-- Adaptive step size with limiting near boundaries to prevent large overshoot
-- Boundary checks performed before integration steps (matches scalar timing)
-- Maximum error ~0.125 Re at outer boundary due to step size differences
-
-Note: Both scalar and vectorized versions may overshoot the outer boundary by
-up to one step size. The vectorized version limits step size to 0.5 Re near
-the outer boundary to minimize this overshoot.
+Fixed version of vectorized magnetic field line tracing WITHOUT boundary interpolation.
+This version matches the scalar implementation's boundary handling exactly.
 """
 
 import numpy as np
@@ -46,25 +33,7 @@ from .geopack import dip, igrf_gsm
 
 
 def call_external_model_vectorized(exname: str, parmod, ps: float, x, y, z):
-    """
-    Call the appropriate external field model (vectorized if available).
-    
-    Parameters
-    ----------
-    exname : str
-        Name of external field model ('t89', 't96', 't01', 't04')
-    parmod : array_like
-        Model parameters
-    ps : float
-        Dipole tilt angle
-    x, y, z : array_like
-        Position vectors
-    
-    Returns
-    -------
-    bx, by, bz : arrays
-        Magnetic field components
-    """
+    """Call the appropriate external field model (vectorized if available)."""
     exname_lower = exname.lower()
     
     if exname_lower == 't89':
@@ -132,21 +101,7 @@ def call_external_model_vectorized(exname: str, parmod, ps: float, x, y, z):
 
 
 def call_internal_model_vectorized(inname: str, x, y, z):
-    """
-    Call the appropriate internal field model.
-    
-    Parameters
-    ----------
-    inname : str
-        Name of internal field model ('igrf' or 'dipole')
-    x, y, z : array_like
-        Position vectors
-        
-    Returns
-    -------
-    bx, by, bz : arrays
-        Magnetic field components
-    """
+    """Call the appropriate internal field model."""
     inname_lower = inname.lower()
     
     if inname_lower == 'igrf' or inname_lower == 'igrf_gsm':
@@ -182,29 +137,7 @@ def call_internal_model_vectorized(inname: str, x, y, z):
 
 
 def rhand_vectorized(x, y, z, parmod, exname, inname, ds3):
-    """
-    Vectorized right-hand side calculation for field line integration.
-    
-    Calculates the normalized field direction for RK integration.
-    
-    Parameters
-    ----------
-    x, y, z : arrays
-        Current positions
-    parmod : array_like
-        Model parameters
-    exname : str
-        External field model name
-    inname : str
-        Internal field model name
-    ds3 : float or array
-        Integration step parameter (-ds/3)
-        
-    Returns
-    -------
-    r1, r2, r3 : arrays
-        Normalized step directions
-    """
+    """Vectorized right-hand side calculation for field line integration."""
     # Get dipole tilt from global state
     from . import geopack
     ps = geopack.psi
@@ -237,33 +170,7 @@ def rhand_vectorized(x, y, z, parmod, exname, inname, ds3):
 
 def step_vectorized(x, y, z, ds_array, errin, parmod, exname, inname, 
                    active_mask, status, iteration_count):
-    """
-    Perform one vectorized RK5 integration step.
-    
-    Parameters
-    ----------
-    x, y, z : arrays
-        Current positions
-    ds_array : array
-        Step sizes for each trace
-    errin : float
-        Error tolerance
-    parmod : array_like
-        Model parameters
-    exname, inname : str
-        Field model names
-    active_mask : array of bool
-        Mask of active traces
-    status : array of int
-        Status codes for each trace
-    iteration_count : array of int
-        Iteration counter for adaptive stepping
-        
-    Returns
-    -------
-    x, y, z : arrays
-        Updated positions
-    """
+    """Perform one vectorized RK5 integration step."""
     n_active = np.sum(active_mask)
     if n_active == 0:
         return x, y, z
@@ -387,25 +294,8 @@ def step_vectorized(x, y, z, ds_array, errin, parmod, exname, inname,
     return x, y, z
 
 
-def adjust_step_sizes(r, r0, dir, ds_array, active_mask, rlim=None):
-    """
-    Adjust step sizes based on radial distance (matching scalar logic).
-    
-    Parameters
-    ----------
-    r : array
-        Current radial distances
-    r0 : float
-        Inner boundary radius
-    dir : float
-        Direction of tracing
-    ds_array : array
-        Step sizes to adjust
-    active_mask : array of bool
-        Mask of active traces
-    rlim : float, optional
-        Outer boundary radius for step size limiting
-    """
+def adjust_step_sizes(r, r0, dir, ds_array, active_mask):
+    """Adjust step sizes based on radial distance (matching scalar logic)."""
     # Region 1: r < 3 Re
     mask_inner = (r < 3) & active_mask
     if np.any(mask_inner):
@@ -420,12 +310,6 @@ def adjust_step_sizes(r, r0, dir, ds_array, active_mask, rlim=None):
         ds_array[mask_mid] = dir
     
     # Region 3: r >= 5 Re - keep current adaptive step size
-    # BUT limit step size when approaching outer boundary
-    if rlim is not None:
-        # When within 2 Re of outer boundary, limit step size to 0.5 Re
-        mask_near_outer = (r > (rlim - 2.0)) & active_mask
-        if np.any(mask_near_outer):
-            ds_array[mask_near_outer] = np.sign(ds_array[mask_near_outer]) * np.minimum(np.abs(ds_array[mask_near_outer]), 0.5)
 
 
 def trace_vectorized_no_interp(xi, yi, zi, dir=1, rlim=10, r0=1, parmod=2,
@@ -436,42 +320,6 @@ def trace_vectorized_no_interp(xi, yi, zi, dir=1, rlim=10, r0=1, parmod=2,
     
     This version matches the scalar implementation's boundary handling exactly,
     stopping immediately when a boundary is detected without interpolation.
-    
-    Parameters
-    ----------
-    xi, yi, zi : float or array_like
-        Starting positions in GSM coordinates (Earth radii)
-    dir : float, default=1
-        Tracing direction: +1 = antiparallel to B (north to south)
-                          -1 = parallel to B (south to north)
-    rlim : float, default=10
-        Outer boundary radius (Re) where tracing stops
-    r0 : float, default=1
-        Inner boundary radius (Re) at Earth's surface
-    parmod : array_like, default=2
-        Model parameters (meaning depends on model)
-    exname : str, default='t89'
-        External field model name ('t89', 't96', 't01', 't04')
-    inname : str, default='igrf'
-        Internal field model name ('igrf' or 'dipole')
-    maxloop : int, default=1000
-        Maximum number of integration steps
-    return_full_path : bool, default=False
-        If True, returns full trace paths (memory intensive)
-        If False, returns only endpoints (recommended)
-        
-    Returns
-    -------
-    xf, yf, zf : arrays
-        Final positions of each field line
-    xx, yy, zz : arrays (if return_full_path=True)
-        Full trace paths for each field line
-    status : array of int
-        Status codes for each trace:
-        0 = successful trace to inner boundary
-        1 = hit outer boundary
-        2 = exceeded maxloop iterations
-        -1 = numerical error
     """
     # Handle scalar inputs
     scalar_input = np.isscalar(xi)
@@ -573,7 +421,7 @@ def trace_vectorized_no_interp(xi, yi, zi, dir=1, rlim=10, r0=1, parmod=2,
         rr[active_mask] = r[active_mask]
         
         # Adjust step sizes based on radial distance
-        adjust_step_sizes(r, r0, dir, ds_array, active_mask, rlim)
+        adjust_step_sizes(r, r0, dir, ds_array, active_mask)
         
         # Perform integration step ONLY for active traces
         iteration_count = np.zeros(n_traces, dtype=np.int32)
