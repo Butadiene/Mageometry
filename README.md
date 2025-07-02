@@ -53,19 +53,19 @@ The package requires Python 3.7+ and depends on `numpy` and `scipy`. It works on
 
 ### Install from GitHub Release
 ```bash
-# Download the latest release (v1.1.0)
-wget https://github.com/tsssss/geopack/releases/download/v1.1.0/geopack-1.1.0.tar.gz
+# Download the latest release (v1.1.1)
+wget https://github.com/Butadiene/geopack-vectorize/releases/download/v1.1.1/geopack_vectorized-1.1.1.tar.gz
 # Extract and install
-tar -xzf geopack-1.1.0.tar.gz
-cd geopack-1.1.0
+tar -xzf geopack_vectorized-1.1.1.tar.gz
+cd geopack_vectorized-1.1.1
 python setup.py install
 ```
 
 ### Install from Source (Development)
 ```bash
 # Clone the repository
-git clone https://github.com/tsssss/geopack.git
-cd geopack
+git clone https://github.com/Butadiene/geopack-vectorize.git
+cd geopack-vectorize
 
 # Install in development mode
 python setup.py develop
