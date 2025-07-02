@@ -48,25 +48,61 @@ Test results are attached in `./test_geopack1.md` to demonstrate that the Python
 
 
 ## Installation
+
 The package requires Python 3.7+ and depends on `numpy` and `scipy`. It works on all platforms (Windows, Mac, Linux).
 
-### From GitHub Release (Recommended)
-```bash
-# Download the latest release
-wget https://github.com/tsssss/geopack/releases/download/v1.1.0/geopack-1.1.0.tar.gz
-pip install geopack-1.1.0.tar.gz
-```
-
-### From PyPI
+### Quick Install from PyPI (Recommended)
 ```bash
 pip install geopack
 ```
 
-### From Source (Development)
+### Install from GitHub Release
 ```bash
+# Download and install the latest release (v1.1.0)
+wget https://github.com/tsssss/geopack/releases/download/v1.1.0/geopack-1.1.0.tar.gz
+pip install geopack-1.1.0.tar.gz
+```
+
+### Install from Source (Development)
+```bash
+# Clone the repository
 git clone https://github.com/tsssss/geopack.git
 cd geopack
+
+# Install in development mode
 pip install -e .
+```
+
+### Conda Installation
+If you're using Anaconda or Miniconda:
+```bash
+# First ensure conda-forge channel is added
+conda config --add channels conda-forge
+
+# Install geopack and dependencies
+conda install numpy scipy
+pip install geopack
+```
+
+### Verify Installation
+```python
+# Test the installation
+import geopack
+print(geopack.__version__)  # Should print the version number
+
+# Quick test
+from geopack import t96_vectorized
+import numpy as np
+
+# Test vectorized calculation
+x = np.array([5.0, 6.0, 7.0])
+y = np.zeros(3)
+z = np.zeros(3)
+parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
+ps = 0.1
+
+bx, by, bz = t96_vectorized(parmod, ps, x, y, z)
+print(f"Magnetic field calculated successfully: Bx[0]={bx[0]:.2f} nT")
 ```
 
 ## Donate via PayPal
