@@ -7,9 +7,9 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 setuptools.setup(
     name='geopack-vectorized',
     version='1.1.1',
-    author='Sheng Tian',
-    author_email='ts0110@atmos.ucla.edu',
-    description='Python implementation of geopack and Tsyganenko models with optimized vectorization',
+    author='geopack-vectorize contributors',
+    author_email='',
+    description='Vectorized Python implementation of geopack and Tsyganenko models (fork of tsssss/geopack)',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url= 'https://github.com/Butadiene/geopack-vectorize',

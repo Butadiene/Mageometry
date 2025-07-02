@@ -632,3 +632,26 @@ Hapgood, M. A. (1992). Space physics coordinate transformations: A user guide. P
 N. A. Tsyganenko, A new data-based model of the near magnetosphere magnetic field: 1. Mathematical structure. 2. Parameterization and fitting to observations (submitted to JGR, July 2001)
 
 N. A. Tsyganenko and M. I. Sitnov, Modeling the dynamics of the inner magnetosphere during strong geomagnetic storms, J. Geophys. Res., v. 110 (A3), A03208, doi: 10.1029/2004JA010798, 2005.
+
+## Attribution
+
+This project is a fork of the original [geopack](https://github.com/tsssss/geopack) Python implementation by Sheng Tian. While this fork maintains compatibility with the original API, it has evolved into a separate project focused on:
+- High-performance vectorized implementations of all models
+- Optimized field line tracing with boundary interpolation
+- Comprehensive test coverage and validation notebooks
+- Enhanced documentation and examples
+
+## Author
+
+The geopack-vectorize project is maintained by the community of contributors. The vectorization enhancements and optimizations were developed as part of this fork.
+
+**Original geopack Python implementation**: Sheng Tian (ts0110@atmos.ucla.edu)  
+**Original Fortran geopack-2008**: N.A. Tsyganenko (https://geo.phys.spbu.ru/~tsyganenko/modeling.html)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests to improve the vectorized implementations or add new features.
+
+## License
+
+This project maintains the MIT License from the original geopack implementation.
