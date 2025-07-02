@@ -5,6 +5,9 @@ from urllib.request import urlopen, Request
 from urllib.parse import urljoin
 from fnmatch import fnmatch
 
+# Import models
+from .models import t89, t96, t01, t04
+
 igrf_pattern = 'igrf*coeffs.txt'
 
 def update_igrf(local_dir):
@@ -1055,13 +1058,13 @@ def bcarsp(x,y,z,bx,by,bz):
 
 def call_external_model(exname, par, ps, x,y,z):
     if exname == 't89':
-        return t89.t89(par, ps, x, y, z)
+        return t89(par, ps, x, y, z)
     elif exname == 't96':
-        return t96.t96(par, ps, x, y, z)
+        return t96(par, ps, x, y, z)
     elif exname == 't01':
-        return t01.t01(par, ps, x, y, z)
+        return t01(par, ps, x, y, z)
     elif exname == 't04':
-        return t04.t04(par, ps, x, y, z)
+        return t04(par, ps, x, y, z)
     else:
         raise ValueError
 
