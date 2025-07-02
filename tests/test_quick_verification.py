@@ -5,7 +5,7 @@ Quick verification of trace_vectorized accuracy and performance.
 import numpy as np
 import time
 import geopack
-from geopack.trace_vectorized import trace_vectorized
+from geopack.trace_field_lines_vectorized import trace_vectorized
 
 # Initialize
 ut = 100.0

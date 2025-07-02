@@ -5,7 +5,7 @@ Streamlined accuracy and performance verification for trace_vectorized.
 import numpy as np
 import time
 import geopack
-from geopack.trace_vectorized import trace_vectorized
+from geopack.trace_field_lines_vectorized import trace_vectorized
 import matplotlib.pyplot as plt
 from collections import defaultdict
 

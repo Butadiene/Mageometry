@@ -8,7 +8,7 @@ as the original while improving boundary case handling.
 import numpy as np
 import time
 import geopack
-from geopack.trace_vectorized import trace_vectorized
+from geopack.trace_field_lines_vectorized import trace_vectorized
 from geopack.trace_vectorized_boundary_fix_v2 import trace_vectorized_with_boundary_fix
 
 # Initialize

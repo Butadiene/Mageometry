@@ -15,7 +15,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import geopack
-from geopack.trace_vectorized import trace_vectorized
+from geopack.trace_field_lines_vectorized import trace_vectorized
 
 
 class TestTraceVectorized(unittest.TestCase):

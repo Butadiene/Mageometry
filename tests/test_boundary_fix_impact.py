@@ -5,7 +5,7 @@ Test to verify the boundary fix has minimal performance impact.
 import numpy as np
 import time
 import geopack
-from geopack.trace_vectorized import trace_vectorized
+from geopack.trace_field_lines_vectorized import trace_vectorized
 from geopack.trace_vectorized_original import trace_vectorized as trace_vectorized_original
 
 # Initialize

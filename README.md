@@ -331,6 +331,44 @@ bx, by, bz = t96_vectorized(parmod, ps, x, y, z)
 print(bx.shape)  # (100, 50) - same as input!
 ```
 
+## Field Line Tracing Implementations
+
+The library provides two vectorized field line tracing implementations:
+
+### 1. `trace_field_lines_vectorized.py` (RECOMMENDED)
+- **Production implementation** with accurate boundary interpolation
+- Use this for all scientific applications
+- Boundary accuracy: < 0.4 km (< 0.00006 Re)
+- 30-50x speedup for batch processing
+- Located in: `geopack/trace_field_lines_vectorized.py`
+
+```python
+from geopack.trace_field_lines_vectorized import trace_vectorized
+
+# Trace a single field line
+xf, yf, zf, status = trace_vectorized(x0, y0, z0, dir=1, rlim=30)
+
+# Trace multiple field lines in parallel
+x_array = np.array([...])
+y_array = np.array([...])
+z_array = np.array([...])
+xf_array, yf_array, zf_array, status_array = trace_vectorized(
+    x_array, y_array, z_array, dir=1, rlim=30
+)
+```
+
+### 2. `trace_field_lines_vectorized_nointerp.py` (Validation only)
+- Matches scalar implementation's boundary behavior exactly
+- Only for validation/testing to verify vectorization correctness
+- Boundary accuracy: ~1500 km (~0.23 Re)
+- Should NOT be used for production code
+- Located in: `geopack/trace_field_lines_vectorized_nointerp.py`
+
+For detailed examples and comparisons, see the notebooks in `examples/notebooks/`:
+- `11_field_line_tracing_comprehensive_comparison.ipynb` - Detailed comparison of both implementations
+- `09_field_line_tracing_path_accuracy_validation.ipynb` - Path-level accuracy analysis
+- `07_field_line_tracing_performance_benchmark.ipynb` - Performance benchmarks
+
 
 ## Package Interface
 The Python `geopack` follows the Python way: function parameters are all input parameters and the outputs are returned. (This is very different from the Fortran and IDL `geopack`.)

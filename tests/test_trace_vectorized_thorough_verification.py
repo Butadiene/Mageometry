@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy import stats
 import geopack
-from geopack.trace_vectorized import trace_vectorized
+from geopack.trace_field_lines_vectorized import trace_vectorized
 
 # Initialize geopack
 ut = 100.0
