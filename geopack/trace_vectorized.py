@@ -491,7 +491,24 @@ def trace_vectorized(xi, yi, zi, dir=1, rlim=10, r0=1, parmod=2,
         yr = y.copy()
         zr = z.copy()
         
-        # Calculate radial distances
+        # Calculate current radial distances before step
+        r_before = np.sqrt(x**2 + y**2 + z**2)
+        
+        # Store previous radial distances
+        rr[active_mask] = r_before[active_mask]
+        
+        # Adjust step sizes based on radial distance
+        adjust_step_sizes(r_before, r0, dir, ds_array, active_mask)
+        
+        # Perform integration step
+        iteration_count = np.zeros(n_traces, dtype=np.int32)
+        errin = 0.001  # Fixed error tolerance matching scalar implementation
+            
+        x, y, z = step_vectorized(x, y, z, ds_array, errin, parmod,
+                                 exname, inname, active_mask, status,
+                                 iteration_count)
+        
+        # Calculate radial distances after step
         r2 = x**2 + y**2 + z**2
         ryz = y**2 + z**2
         r = np.sqrt(r2)
@@ -516,28 +533,11 @@ def trace_vectorized(xi, yi, zi, dir=1, rlim=10, r0=1, parmod=2,
         if np.any(mask_inner_cross):
             # Interpolate to exact boundary crossing
             r1 = (r0 - r[mask_inner_cross]) / (rr[mask_inner_cross] - r[mask_inner_cross])
-            x[mask_inner_cross] -= (x[mask_inner_cross] - xr[mask_inner_cross]) * r1
-            y[mask_inner_cross] -= (y[mask_inner_cross] - yr[mask_inner_cross]) * r1
-            z[mask_inner_cross] -= (z[mask_inner_cross] - zr[mask_inner_cross]) * r1
+            x[mask_inner_cross] = xr[mask_inner_cross] + (x[mask_inner_cross] - xr[mask_inner_cross]) * r1
+            y[mask_inner_cross] = yr[mask_inner_cross] + (y[mask_inner_cross] - yr[mask_inner_cross]) * r1
+            z[mask_inner_cross] = zr[mask_inner_cross] + (z[mask_inner_cross] - zr[mask_inner_cross]) * r1
             status[mask_inner_cross] = 0
             active_mask[mask_inner_cross] = False
-        
-        # Adjust step sizes based on radial distance
-        adjust_step_sizes(r, r0, dir, ds_array, active_mask)
-        
-        # Store previous radial distances
-        rr[active_mask] = r[active_mask]
-        
-        # Perform integration step with adaptive error tolerance
-        # Use tighter tolerance in challenging regions (tail, current sheet)
-        iteration_count = np.zeros(n_traces, dtype=np.int32)
-        
-        # Use fixed error tolerance matching scalar implementation
-        errin = 0.001
-            
-        x, y, z = step_vectorized(x, y, z, ds_array, errin, parmod,
-                                 exname, inname, active_mask, status,
-                                 iteration_count)
         
         # Store positions if requested
         if return_full_path and np.any(active_mask):
