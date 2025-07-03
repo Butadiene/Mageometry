@@ -20,7 +20,14 @@ from .models import t89, t96, t01, t04
 from .vectorized import (
     t89_vectorized, t96_vectorized, 
     t01_vectorized, t04_vectorized,
-    condip1_exact_vectorized
+    condip1_exact_vectorized,
+    field_line_tangent_vectorized,
+    field_line_curvature_vectorized,
+    field_line_normal_vectorized,
+    field_line_binormal_vectorized,
+    field_line_torsion_vectorized,
+    field_line_frenet_frame_vectorized,
+    field_line_geometry_complete_vectorized
 )
 
 # Vectorized coordinate transformations
@@ -57,6 +64,11 @@ __all__ = [
     't89_vectorized', 't96_vectorized', 
     't01_vectorized', 't04_vectorized',
     'condip1_exact_vectorized',
+    # Field line geometry
+    'field_line_tangent_vectorized', 'field_line_curvature_vectorized',
+    'field_line_normal_vectorized', 'field_line_binormal_vectorized',
+    'field_line_torsion_vectorized', 'field_line_frenet_frame_vectorized',
+    'field_line_geometry_complete_vectorized',
     # Vectorized coordinate transformations
     'gsmgse_vectorized', 'geigeo_vectorized', 'magsm_vectorized',
     'smgsm_vectorized', 'geomag_vectorized', 'geogsm_vectorized',
