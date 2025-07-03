@@ -24,8 +24,16 @@ This directory contains Jupyter notebooks demonstrating various aspects of the g
 - `t04_vectorized_evaluation.ipynb` - T04 model validation
 
 ## 🔬 Applications
+- `06_field_line_tracing_guide.ipynb` - Getting started with field line tracing
+- `08_advanced_field_line_applications.ipynb` - Advanced field line tracing techniques
 - `t96_solar_wind_evaluation.ipynb` - Analyzing field behavior under different solar wind conditions
 - `field_slice_comparisons.ipynb` - Visualizing magnetic field patterns
+- `field_line_geometry_analysis.ipynb` - Analyzing field line curvature and torsion
+
+## 📊 Particle Dynamics Analysis
+The Larmor radius to curvature radius analysis notebooks have been moved to a separate folder:
+- See `../../larmor_radius_analysis/` for standalone particle dynamics tools
+- Includes analysis of particle adiabaticity and pitch angle scattering
 
 ## Key Implementation Files
 

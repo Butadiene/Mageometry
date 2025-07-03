@@ -10,3 +10,4 @@ recursive-include tests *.py
 recursive-exclude tests __pycache__ *.pyc
 recursive-exclude * __pycache__ *.pyc *.pyo *.pyc.* *.pyo.*
 global-exclude .DS_Store .gitignore *.swp *.swo *~
+prune larmor_radius_analysis
