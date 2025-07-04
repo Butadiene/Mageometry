@@ -45,6 +45,34 @@ def calculate_larmor_radius(energy_keV, B_nT, pitch_angle_deg=90):
     return RL
 
 
+def set_axes_equal(ax):
+    """
+    Make axes of 3D plot have equal scale so that spheres appear as spheres,
+    cubes as cubes, etc. This is one possible solution to Matplotlib's
+    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+    
+    3Dプロットの軸を等しいスケールに設定します。
+    """
+    x_limits = ax.get_xlim3d()
+    y_limits = ax.get_ylim3d()
+    z_limits = ax.get_zlim3d()
+
+    x_range = abs(x_limits[1] - x_limits[0])
+    x_middle = np.mean(x_limits)
+    y_range = abs(y_limits[1] - y_limits[0])
+    y_middle = np.mean(y_limits)
+    z_range = abs(z_limits[1] - z_limits[0])
+    z_middle = np.mean(z_limits)
+
+    # The plot bounding box is a sphere in the sense of the infinity
+    # norm, hence I call half the max range the plot radius.
+    plot_radius = 0.5*max([x_range, y_range, z_range])
+
+    ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
+    ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
+    ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
+
+
 def calculate_curvature_radius(model_func, parmod, ps, x, y, z):
     """Calculate radius of curvature and magnetic field strength."""
     kappa = field_line_curvature_vectorized(model_func, parmod, ps, x, y, z)
@@ -225,6 +253,16 @@ def main():
     ax1.set_xlim(-15, 5)
     ax1.set_ylim(-10, 10)
     ax1.set_zlim(-5, 5)
+    
+    # Apply equal aspect ratio to 3D plot
+    set_axes_equal(ax1)
+    
+    # Alternative method for newer matplotlib versions
+    try:
+        ax1.set_box_aspect([1, 1, 1])
+    except AttributeError:
+        pass  # Already handled by set_axes_equal
+    
     ax1.view_init(elev=20, azim=45)
     
     # Meridian projection
