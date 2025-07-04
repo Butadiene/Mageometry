@@ -215,10 +215,43 @@ def main():
     seed_points = np.array(seed_points)
     print(f"Found {len(seed_points)} seed points in scattering regions")
     
-    # Step 2: Trace field lines
+    # Step 2: Trace field lines from original seed points
     print("\nStep 2: Tracing field lines from seed points...")
     field_lines = trace_field_lines_from_points(seed_points, parmod, ps)
     print(f"Successfully traced {len(field_lines)} field lines")
+    
+    # Step 2b: Add random points from magnetic equatorial plane
+    print("\nStep 2b: Adding random field lines from equatorial plane...")
+    n_random = 20  # Number of random equatorial points
+    n_tail = 15   # Additional points in tail region
+    
+    # Sample random points on equatorial plane (Z=0)
+    # Focus on regions with interesting field topology
+    r_random = np.random.uniform(3, 12, n_random)  # Radial distance
+    theta_random = np.random.uniform(0, 2*np.pi, n_random)  # Azimuthal angle
+    
+    equatorial_points = []
+    for r, theta in zip(r_random, theta_random):
+        x = r * np.cos(theta)
+        y = r * np.sin(theta)
+        z = 0.0  # Equatorial plane
+        equatorial_points.append([x, y, z])
+    
+    # Add more points specifically in the tail region (x < -7.5)
+    print("Adding additional points in tail region (x < -7.5)...")
+    x_tail = np.random.uniform(-15, -7.5, n_tail)  # X coordinates in tail
+    y_tail = np.random.uniform(-5, 5, n_tail)      # Y spread in tail
+    z_tail = np.random.uniform(-0.5, 0.5, n_tail)  # Small Z variation near equator
+    
+    for x, y, z in zip(x_tail, y_tail, z_tail):
+        equatorial_points.append([x, y, z])
+    
+    equatorial_points = np.array(equatorial_points)
+    print(f"Sampled {len(equatorial_points)} random points on equatorial plane")
+    
+    # Trace field lines from equatorial points
+    equatorial_field_lines = trace_field_lines_from_points(equatorial_points, parmod, ps)
+    print(f"Successfully traced {len(equatorial_field_lines)} equatorial field lines")
     
     # Step 3: Create 3D visualization
     print("\nStep 3: Creating 3D visualization...")
@@ -228,9 +261,14 @@ def main():
     # Main 3D plot
     ax1 = fig.add_subplot(121, projection='3d')
     
-    # Plot field lines
-    for fl in field_lines[:50]:  # Limit to 50 for clarity
+    # Plot field lines from original seed points (blue)
+    for fl in field_lines[:30]:  # Limit for clarity
         ax1.plot(fl[:, 0], fl[:, 1], fl[:, 2], 'b-', alpha=0.3, linewidth=0.8)
+    
+    # Plot field lines from equatorial plane (red)
+    # Show more field lines since we have tail region emphasis
+    for fl in equatorial_field_lines[:50]:  # Increased limit to show tail structure
+        ax1.plot(fl[:, 0], fl[:, 1], fl[:, 2], 'r-', alpha=0.4, linewidth=1.0)
     
     # Add Earth
     u = np.linspace(0, 2 * np.pi, 50)
@@ -242,14 +280,19 @@ def main():
     
     # Mark seed points colored by Z level
     if len(seed_points) > 0:
-        colors = plt.cm.plasma(seed_points[:, 2] / seed_points[:, 2].max())
+        colors = plt.cm.plasma(seed_points[:, 2] / (seed_points[:, 2].max() + 0.001))
         ax1.scatter(seed_points[:, 0], seed_points[:, 1], seed_points[:, 2],
-                   c=colors, s=30, alpha=0.8)
+                   c=colors, s=30, alpha=0.8, label='Original seed points')
+    
+    # Mark equatorial seed points in red
+    ax1.scatter(equatorial_points[:, 0], equatorial_points[:, 1], equatorial_points[:, 2],
+               c='red', s=40, alpha=0.8, marker='s', edgecolors='darkred', 
+               label='Equatorial seed points')
     
     ax1.set_xlabel('X GSM (Re)')
     ax1.set_ylabel('Y GSM (Re)')
     ax1.set_zlabel('Z GSM (Re)')
-    ax1.set_title(f'3D Field Lines from Rc/RL < {CRITICAL_RATIO} Regions\n{energy_keV} keV electrons')
+    ax1.set_title(f'3D Field Lines: Blue (original) vs Red (equatorial)\n{energy_keV} keV electrons')
     ax1.set_xlim(-15, 5)
     ax1.set_ylim(-10, 10)
     ax1.set_zlim(-5, 5)
@@ -264,6 +307,9 @@ def main():
         pass  # Already handled by set_axes_equal
     
     ax1.view_init(elev=20, azim=45)
+    
+    # Add legend
+    ax1.legend(loc='upper right', fontsize=10)
     
     # Meridian projection
     ax2 = fig.add_subplot(122)
@@ -289,14 +335,23 @@ def main():
                      colors='black', linewidths=3)
     ax2.clabel(cs, inline=True, fontsize=10, fmt='Rc/RL=8')
     
-    # Project field lines
-    for fl in field_lines[:50]:
-        ax2.plot(fl[:, 0], fl[:, 2], 'g-', alpha=0.3, linewidth=0.8)
+    # Project field lines from original seed points (blue)
+    for fl in field_lines[:30]:
+        ax2.plot(fl[:, 0], fl[:, 2], 'b-', alpha=0.3, linewidth=0.8)
+    
+    # Project field lines from equatorial points (red)
+    for fl in equatorial_field_lines[:50]:  # Show more to see tail structure
+        ax2.plot(fl[:, 0], fl[:, 2], 'r-', alpha=0.4, linewidth=1.0)
     
     # Mark seed points
     if len(seed_points) > 0:
-        ax2.scatter(seed_points[:, 0], seed_points[:, 2], c='red', s=20, alpha=0.6,
-                   label='Field line start points')
+        ax2.scatter(seed_points[:, 0], seed_points[:, 2], c='blue', s=20, alpha=0.6,
+                   label='Original seed points')
+    
+    # Mark equatorial seed points
+    ax2.scatter(equatorial_points[:, 0], equatorial_points[:, 2], c='red', s=30, 
+               alpha=0.8, marker='s', edgecolors='darkred',
+               label='Equatorial seed points')
     
     # Add Earth
     earth = plt.Circle((0, 0), 1, color='white', zorder=10)
