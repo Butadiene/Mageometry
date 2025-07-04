@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
 """
-3D Structure of Magnetic Field Lines from Strong Scattering Regions
+3D Visualization of Magnetic Field Lines from Strong Scattering Regions
 
 This script creates a 3D visualization of magnetic field lines traced from regions 
 where the ratio of curvature radius to Larmor radius (Rc/RL) indicates strong scattering.
 
-When Rc/RL < 8, particles experience strong pitch angle diffusion that can lead to:
-- Violation of the first adiabatic invariant
-- Particles being scattered into the loss cone
-- Enhanced particle precipitation to the atmosphere
-- Important contributions to aurora formation and radiation belt losses
+When Rc/RL < 8, particles experience strong pitch angle diffusion.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.gridspec as gridspec
 
 # Import geopack modules
 import geopack
@@ -319,105 +314,6 @@ def main():
         print(f"Average field line length: {np.mean(total_lengths):.1f} Re")
         print(f"Length range: {np.min(total_lengths):.1f} - {np.max(total_lengths):.1f} Re")
     
-    # Create additional volume rendering plot
-    fig2 = plt.figure(figsize=(16, 8))
-    
-    # 3D scatter plot of scattering regions
-    ax3 = fig2.add_subplot(131, projection='3d')
-    
-    # Sample 3D volume more densely
-    print("\nCreating volume rendering of scattering regions...")
-    
-    x_vol = np.linspace(-15, 5, 30)
-    y_vol = np.linspace(-8, 8, 30)
-    z_vol = np.linspace(-2, 2, 20)
-    
-    scatter_volume = []
-    scatter_values = []
-    
-    for z in z_vol:
-        for y in y_vol[::2]:
-            for x in x_vol[::2]:
-                r = np.sqrt(x**2 + y**2 + z**2)
-                if r < 2:
-                    continue
-                
-                Rc_Re, B_nT = calculate_curvature_radius(t96_vectorized, parmod, ps, x, y, z)
-                RL_m = calculate_larmor_radius(energy_keV, B_nT, pitch_angle_deg=90)
-                ratio = Rc_Re * Re / RL_m
-                
-                if ratio < CRITICAL_RATIO:
-                    scatter_volume.append([x, y, z])
-                    scatter_values.append(ratio)
-    
-    if len(scatter_volume) > 0:
-        scatter_volume = np.array(scatter_volume)
-        scatter_values = np.array(scatter_values)
-        
-        scatter = ax3.scatter(scatter_volume[:, 0], scatter_volume[:, 1], scatter_volume[:, 2],
-                             c=scatter_values, cmap='hot_r', s=20, alpha=0.6,
-                             vmin=0, vmax=CRITICAL_RATIO)
-        
-        cbar = plt.colorbar(scatter, ax=ax3, pad=0.1, shrink=0.8)
-        cbar.set_label('Rc/RL Ratio')
-    
-    # Add Earth
-    ax3.plot_surface(x_earth, y_earth, z_earth, color='lightgray', alpha=0.8)
-    
-    ax3.set_xlabel('X GSM (Re)')
-    ax3.set_ylabel('Y GSM (Re)')
-    ax3.set_zlabel('Z GSM (Re)')
-    ax3.set_title(f'3D Volume: Rc/RL < {CRITICAL_RATIO} Regions')
-    ax3.set_xlim(-15, 5)
-    ax3.set_ylim(-8, 8)
-    ax3.set_zlim(-2, 2)
-    ax3.view_init(elev=15, azim=45)
-    
-    # XY projection
-    ax4 = fig2.add_subplot(132)
-    if len(scatter_volume) > 0:
-        z0_points = scatter_volume[np.abs(scatter_volume[:, 2]) < 0.2]
-        if len(z0_points) > 0:
-            ax4.scatter(z0_points[:, 0], z0_points[:, 1], c='red', s=20, alpha=0.5)
-    
-    earth = plt.Circle((0, 0), 1, color='lightgray', zorder=10)
-    ax4.add_patch(earth)
-    ax4.set_xlabel('X GSM (Re)')
-    ax4.set_ylabel('Y GSM (Re)')
-    ax4.set_title('XY Projection (Z ≈ 0)')
-    ax4.set_aspect('equal')
-    ax4.set_xlim(-15, 5)
-    ax4.set_ylim(-8, 8)
-    ax4.grid(True, alpha=0.3)
-    
-    # XZ projection
-    ax5 = fig2.add_subplot(133)
-    if len(scatter_volume) > 0:
-        y0_points = scatter_volume[np.abs(scatter_volume[:, 1]) < 0.5]
-        if len(y0_points) > 0:
-            ax5.scatter(y0_points[:, 0], y0_points[:, 2], c='red', s=20, alpha=0.5)
-    
-    earth = plt.Circle((0, 0), 1, color='lightgray', zorder=10)
-    ax5.add_patch(earth)
-    ax5.set_xlabel('X GSM (Re)')
-    ax5.set_ylabel('Z GSM (Re)')
-    ax5.set_title('XZ Projection (Y ≈ 0)')
-    ax5.set_aspect('equal')
-    ax5.set_xlim(-15, 5)
-    ax5.set_ylim(-2, 2)
-    ax5.grid(True, alpha=0.3)
-    
-    plt.suptitle(f'3D Distribution of Strong Scattering Regions (Rc/RL < {CRITICAL_RATIO})\n'
-                 f'{energy_keV} keV electrons, Moderate Storm Conditions',
-                 fontsize=14)
-    plt.tight_layout()
-    
-    output_file2 = 'scattering_regions_volume_3d.png'
-    plt.savefig(output_file2, dpi=300, bbox_inches='tight')
-    print(f"\nVolume rendering saved as '{output_file2}'")
-    
-    plt.show()
-    
     print("\nPhysical Implications:")
     print("-" * 50)
     print(f"• Regions with Rc/RL < {CRITICAL_RATIO} cause strong pitch angle diffusion")
@@ -425,6 +321,8 @@ def main():
     print("• The 3D structure shows how particles at different latitudes can be affected")
     print("• Storm conditions significantly expand the scattering regions")
     print("• Important for understanding radiation belt losses and auroral precipitation")
+    
+    plt.show()
 
 
 if __name__ == "__main__":
