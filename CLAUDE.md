@@ -36,9 +36,16 @@ geopack-vectorize/
 │   ├── test_vectorized_models.py  # Vectorized model tests
 │   └── benchmark_models.py   # Performance benchmarks
 │
-└── examples/                 # Example code and notebooks
-    ├── basic_usage.py       # Simple usage examples
-    └── notebooks/           # Jupyter notebooks
+├── examples/                 # Example code and notebooks
+│   ├── basic_usage.py       # Simple usage examples
+│   └── notebooks/           # Jupyter notebooks
+│
+└── curvature_scattering_threshold_analysis/  # Standalone analysis package
+    ├── curvature_scattering_analysis.py      # Main analysis script
+    ├── README.md                             # Comprehensive report
+    ├── USAGE.md                              # Usage guide
+    ├── run_analysis.py                       # Execution script
+    └── figures/                              # 18 analysis figures
 ```
 
 ## Key Components
@@ -284,6 +291,30 @@ All notebooks include execution outputs demonstrating:
 - Performance benchmarks (30-50x speedup)
 - Edge case handling
 - Visualization of field patterns
+
+## Curvature Scattering Threshold Analysis
+
+The `curvature_scattering_threshold_analysis/` directory contains a comprehensive standalone analysis package examining the critical threshold Rc/RL = 8 for electron scattering in the magnetosphere.
+
+### Key Features
+- Analyzes regions where magnetic field line curvature causes particle scattering
+- Covers electron energies from 10 keV to 1 MeV
+- Compares all four magnetospheric models (T89, T96, T01, T04)
+- Examines storm-time evolution and parameter dependencies
+- Generates 18 comprehensive figures including:
+  - Energy dependence analysis
+  - 3D visualization of scattering regions
+  - XY plane cross-sections at different Z heights (extending to X = -15 Re)
+  - Storm evolution analysis
+  - Model comparisons
+
+### Running the Analysis
+```bash
+cd curvature_scattering_threshold_analysis
+python run_analysis.py
+```
+
+This will generate all figures and statistics in approximately 2-3 minutes.
 
 ## Key Documentation
 
