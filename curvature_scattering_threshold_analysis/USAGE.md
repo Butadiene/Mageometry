@@ -11,7 +11,7 @@ python run_analysis.py
 
 This will:
 1. Calculate Rc/RL ratios across the magnetosphere
-2. Generate 21 comprehensive figures
+2. Generate 22 comprehensive figures
 3. Save all figures to the `figures/` directory
 4. Print progress and statistics to the console
 
@@ -49,6 +49,7 @@ After running, you'll find:
 - `fig19_t96_seasonal_tilt.png` - T96 seasonal dipole tilt effects (Z = 0.0 to 1.4 Re)
 - `fig20_seasonal_evolution.png` - Seasonal evolution throughout the year
 - `fig21_seasonal_mlt_distribution.png` - MLT distribution for different seasons
+- `fig22_seasonal_xz_planes.png` - XZ plane (Y = 0) for different seasonal tilts
 
 ### Main Report
 - `README.md` - Complete analysis report with all results

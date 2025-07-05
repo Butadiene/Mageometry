@@ -2701,6 +2701,139 @@ def analyze_seasonal_evolution():
     print("\nFigure 20 saved: Seasonal evolution of scattering regions")
 
 
+def analyze_seasonal_xz_planes():
+    """
+    Seasonal XZ Plane Analysis: How scattering varies in meridian plane for different tilts
+    """
+    print("\n" + "="*60)
+    print("Analysis: Seasonal XZ Plane at Y = 0")
+    print("="*60)
+    
+    # Use same seasonal tilts as fig19
+    seasonal_tilts = [
+        ("Summer Solstice\n(PS = +34°)", np.radians(34)),
+        ("Spring/Fall Equinox\n(PS = 0°)", np.radians(0)),
+        ("Winter Solstice\n(PS = -34°)", np.radians(-34)),
+        ("Current Analysis\n(PS = +7.4°)", ps),
+        ("Moderate Summer\n(PS = +23°)", np.radians(23)),
+        ("Moderate Winter\n(PS = -23°)", np.radians(-23))
+    ]
+    
+    # Fixed parameters for T96
+    parmod_seasonal = [3.0, -30.0, 1.0, -3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    energy_seasonal = 100  # keV
+    
+    # Create XZ grid
+    x_grid_xz = np.linspace(-15, 5, 61)
+    z_grid_xz = np.linspace(-5, 5, 51)
+    X_xz, Z_xz = np.meshgrid(x_grid_xz, z_grid_xz)
+    Y_xz = np.zeros_like(X_xz)  # Y = 0 plane
+    
+    # Create figure
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+    axes = axes.flatten()
+    
+    scatter_stats_xz = {}
+    
+    for idx, (season_name, ps_rad) in enumerate(seasonal_tilts):
+        ax = axes[idx]
+        
+        x_flat = X_xz.flatten()
+        y_flat = Y_xz.flatten()
+        z_flat = Z_xz.flatten()
+        
+        # Calculate with seasonal tilt
+        Rc_Re, B_nT = calculate_curvature_radius(t96_vectorized, parmod_seasonal, ps_rad, 
+                                                 x_flat, y_flat, z_flat)
+        Rc_m = Rc_Re * Re
+        
+        # Calculate Larmor radius
+        RL_m = calculate_larmor_radius(energy_seasonal, B_nT, pitch_angle_deg=90)
+        ratio = Rc_m / RL_m
+        
+        # Clean up extreme values
+        ratio = np.where(ratio > 1000, 1000, ratio)
+        ratio = np.where(ratio < 0.1, 0.1, ratio)
+        ratio_grid = ratio.reshape(X_xz.shape)
+        
+        # Calculate scattering fraction
+        scatter_frac = np.sum(ratio < CRITICAL_RATIO) / len(ratio) * 100
+        scatter_stats_xz[season_name] = scatter_frac
+        
+        # Plot
+        im = ax.contourf(X_xz, Z_xz, ratio_grid,
+                        levels=np.logspace(-1, 3, 15),
+                        cmap='RdBu_r', extend='both',
+                        norm=LogNorm(vmin=0.1, vmax=1000))
+        
+        # Add critical contour
+        cs = ax.contour(X_xz, Z_xz, ratio_grid, 
+                       levels=[CRITICAL_RATIO],
+                       colors='black', linewidths=2.5)
+        ax.clabel(cs, inline=True, fontsize=9, fmt='8')
+        
+        # Add Earth
+        earth = plt.Circle((0, 0), 1, color='white', zorder=10)
+        ax.add_patch(earth)
+        
+        # Add current sheet indication (approximate)
+        # Current sheet location: Z ≈ R * tan(tilt)
+        if abs(ps_rad) > 0.01:  # Not exactly equinox
+            x_cs = np.linspace(3, 15, 50)
+            z_cs = -x_cs * np.tan(ps_rad)  # Negative because of GSM coordinates
+            # Only plot where within bounds
+            mask = (z_cs >= -5) & (z_cs <= 5)
+            ax.plot(x_cs[mask], z_cs[mask], 'g--', linewidth=2, alpha=0.7, 
+                   label='Current Sheet')
+        
+        # Labels and formatting
+        ax.set_xlabel('X GSM (Re)', fontsize=10)
+        ax.set_ylabel('Z GSM (Re)', fontsize=10)
+        ax.set_title(f'{season_name}\n{scatter_frac:.1f}% scattering', 
+                    fontsize=11, weight='bold')
+        ax.set_aspect('equal')
+        ax.set_xlim(-15, 5)
+        ax.set_ylim(-5, 5)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        
+        # Add field line indicators
+        if scatter_frac > 0.1:  # Only if there's significant scattering
+            # Add a few representative field lines
+            for x_start in [-10, -7, -4]:
+                # Simple dipole approximation for illustration
+                r = np.linspace(abs(x_start), 1, 30)
+                theta = np.arccos(1/r)
+                x_fl = -r * np.cos(theta) * np.sign(x_start)
+                z_fl = r * np.sin(theta) * np.cos(ps_rad)
+                ax.plot(x_fl, z_fl, 'b-', alpha=0.3, linewidth=0.5)
+    
+    # Add colorbar
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    cbar = plt.colorbar(im, cax=cbar_ax)
+    cbar.set_label('Rc/RL Ratio', fontsize=12)
+    cbar.ax.tick_params(labelsize=10)
+    
+    # Overall title
+    fig.suptitle(f'T96 Model: Seasonal XZ Plane Analysis at Y = 0\n' + 
+                 f'{energy_seasonal} keV Electrons, Pdyn={parmod_seasonal[0]} nPa, Dst={parmod_seasonal[1]} nT', 
+                 fontsize=14, weight='bold')
+    
+    # Adjust layout
+    plt.tight_layout(rect=[0, 0, 0.91, 0.96])
+    
+    # Save figure
+    plt.savefig(os.path.join(output_dir, 'fig22_seasonal_xz_planes.png'))
+    plt.close(fig)
+    
+    # Print statistics
+    print("\nScattering Region Statistics in XZ Plane (Y = 0):")
+    print("-" * 60)
+    for season_name, ps_rad in seasonal_tilts:
+        print(f"{season_name.replace(chr(10), ' ')}: {scatter_stats_xz[season_name]:.1f}%")
+    
+    print("\nFigure 22 saved: Seasonal XZ plane analysis")
+
+
 def analyze_seasonal_mlt_distribution():
     """
     Seasonal MLT Distribution Analysis: How scattering varies with MLT for different seasons
@@ -2827,6 +2960,7 @@ def main():
     analyze_t96_seasonal_tilt()
     analyze_seasonal_evolution()
     analyze_seasonal_mlt_distribution()
+    analyze_seasonal_xz_planes()
     create_summary_figure()
     
     print("\\n" + "="*80)

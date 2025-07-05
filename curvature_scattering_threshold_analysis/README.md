@@ -375,6 +375,25 @@ The MLT (Magnetic Local Time) distribution of scattering regions varies dramatic
 - Maximum curvature scattering occurs when observing at heights aligned with the current sheet
 - The MLT asymmetry reflects the warping and twisting of the magnetospheric current sheet
 
+#### XZ Plane Analysis for Different Seasons
+
+![Seasonal XZ Planes](figures/fig22_seasonal_xz_planes.png)
+
+The XZ plane (Y = 0) analysis reveals how the meridional structure changes with season:
+
+**Key Features:**
+- **Green dashed lines** indicate the approximate current sheet location based on dipole tilt
+- **Summer Solstice**: Current sheet is tilted above the equatorial plane (positive Z)
+- **Winter Solstice**: Current sheet is tilted below the equatorial plane (negative Z)
+- **Equinoxes**: Current sheet lies in the equatorial plane
+- **Current Analysis (Sept 13, 2020)**: Shows slight positive tilt with current sheet above equator
+
+**Physical Insights:**
+- The scattering regions follow the current sheet location
+- Maximum curvature occurs where field lines transition from dipolar to tail-like geometry
+- The tilt angle directly controls where particles experience strong curvature scattering
+- In the noon-midnight meridian (Y = 0), scattering is generally lower than in dawn-dusk sectors
+
 ### 12. Summary
 
 ![Summary Figure](figures/fig10_summary.png)
