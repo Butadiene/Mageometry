@@ -2469,6 +2469,7 @@ def analyze_t96_seasonal_tilt():
         ("Summer Solstice\n(PS = +34°)", np.radians(34)),
         ("Spring/Fall Equinox\n(PS = 0°)", np.radians(0)),
         ("Winter Solstice\n(PS = -34°)", np.radians(-34)),
+        ("Current Analysis\n(PS = +7.4°)", ps),  # Use the actual ps value from main analysis
         ("Moderate Summer\n(PS = +23°)", np.radians(23)),
         ("Moderate Winter\n(PS = -23°)", np.radians(-23))
     ]
@@ -2484,7 +2485,7 @@ def analyze_t96_seasonal_tilt():
     n_rows = len(z_levels_seasonal)
     n_cols = len(seasonal_tilts)
     fig_height = 2.5 * n_rows + 1
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(18, fig_height))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(21, fig_height))  # Increased width for 6 columns
     
     # Create XY grid
     x_grid_seasonal = np.linspace(-15, 5, 61)

@@ -336,6 +336,7 @@ The seasonal variation of Earth's dipole tilt significantly affects scattering r
 - **Summer Solstice (PS = +34°)**: Minimal scattering at all Z heights due to the current sheet being tilted above the equatorial plane
 - **Equinoxes (PS = 0°)**: Maximum scattering at Z = 0 (25.5%) with the current sheet aligned with the equatorial plane
 - **Winter Solstice (PS = -34°)**: Minimal scattering as the current sheet is tilted below the equatorial plane
+- **Current Analysis (PS = +7.4°, Sept 13, 2020)**: Peak scattering at Z = 0.4-0.6 Re (5.7%), showing how the current sheet is slightly above the equatorial plane
 - **Moderate Seasons (PS = ±23°)**: Intermediate behavior with some scattering at higher Z levels
 
 #### Temporal Evolution Throughout the Year
