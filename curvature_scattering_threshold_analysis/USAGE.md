@@ -11,7 +11,7 @@ python run_analysis.py
 
 This will:
 1. Calculate Rc/RL ratios across the magnetosphere
-2. Generate 18 comprehensive figures
+2. Generate 19 comprehensive figures
 3. Save all figures to the `figures/` directory
 4. Print progress and statistics to the console
 
@@ -46,6 +46,7 @@ After running, you'll find:
 - `fig16_t01_storm_evolution.png` - T01 storm evolution analysis
 - `fig17_t04_storm_progression.png` - T04 storm progression analysis
 - `fig18_model_comparison_xy_planes.png` - Model comparison XY planes
+- `fig19_t96_seasonal_tilt.png` - T96 seasonal dipole tilt effects
 
 ### Main Report
 - `README.md` - Complete analysis report with all results

@@ -27,6 +27,7 @@ When Rc/RL < 8, electrons experience strong pitch angle scattering that can lead
    - [Model-Specific XY Plane Analysis](#model-specific-xy-plane-analysis)
    - [Storm Evolution Analysis](#storm-evolution-analysis)
    - [Comprehensive Model Comparison](#comprehensive-model-comparison)
+   - [Seasonal Dipole Tilt Effects](#seasonal-dipole-tilt-effects)
 6. [Physical Implications](#physical-implications)
 7. [Conclusions](#conclusions)
 8. [References](#references)
@@ -323,7 +324,25 @@ Direct comparison of all four models at Z = 0 Re shows:
 - T01: 21.3% of equatorial plane
 - T04: 24.7% of equatorial plane
 
-### 11. Summary
+### 11. Seasonal Dipole Tilt Effects
+
+![T96 Seasonal Tilt](figures/fig19_t96_seasonal_tilt.png)
+
+The seasonal variation of Earth's dipole tilt significantly affects scattering regions:
+
+**Key Findings:**
+- **Summer Solstice (PS = +34°)**: Minimal scattering at all Z heights due to the current sheet being tilted above the equatorial plane
+- **Equinoxes (PS = 0°)**: Maximum scattering at Z = 0 (25.5%) with the current sheet aligned with the equatorial plane
+- **Winter Solstice (PS = -34°)**: Minimal scattering as the current sheet is tilted below the equatorial plane
+- **Moderate Seasons (PS = ±23°)**: Intermediate behavior with some scattering at higher Z levels
+
+**Physical Interpretation:**
+- The dipole tilt controls the location of the magnetospheric current sheet
+- When PS > 0 (summer), the current sheet is above the GSM equatorial plane
+- When PS < 0 (winter), the current sheet is below the GSM equatorial plane
+- Maximum curvature scattering occurs when observing at heights aligned with the current sheet
+
+### 12. Summary
 
 ![Summary Figure](figures/fig10_summary.png)
 

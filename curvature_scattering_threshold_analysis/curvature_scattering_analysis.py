@@ -2453,6 +2453,146 @@ def analyze_model_comparison_xy_planes():
     print("Figure 18 saved: Model comparison XY planes at different Z heights")
 
 
+def analyze_t96_seasonal_tilt():
+    """
+    T96 Seasonal Dipole Tilt Effects: XY Plane Analysis
+    """
+    print("\n" + "="*60)
+    print("Analysis: T96 Seasonal Dipole Tilt Effects")
+    print("="*60)
+    
+    # Define seasonal tilt angles (in radians)
+    # Summer solstice: maximum positive tilt (~34 degrees)
+    # Winter solstice: maximum negative tilt (~-34 degrees)
+    # Equinoxes: near zero tilt
+    seasonal_tilts = [
+        ("Summer Solstice\n(PS = +34°)", np.radians(34)),
+        ("Spring/Fall Equinox\n(PS = 0°)", np.radians(0)),
+        ("Winter Solstice\n(PS = -34°)", np.radians(-34)),
+        ("Moderate Summer\n(PS = +23°)", np.radians(23)),
+        ("Moderate Winter\n(PS = -23°)", np.radians(-23))
+    ]
+    
+    # Fixed parameters for T96
+    parmod_seasonal = [3.0, -30.0, 1.0, -3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    energy_seasonal = 100  # keV
+    
+    # Z levels to analyze
+    z_levels_seasonal = [0.0, 0.4, 0.8, 1.2]  # Re
+    
+    # Create figure with subplots
+    n_rows = len(z_levels_seasonal)
+    n_cols = len(seasonal_tilts)
+    fig_height = 2.5 * n_rows + 1
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(18, fig_height))
+    
+    # Create XY grid
+    x_grid_seasonal = np.linspace(-15, 5, 61)
+    y_grid_seasonal = np.linspace(-10, 10, 51)
+    X_seasonal, Y_seasonal = np.meshgrid(x_grid_seasonal, y_grid_seasonal)
+    
+    scatter_stats_seasonal = {}
+    
+    for row_idx, z_level in enumerate(z_levels_seasonal):
+        for col_idx, (season_name, ps_rad) in enumerate(seasonal_tilts):
+            ax = axes[row_idx, col_idx] if n_rows > 1 else axes[col_idx]
+            
+            # Create Z array at fixed height
+            Z_seasonal = np.full_like(X_seasonal, z_level)
+            
+            x_flat = X_seasonal.flatten()
+            y_flat = Y_seasonal.flatten()
+            z_flat = Z_seasonal.flatten()
+            
+            # Calculate with seasonal tilt
+            Rc_Re, B_nT = calculate_curvature_radius(t96_vectorized, parmod_seasonal, ps_rad, 
+                                                     x_flat, y_flat, z_flat)
+            Rc_m = Rc_Re * Re
+            
+            # Calculate Larmor radius
+            RL_m = calculate_larmor_radius(energy_seasonal, B_nT, pitch_angle_deg=90)
+            ratio = Rc_m / RL_m
+            
+            # Clean up extreme values
+            ratio = np.where(ratio > 1000, 1000, ratio)
+            ratio = np.where(ratio < 0.1, 0.1, ratio)
+            ratio_grid = ratio.reshape(X_seasonal.shape)
+            
+            # Calculate scattering fraction
+            scatter_frac = np.sum(ratio < CRITICAL_RATIO) / len(ratio) * 100
+            key = f"{season_name}_Z{z_level}"
+            scatter_stats_seasonal[key] = scatter_frac
+            
+            # Plot
+            im = ax.contourf(X_seasonal, Y_seasonal, ratio_grid,
+                            levels=np.logspace(-1, 3, 15),
+                            cmap='RdBu_r', extend='both',
+                            norm=LogNorm(vmin=0.1, vmax=1000))
+            
+            # Add critical contour
+            cs = ax.contour(X_seasonal, Y_seasonal, ratio_grid, 
+                           levels=[CRITICAL_RATIO],
+                           colors='black', linewidths=2.5)
+            ax.clabel(cs, inline=True, fontsize=9, fmt='8')
+            
+            # Title and labels
+            if row_idx == 0:
+                ax.set_title(season_name, fontsize=12, weight='bold')
+            if col_idx == 0:
+                ax.set_ylabel(f'Z={z_level} Re\nY GSM (Re)', fontsize=10)
+            else:
+                ax.set_ylabel('Y GSM (Re)', fontsize=9)
+            if row_idx == n_rows - 1:
+                ax.set_xlabel('X GSM (Re)', fontsize=10)
+            
+            # Add scattering percentage
+            ax.text(0.02, 0.98, f'{scatter_frac:.1f}%', 
+                   transform=ax.transAxes, fontsize=10, weight='bold',
+                   verticalalignment='top',
+                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+            
+            # Add Earth
+            earth = plt.Circle((0, 0), 1, color='white', zorder=10)
+            ax.add_patch(earth)
+            ax.set_aspect('equal')
+            ax.set_xlim(-15, 5)
+            ax.set_ylim(-10, 10)
+            
+            # Add grid
+            ax.grid(True, alpha=0.3, linestyle='--')
+    
+    # Add colorbar
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    cbar = plt.colorbar(im, cax=cbar_ax)
+    cbar.set_label('Rc/RL Ratio', fontsize=12)
+    cbar.ax.tick_params(labelsize=10)
+    
+    # Add overall title
+    fig.suptitle(f'T96 Model: Seasonal Dipole Tilt Effects on Scattering Regions\n' + 
+                 f'{energy_seasonal} keV Electrons, Moderate Storm (Dst=-30 nT)', 
+                 fontsize=14, weight='bold')
+    
+    # Adjust layout
+    plt.tight_layout(rect=[0, 0, 0.91, 0.96])
+    
+    # Save figure
+    plt.savefig(os.path.join(output_dir, 'fig19_t96_seasonal_tilt.png'))
+    plt.close(fig)
+    
+    # Print statistics
+    print("\nScattering Region Statistics by Season and Height:")
+    print("-" * 60)
+    for season_name, _ in seasonal_tilts:
+        season_key = season_name.split('\n')[0]
+        print(f"\n{season_key}:")
+        for z_level in z_levels_seasonal:
+            key = f"{season_name}_Z{z_level}"
+            if key in scatter_stats_seasonal:
+                print(f"  Z = {z_level} Re: {scatter_stats_seasonal[key]:.1f}%")
+    
+    print("\nFigure 19 saved: T96 seasonal dipole tilt effects")
+
+
 def main():
     """
     Main function to run all analyses
@@ -2478,6 +2618,7 @@ def main():
     analyze_t04_model_analysis()
     analyze_comprehensive_model_comparison()
     analyze_model_comparison_xy_planes()
+    analyze_t96_seasonal_tilt()
     create_summary_figure()
     
     print("\\n" + "="*80)
