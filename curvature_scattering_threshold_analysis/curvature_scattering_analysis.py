@@ -2569,7 +2569,7 @@ def analyze_t96_seasonal_tilt():
     
     # Add overall title
     fig.suptitle(f'T96 Model: Seasonal Dipole Tilt Effects on Scattering Regions\n' + 
-                 f'{energy_seasonal} keV Electrons, Moderate Storm (Dst=-30 nT)', 
+                 f'{energy_seasonal} keV Electrons, Pdyn={parmod_seasonal[0]} nPa, Dst={parmod_seasonal[1]} nT', 
                  fontsize=14, weight='bold')
     
     # Adjust layout
