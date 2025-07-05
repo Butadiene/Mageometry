@@ -2478,7 +2478,7 @@ def analyze_t96_seasonal_tilt():
     energy_seasonal = 100  # keV
     
     # Z levels to analyze
-    z_levels_seasonal = [0.0, 0.4, 0.8, 1.2]  # Re
+    z_levels_seasonal = np.arange(0.0, 1.6, 0.2)  # Re - 0.0 to 1.4 in 0.2 Re increments
     
     # Create figure with subplots
     n_rows = len(z_levels_seasonal)
@@ -2593,6 +2593,211 @@ def analyze_t96_seasonal_tilt():
     print("\nFigure 19 saved: T96 seasonal dipole tilt effects")
 
 
+def analyze_seasonal_evolution():
+    """
+    Seasonal Evolution Analysis: Temporal variation throughout the year
+    """
+    print("\n" + "="*60)
+    print("Analysis: Seasonal Evolution of Scattering Regions")
+    print("="*60)
+    
+    # Create a full year of dipole tilt variation
+    # Approximate sinusoidal variation with max tilt at solstices
+    days_in_year = 365
+    days = np.arange(0, days_in_year + 1, 5)  # Every 5 days
+    
+    # Summer solstice around day 172 (June 21), Winter solstice around day 355 (Dec 21)
+    # Maximum tilt ±34 degrees
+    tilt_degrees = 34 * np.sin(2 * np.pi * (days - 80) / days_in_year)  # Phase shifted for solstices
+    tilt_radians = np.radians(tilt_degrees)
+    
+    # Energy levels to analyze
+    energies = [10, 30, 100, 300, 1000]  # keV
+    
+    # Fixed T96 parameters (moderate storm)
+    parmod = [3.0, -30.0, 1.0, -3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    
+    # Calculate scattering statistics throughout the year
+    scatter_stats = {energy: [] for energy in energies}
+    
+    # XY plane at Z = 0
+    x_grid = np.linspace(-15, 5, 41)
+    y_grid = np.linspace(-10, 10, 41)
+    X, Y = np.meshgrid(x_grid, y_grid)
+    Z = np.zeros_like(X)
+    
+    x_flat = X.flatten()
+    y_flat = Y.flatten()
+    z_flat = Z.flatten()
+    
+    print("Calculating seasonal evolution...")
+    for ps_rad in tilt_radians:
+        for energy in energies:
+            # Calculate for this tilt and energy
+            Rc_Re, B_nT = calculate_curvature_radius(t96_vectorized, parmod, ps_rad, 
+                                                     x_flat, y_flat, z_flat)
+            Rc_m = Rc_Re * Re
+            RL_m = calculate_larmor_radius(energy, B_nT, pitch_angle_deg=90)
+            ratio = Rc_m / RL_m
+            
+            # Calculate scattering fraction
+            scatter_frac = np.sum(ratio < CRITICAL_RATIO) / len(ratio) * 100
+            scatter_stats[energy].append(scatter_frac)
+    
+    # Create figure
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), height_ratios=[2, 1])
+    
+    # Plot 1: Scattering percentage throughout the year
+    colors = ['darkred', 'red', 'orange', 'blue', 'darkblue']
+    for energy, color in zip(energies, colors):
+        ax1.plot(days, scatter_stats[energy], color=color, linewidth=2.5, 
+                label=f'{energy} keV', marker='o', markersize=3, markevery=10)
+    
+    # Add seasonal markers
+    ax1.axvline(80, color='green', linestyle='--', alpha=0.5, label='Spring Equinox')
+    ax1.axvline(172, color='red', linestyle='--', alpha=0.5, label='Summer Solstice')
+    ax1.axvline(264, color='orange', linestyle='--', alpha=0.5, label='Fall Equinox')
+    ax1.axvline(355, color='blue', linestyle='--', alpha=0.5, label='Winter Solstice')
+    
+    ax1.set_xlabel('Day of Year', fontsize=12)
+    ax1.set_ylabel('Scattering Region (%)', fontsize=12)
+    ax1.set_title('Seasonal Evolution of Curvature Scattering Regions at Z = 0 Re\n' +
+                  'T96 Model, Moderate Storm (Dst = -30 nT)', fontsize=14, weight='bold')
+    ax1.legend(loc='upper right', fontsize=10)
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xlim(0, 365)
+    ax1.set_ylim(0, max([max(scatter_stats[e]) for e in energies]) * 1.1)
+    
+    # Plot 2: Dipole tilt angle
+    ax2.plot(days, tilt_degrees, 'k-', linewidth=2)
+    ax2.fill_between(days, 0, tilt_degrees, where=tilt_degrees>0, 
+                     color='red', alpha=0.3, label='Northern Summer')
+    ax2.fill_between(days, 0, tilt_degrees, where=tilt_degrees<0, 
+                     color='blue', alpha=0.3, label='Northern Winter')
+    
+    ax2.set_xlabel('Day of Year', fontsize=12)
+    ax2.set_ylabel('Dipole Tilt (degrees)', fontsize=12)
+    ax2.set_title('Earth Dipole Tilt Angle', fontsize=12)
+    ax2.grid(True, alpha=0.3)
+    ax2.set_xlim(0, 365)
+    ax2.set_ylim(-40, 40)
+    ax2.legend(loc='upper right', fontsize=10)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'fig20_seasonal_evolution.png'))
+    plt.close(fig)
+    
+    # Print statistics
+    print("\nSeasonal Scattering Statistics:")
+    print("-" * 60)
+    for energy in energies:
+        stats = scatter_stats[energy]
+        print(f"\n{energy} keV electrons:")
+        print(f"  Maximum scattering: {max(stats):.1f}% (around equinoxes)")
+        print(f"  Minimum scattering: {min(stats):.1f}% (around solstices)")
+        print(f"  Annual average: {np.mean(stats):.1f}%")
+    
+    print("\nFigure 20 saved: Seasonal evolution of scattering regions")
+
+
+def analyze_seasonal_mlt_distribution():
+    """
+    Seasonal MLT Distribution Analysis: How scattering varies with MLT for different seasons
+    """
+    print("\n" + "="*60)
+    print("Analysis: Seasonal MLT Distribution of Scattering")
+    print("="*60)
+    
+    # Define key seasonal configurations
+    seasons = [
+        ("Summer Solstice", np.radians(34)),
+        ("Equinox", np.radians(0)),
+        ("Winter Solstice", np.radians(-34))
+    ]
+    
+    # Energy for analysis
+    energy = 100  # keV
+    
+    # T96 parameters
+    parmod = [3.0, -30.0, 1.0, -3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    
+    # Create figure with polar plots
+    fig = plt.figure(figsize=(15, 5))
+    
+    # MLT bins
+    mlt_bins = np.linspace(0, 24, 49)  # 0.5 hour bins
+    mlt_centers = (mlt_bins[:-1] + mlt_bins[1:]) / 2
+    
+    for idx, (season_name, ps_rad) in enumerate(seasons):
+        ax = fig.add_subplot(1, 3, idx + 1, projection='polar')
+        
+        # Initialize MLT statistics
+        mlt_scatter_stats = []
+        
+        for mlt in mlt_centers:
+            # Convert MLT to angle (MLT in hours, 0 = midnight, 12 = noon)
+            phi = np.radians(15 * (mlt - 6))  # -90 degrees for dawn at 6 MLT
+            
+            # Sample along radial direction at this MLT
+            r_samples = np.linspace(3, 12, 30)  # Re
+            scatter_count = 0
+            
+            for r in r_samples:
+                # Convert to GSM coordinates
+                x = r * np.cos(phi)
+                y = r * np.sin(phi)
+                z = 0  # Equatorial plane
+                
+                # Calculate scattering
+                Rc_Re, B_nT = calculate_curvature_radius(t96_vectorized, parmod, ps_rad, 
+                                                        np.array([x]), np.array([y]), np.array([z]))
+                Rc_m = Rc_Re[0] * Re
+                RL_m = calculate_larmor_radius(energy, B_nT[0], pitch_angle_deg=90)
+                ratio = Rc_m / RL_m
+                
+                if ratio < CRITICAL_RATIO:
+                    scatter_count += 1
+            
+            scatter_percentage = (scatter_count / len(r_samples)) * 100
+            mlt_scatter_stats.append(scatter_percentage)
+        
+        # Convert MLT to radians for polar plot (0 = midnight at top)
+        theta = np.radians(15 * mlt_centers)  # 15 degrees per MLT hour
+        theta = np.append(theta, theta[0])  # Close the circle
+        values = np.append(mlt_scatter_stats, mlt_scatter_stats[0])
+        
+        # Plot
+        ax.plot(theta, values, 'b-', linewidth=2)
+        ax.fill(theta, values, 'b', alpha=0.3)
+        
+        # Customize polar plot
+        ax.set_theta_zero_location('S')  # Midnight at top
+        ax.set_theta_direction(-1)  # Clockwise
+        ax.set_ylim(0, max(mlt_scatter_stats) * 1.2 if max(mlt_scatter_stats) > 0 else 10)
+        
+        # MLT labels
+        mlt_labels = ['00', '03', '06', '09', '12', '15', '18', '21']
+        ax.set_thetagrids(np.arange(0, 360, 45), mlt_labels)
+        
+        ax.set_title(f'{season_name}\nPS = {np.degrees(ps_rad):.0f}°', 
+                    fontsize=12, weight='bold', pad=20)
+        ax.set_ylabel('Scattering %', labelpad=30)
+        
+        # Add radial grid
+        ax.grid(True, alpha=0.3)
+    
+    # Overall title
+    fig.suptitle(f'MLT Distribution of Curvature Scattering Regions\n' +
+                 f'{energy} keV Electrons, T96 Model, Z = 0 Re', 
+                 fontsize=14, weight='bold')
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'fig21_seasonal_mlt_distribution.png'))
+    plt.close(fig)
+    
+    print("\nFigure 21 saved: Seasonal MLT distribution of scattering")
+
+
 def main():
     """
     Main function to run all analyses
@@ -2619,6 +2824,8 @@ def main():
     analyze_comprehensive_model_comparison()
     analyze_model_comparison_xy_planes()
     analyze_t96_seasonal_tilt()
+    analyze_seasonal_evolution()
+    analyze_seasonal_mlt_distribution()
     create_summary_figure()
     
     print("\\n" + "="*80)

@@ -326,9 +326,11 @@ Direct comparison of all four models at Z = 0 Re shows:
 
 ### 11. Seasonal Dipole Tilt Effects
 
+#### Spatial Distribution by Season
+
 ![T96 Seasonal Tilt](figures/fig19_t96_seasonal_tilt.png)
 
-The seasonal variation of Earth's dipole tilt significantly affects scattering regions:
+The seasonal variation of Earth's dipole tilt significantly affects scattering regions at different Z heights (0.0 to 1.4 Re in 0.2 Re increments):
 
 **Key Findings:**
 - **Summer Solstice (PS = +34°)**: Minimal scattering at all Z heights due to the current sheet being tilted above the equatorial plane
@@ -336,11 +338,41 @@ The seasonal variation of Earth's dipole tilt significantly affects scattering r
 - **Winter Solstice (PS = -34°)**: Minimal scattering as the current sheet is tilted below the equatorial plane
 - **Moderate Seasons (PS = ±23°)**: Intermediate behavior with some scattering at higher Z levels
 
+#### Temporal Evolution Throughout the Year
+
+![Seasonal Evolution](figures/fig20_seasonal_evolution.png)
+
+The annual variation of scattering regions shows strong seasonal dependence:
+
+**Energy-Dependent Seasonal Variations:**
+- **10 keV electrons**: Peak scattering of 13.2% at equinoxes, annual average 0.3%
+- **30 keV electrons**: Peak scattering of 17.8% at equinoxes, annual average 0.6%
+- **100 keV electrons**: Peak scattering of 25.9% at equinoxes, annual average 1.2%
+- **300 keV electrons**: Peak scattering of 35.5% at equinoxes, annual average 2.4%
+- **1000 keV electrons**: Peak scattering of 44.9% at equinoxes, annual average 5.6%
+
+**Seasonal Pattern:**
+- Maximum scattering occurs around spring (day ~80) and fall (day ~264) equinoxes
+- Minimum scattering at summer (day ~172) and winter (day ~355) solstices
+- Higher energy electrons show larger seasonal variations in scattering percentages
+
+#### MLT Distribution for Different Seasons
+
+![Seasonal MLT Distribution](figures/fig21_seasonal_mlt_distribution.png)
+
+The MLT (Magnetic Local Time) distribution of scattering regions varies dramatically with season:
+
+**Seasonal MLT Patterns:**
+- **Summer Solstice**: Minimal scattering at all MLT sectors
+- **Equinoxes**: Strong dawn-dusk asymmetry with enhanced scattering in the midnight-dawn sector
+- **Winter Solstice**: Nearly absent scattering due to current sheet position
+
 **Physical Interpretation:**
 - The dipole tilt controls the location of the magnetospheric current sheet
 - When PS > 0 (summer), the current sheet is above the GSM equatorial plane
 - When PS < 0 (winter), the current sheet is below the GSM equatorial plane
 - Maximum curvature scattering occurs when observing at heights aligned with the current sheet
+- The MLT asymmetry reflects the warping and twisting of the magnetospheric current sheet
 
 ### 12. Summary
 
@@ -401,6 +433,10 @@ This comprehensive analysis reveals that:
 7. **Field line topology** from scattering regions connects to high-latitude precipitation zones, confirming the role of curvature scattering in auroral processes
 
 8. **Storm progression** follows distinct phases with scattering region expansion during growth/main phase and gradual recovery
+
+9. **Seasonal variations** are dramatic, with scattering regions nearly disappearing at solstices and maximizing at equinoxes when the current sheet aligns with the equatorial plane
+
+10. **Annual patterns** show that higher energy electrons (300-1000 keV) experience larger seasonal variations in scattering percentages than lower energy electrons
 
 ### Recommendations for Future Work
 
