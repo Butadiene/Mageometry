@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Magnetic Field Parameter Variations
+Magnetic Field Parameter Variations using Ts01 Model
 Shows how different model parameters affect Rc/RL ratio
 Creates variations of Figure 3 (XZ plane) and Figure 5 (XY slices)
 """
@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import os
 import geopack
-from geopack import t96_vectorized, field_line_curvature_vectorized
+from geopack import t01_vectorized, field_line_curvature_vectorized
 
 # Create output directory
 output_dir = "figures"
@@ -27,7 +27,7 @@ Re = 6.371e6  # Earth radius (m)
 CRITICAL_RATIO = 8.0
 
 print("="*80)
-print("MAGNETIC FIELD PARAMETER VARIATIONS")
+print("MAGNETIC FIELD PARAMETER VARIATIONS - TS01 MODEL")
 print("="*80)
 
 # Initialize geopack
@@ -57,13 +57,13 @@ def calculate_larmor_radius(energy_keV, B_nT, pitch_angle_deg=90):
 def create_fig3_variations():
     """Create XZ plane plots with different model parameters (like Figure 3)"""
     
-    # Define parameter sets
+    # Define parameter sets for Ts01
+    # [Pdyn, Dst, ByIMF, BzIMF, G1, G2, description]
     param_sets = [
-        # [Pdyn, Dst, By_IMF, Bz_IMF, description]
-        ([2.0, 0.0, 0.0, 0.0], "Quiet: Pdyn=2, Dst=0"),
-        ([3.0, -30.0, 1.0, -3.0], "Moderate: Pdyn=3, Dst=-30"),
-        ([5.0, -100.0, 5.0, -10.0], "Storm: Pdyn=5, Dst=-100"),
-        ([1.0, -200.0, 10.0, -20.0], "Extreme: Pdyn=1, Dst=-200")
+        ([2.0, 0.0, 0.0, 0.0, 0.0, 0.0], "Quiet: Pdyn=2, Dst=0"),
+        ([3.0, -30.0, 1.0, -3.0, 1.5, 1.0], "Moderate: Pdyn=3, Dst=-30"),
+        ([5.0, -100.0, 5.0, -10.0, 3.0, 2.0], "Storm: Pdyn=5, Dst=-100"),
+        ([1.0, -200.0, 10.0, -20.0, 5.0, 3.0], "Extreme: Pdyn=1, Dst=-200")
     ]
     
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
@@ -85,19 +85,19 @@ def create_fig3_variations():
         ax = axes[idx]
         print(f"\nProcessing {description}...")
         
-        # Create parmod array
-        parmod = params + [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        # Create parmod array for Ts01
+        parmod = params + [0.0, 0.0, 0.0, 0.0]
         
         # Calculate field
         x_flat = X_bg.flatten()
         y_flat = Y_bg.flatten()
         z_flat = Z_bg.flatten()
         
-        bx, by, bz = t96_vectorized(parmod, ps, x_flat, y_flat, z_flat)
+        bx, by, bz = t01_vectorized(parmod, ps, x_flat, y_flat, z_flat)
         B_magnitude = np.sqrt(bx**2 + by**2 + bz**2)
         
         # Calculate curvature
-        kappa = field_line_curvature_vectorized(t96_vectorized, parmod, ps, 
+        kappa = field_line_curvature_vectorized(t01_vectorized, parmod, ps, 
                                                x_flat, y_flat, z_flat)
         Rc_Re = np.where(kappa > 1e-10, 1.0 / kappa, 1e3)
         Rc_m = Rc_Re * Re
@@ -133,7 +133,7 @@ def create_fig3_variations():
         y_vec_flat = Y_vec.flatten()
         z_vec_flat = Z_vec.flatten()
         
-        bx_vec, by_vec, bz_vec = t96_vectorized(parmod, ps, 
+        bx_vec, by_vec, bz_vec = t01_vectorized(parmod, ps, 
                                                x_vec_flat, y_vec_flat, z_vec_flat)
         
         Bx_grid = bx_vec.reshape(X_vec.shape)
@@ -166,6 +166,8 @@ def create_fig3_variations():
         
         # Add parameter text
         param_text = f'Pdyn={params[0]} nPa\nDst={params[1]} nT\nIMF By={params[2]} nT\nIMF Bz={params[3]} nT'
+        if params[4] > 0 or params[5] > 0:
+            param_text += f'\nG1={params[4]:.1f}, G2={params[5]:.1f}'
         ax.text(0.02, 0.98, param_text, transform=ax.transAxes, 
                fontsize=8, verticalalignment='top',
                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
@@ -176,16 +178,16 @@ def create_fig3_variations():
     cbar.set_label('Rc/RL Ratio', fontsize=12)
     cbar.ax.axhline(y=8, color='black', linewidth=2)
     
-    plt.suptitle('Rc/RL Ratio in XZ Plane (Y=0): Parameter Variations\n100 keV Electrons', 
+    plt.suptitle('Rc/RL Ratio in XZ Plane (Y=0): Parameter Variations\nTs01 Model, 100 keV Electrons', 
                 fontsize=16, weight='bold')
     
     plt.tight_layout(rect=[0, 0, 0.91, 0.96])
     
-    output_file = os.path.join(output_dir, 'fig10_rcrl_xz_parameter_variations.png')
+    output_file = os.path.join(output_dir, 'fig10_rcrl_xz_parameter_variations_ts01.png')
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close(fig)
     
-    print(f"\nFigure 3 variations saved: {output_file}")
+    print(f"\nFigure 10 (Ts01) saved: {output_file}")
 
 
 def create_fig5_variations():
@@ -193,15 +195,15 @@ def create_fig5_variations():
     
     # Define parameter sets
     param_sets = [
-        # [Pdyn, Dst, By_IMF, Bz_IMF, description]
-        ([2.0, 0.0, 0.0, 0.0], "Quiet"),
-        ([3.0, -30.0, 1.0, -3.0], "Moderate"),
-        ([5.0, -100.0, 5.0, -10.0], "Storm"),
-        ([1.0, -200.0, 10.0, -20.0], "Extreme")
+        # [Pdyn, Dst, By_IMF, Bz_IMF, G1, G2, description]
+        ([2.0, 0.0, 0.0, 0.0, 0.0, 0.0], "Quiet"),
+        ([3.0, -30.0, 1.0, -3.0, 1.5, 1.0], "Moderate"),
+        ([5.0, -100.0, 5.0, -10.0, 3.0, 2.0], "Storm"),
+        ([1.0, -200.0, 10.0, -20.0, 5.0, 3.0], "Extreme")
     ]
     
-    # Z heights to analyze
-    z_heights = [-0.4, -0.2, 0.0, 0.2]
+    # Z heights to show
+    z_heights = [-0.2, 0.0, 0.2, 0.4]
     
     fig, axes = plt.subplots(4, 4, figsize=(20, 20))
     
@@ -216,15 +218,19 @@ def create_fig5_variations():
     # Color levels
     levels = np.logspace(-1, 3, 20)
     
-    print("\nCreating XY plane variations...")
+    # Store statistics
+    all_stats = []
     
     for row_idx, (params, condition) in enumerate(param_sets):
-        parmod = params + [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        print(f"\nProcessing {condition} conditions...")
+        
+        # Create parmod array
+        parmod = params + [0.0, 0.0, 0.0, 0.0]
         
         for col_idx, z_height in enumerate(z_heights):
             ax = axes[row_idx, col_idx]
             
-            # Create Z array
+            # Create Z array for this height
             Z = np.full_like(X, z_height)
             
             # Flatten for calculation
@@ -232,12 +238,12 @@ def create_fig5_variations():
             y_flat = Y.flatten()
             z_flat = Z.flatten()
             
-            # Calculate field
-            bx, by, bz = t96_vectorized(parmod, ps, x_flat, y_flat, z_flat)
+            # Calculate magnetic field
+            bx, by, bz = t01_vectorized(parmod, ps, x_flat, y_flat, z_flat)
             B_magnitude = np.sqrt(bx**2 + by**2 + bz**2)
             
             # Calculate curvature
-            kappa = field_line_curvature_vectorized(t96_vectorized, parmod, ps, 
+            kappa = field_line_curvature_vectorized(t01_vectorized, parmod, ps, 
                                                    x_flat, y_flat, z_flat)
             Rc_Re = np.where(kappa > 1e-10, 1.0 / kappa, 1e3)
             Rc_m = Rc_Re * Re
@@ -253,204 +259,186 @@ def create_fig5_variations():
             
             # Calculate statistics
             scatter_frac = np.sum(ratio < CRITICAL_RATIO) / len(ratio) * 100
+            all_stats.append((condition, z_height, scatter_frac))
             
-            # Plot
+            # Plot Rc/RL ratio
             im = ax.contourf(X, Y, ratio_grid, levels=levels, 
                             cmap='RdBu_r', norm=LogNorm(vmin=0.1, vmax=1000))
             
             # Add critical contour
+            cs = ax.contour(X, Y, ratio_grid, levels=[CRITICAL_RATIO], 
+                           colors='black', linewidths=2)
             try:
-                cs = ax.contour(X, Y, ratio_grid, levels=[CRITICAL_RATIO], 
-                               colors='black', linewidths=2)
-                ax.clabel(cs, inline=True, fontsize=7, fmt='8')
+                ax.clabel(cs, inline=True, fontsize=6, fmt='8')
             except:
-                # Skip labeling if no contours found
-                pass
+                pass  # Skip labeling if no contours found
             
             # Add Earth
             earth = plt.Circle((0, 0), 1, color='white', zorder=10)
             ax.add_patch(earth)
             
-            # Labels
+            # Labels and formatting
             if col_idx == 0:
                 ax.set_ylabel(f'{condition}\nY GSM (Re)', fontsize=9)
-            else:
-                ax.set_ylabel('Y GSM (Re)', fontsize=8)
-            
             if row_idx == 3:
                 ax.set_xlabel('X GSM (Re)', fontsize=9)
-            else:
-                ax.set_xlabel('X GSM (Re)', fontsize=8)
             
             if row_idx == 0:
-                ax.set_title(f'Z = {z_height} Re', fontsize=10, weight='bold')
-            
-            # Add scattering percentage
-            ax.text(0.95, 0.95, f'{scatter_frac:.1f}%', 
-                   transform=ax.transAxes, fontsize=8,
-                   ha='right', va='top', color='black', weight='bold',
-                   bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.7))
+                ax.set_title(f'Z = {z_height} Re\n({scatter_frac:.1f}% < 8)', 
+                           fontsize=9, weight='bold')
+            else:
+                ax.set_title(f'{scatter_frac:.1f}% < 8', fontsize=8)
             
             ax.set_aspect('equal')
+            ax.grid(True, alpha=0.3, linewidth=0.5)
             ax.set_xlim(-20, 5)
             ax.set_ylim(-12, 12)
-            ax.grid(True, alpha=0.3)
-            
-            # Reduce tick labels
-            ax.set_xticks([-20, -15, -10, -5, 0, 5])
-            ax.set_yticks([-10, -5, 0, 5, 10])
-            ax.tick_params(labelsize=7)
+            ax.tick_params(labelsize=8)
     
-    # Add colorbar
-    cbar_ax = fig.add_axes([0.92, 0.15, 0.015, 0.7])
-    cbar = plt.colorbar(im, cax=cbar_ax)
+    # Add a single colorbar
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    cbar = plt.colorbar(im, cax=cbar_ax, 
+                       ticks=[0.1, 0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1000])
     cbar.set_label('Rc/RL Ratio', fontsize=12)
-    cbar.ax.axhline(y=8, color='black', linewidth=2)
-    cbar.ax.tick_params(labelsize=9)
+    cbar.ax.axhline(y=8, color='black', linewidth=3)
+    cbar.ax.text(1.3, 8, 'Critical', fontsize=9, va='center')
     
-    plt.suptitle('Rc/RL Ratio in XY Planes: Parameter and Height Variations\n100 keV Electrons', 
+    plt.suptitle('Rc/RL Ratio in XY Planes: Parameter and Height Variations\nTs01 Model, 100 keV Electrons', 
                 fontsize=16, weight='bold')
     
     plt.tight_layout(rect=[0, 0, 0.91, 0.96])
     
-    output_file = os.path.join(output_dir, 'fig11_rcrl_xy_parameter_variations.png')
+    output_file = os.path.join(output_dir, 'fig11_rcrl_xy_parameter_variations_ts01.png')
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close(fig)
     
-    print(f"Figure 5 variations saved: {output_file}")
+    print(f"\nFigure 11 (Ts01) saved: {output_file}")
+    
+    # Print statistics summary
+    print("\nScattering statistics summary (% with Rc/RL < 8):")
+    print("-" * 60)
+    print(f"{'Condition':<15} {'Z=-0.2':<8} {'Z=0.0':<8} {'Z=0.2':<8} {'Z=0.4':<8}")
+    print("-" * 60)
+    
+    for condition in ["Quiet", "Moderate", "Storm", "Extreme"]:
+        row_stats = [s[2] for s in all_stats if s[0] == condition]
+        print(f"{condition:<15} {row_stats[0]:>7.1f} {row_stats[1]:>7.1f} "
+              f"{row_stats[2]:>7.1f} {row_stats[3]:>7.1f}")
 
 
-def create_summary_plot():
-    """Create summary plot showing scattering percentage vs parameters"""
+def create_parameter_summary():
+    """Create summary plot showing how scattering varies with parameters"""
     
-    # Parameter ranges
-    pdyn_values = np.array([1, 2, 3, 5, 10])
-    dst_values = np.array([0, -30, -50, -100, -150, -200])
-    bz_values = np.array([5, 2, 0, -2, -5, -10, -20])
+    # Create more parameter variations for Dst and Pdyn
+    dst_values = np.linspace(0, -200, 9)
+    pdyn_values = np.linspace(1, 8, 8)
     
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
+    # Fixed IMF conditions
+    by_imf = 1.0
+    bz_imf = -3.0
     
-    # Fixed energy
-    energy = 100  # keV
-    
-    # Create small grid for current sheet region
-    x_grid = np.linspace(-12, -6, 31)
-    z_grid = np.linspace(-0.5, 0.5, 21)
-    X, Z = np.meshgrid(x_grid, z_grid)
-    Y = np.zeros_like(X)
-    
-    x_flat = X.flatten()
-    y_flat = Y.flatten()
-    z_flat = Z.flatten()
-    
-    print("\nCalculating parameter dependencies...")
-    
-    # 1. Pdyn dependence
-    scatter_pdyn = []
-    for pdyn in pdyn_values:
-        parmod = [pdyn, -30.0, 1.0, -3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        
-        bx, by, bz = t96_vectorized(parmod, ps, x_flat, y_flat, z_flat)
-        B_magnitude = np.sqrt(bx**2 + by**2 + bz**2)
-        
-        kappa = field_line_curvature_vectorized(t96_vectorized, parmod, ps, 
-                                               x_flat, y_flat, z_flat)
-        Rc_Re = np.where(kappa > 1e-10, 1.0 / kappa, 1e3)
-        Rc_m = Rc_Re * Re
-        
-        RL_m = calculate_larmor_radius(energy, B_magnitude)
-        ratio = Rc_m / RL_m
-        
-        scatter_frac = np.sum(ratio < CRITICAL_RATIO) / len(ratio) * 100
-        scatter_pdyn.append(scatter_frac)
-    
-    ax1.plot(pdyn_values, scatter_pdyn, 'b-o', linewidth=2, markersize=8)
-    ax1.set_xlabel('Pdyn (nPa)', fontsize=12)
-    ax1.set_ylabel('Scattering Region (%)', fontsize=12)
-    ax1.set_title('Dynamic Pressure Effect', fontsize=14, weight='bold')
-    ax1.grid(True, alpha=0.3)
-    ax1.set_xscale('log')
-    
-    # 2. Dst dependence
+    # Calculate scattering fraction for each combination
     scatter_dst = []
+    scatter_pdyn = []
+    
+    # Test Dst variation (fixed Pdyn = 3)
+    print("\nCalculating Dst variations...")
     for dst in dst_values:
-        parmod = [3.0, dst, 1.0, -3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        # G1 and G2 parameters scale with Dst
+        g1 = max(0, -dst * 0.025)  # Rough scaling
+        g2 = max(0, -dst * 0.015)
+        parmod = [3.0, dst, by_imf, bz_imf, g1, g2, 0.0, 0.0, 0.0, 0.0]
         
-        bx, by, bz = t96_vectorized(parmod, ps, x_flat, y_flat, z_flat)
+        # Sample at Z=0 plane
+        x_test = np.linspace(-15, 5, 100)
+        y_test = np.linspace(-10, 10, 100)
+        X_test, Y_test = np.meshgrid(x_test, y_test)
+        Z_test = np.zeros_like(X_test)
+        
+        x_flat = X_test.flatten()
+        y_flat = Y_test.flatten()
+        z_flat = Z_test.flatten()
+        
+        bx, by, bz = t01_vectorized(parmod, ps, x_flat, y_flat, z_flat)
         B_magnitude = np.sqrt(bx**2 + by**2 + bz**2)
         
-        kappa = field_line_curvature_vectorized(t96_vectorized, parmod, ps, 
+        kappa = field_line_curvature_vectorized(t01_vectorized, parmod, ps, 
                                                x_flat, y_flat, z_flat)
         Rc_Re = np.where(kappa > 1e-10, 1.0 / kappa, 1e3)
         Rc_m = Rc_Re * Re
         
-        RL_m = calculate_larmor_radius(energy, B_magnitude)
+        RL_m = calculate_larmor_radius(100, B_magnitude)
         ratio = Rc_m / RL_m
         
         scatter_frac = np.sum(ratio < CRITICAL_RATIO) / len(ratio) * 100
         scatter_dst.append(scatter_frac)
     
-    ax2.plot(dst_values, scatter_dst, 'r-s', linewidth=2, markersize=8)
-    ax2.set_xlabel('Dst (nT)', fontsize=12)
-    ax2.set_ylabel('Scattering Region (%)', fontsize=12)
-    ax2.set_title('Storm Index Effect', fontsize=14, weight='bold')
-    ax2.grid(True, alpha=0.3)
-    
-    # 3. IMF Bz dependence
-    scatter_bz = []
-    for bz in bz_values:
-        parmod = [3.0, -30.0, 1.0, bz, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    # Test Pdyn variation (fixed Dst = -30)
+    print("Calculating Pdyn variations...")
+    for pdyn in pdyn_values:
+        parmod = [pdyn, -30.0, by_imf, bz_imf, 1.5, 1.0, 0.0, 0.0, 0.0, 0.0]
         
-        bx, by, bz_field = t96_vectorized(parmod, ps, x_flat, y_flat, z_flat)
-        B_magnitude = np.sqrt(bx**2 + by**2 + bz_field**2)
+        x_flat = X_test.flatten()
+        y_flat = Y_test.flatten()
+        z_flat = Z_test.flatten()
         
-        kappa = field_line_curvature_vectorized(t96_vectorized, parmod, ps, 
+        bx, by, bz = t01_vectorized(parmod, ps, x_flat, y_flat, z_flat)
+        B_magnitude = np.sqrt(bx**2 + by**2 + bz**2)
+        
+        kappa = field_line_curvature_vectorized(t01_vectorized, parmod, ps, 
                                                x_flat, y_flat, z_flat)
         Rc_Re = np.where(kappa > 1e-10, 1.0 / kappa, 1e3)
         Rc_m = Rc_Re * Re
         
-        RL_m = calculate_larmor_radius(energy, B_magnitude)
+        RL_m = calculate_larmor_radius(100, B_magnitude)
         ratio = Rc_m / RL_m
         
         scatter_frac = np.sum(ratio < CRITICAL_RATIO) / len(ratio) * 100
-        scatter_bz.append(scatter_frac)
+        scatter_pdyn.append(scatter_frac)
     
-    ax3.plot(bz_values, scatter_bz, 'g-^', linewidth=2, markersize=8)
-    ax3.set_xlabel('IMF Bz (nT)', fontsize=12)
-    ax3.set_ylabel('Scattering Region (%)', fontsize=12)
-    ax3.set_title('IMF Bz Effect', fontsize=14, weight='bold')
-    ax3.grid(True, alpha=0.3)
-    ax3.axvline(0, color='gray', linestyle='--', alpha=0.5)
+    # Create summary plot
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     
-    plt.suptitle('Pitch Angle Scattering Dependence on Model Parameters\n' +
-                'Current Sheet Region (-12 < X < -6 Re, |Z| < 0.5 Re), 100 keV',
-                fontsize=16, weight='bold')
+    # Dst variation
+    ax1.plot(dst_values, scatter_dst, 'b-o', linewidth=2, markersize=8)
+    ax1.set_xlabel('Dst (nT)', fontsize=12)
+    ax1.set_ylabel('Scattering Fraction (%)', fontsize=12)
+    ax1.set_title('Scattering vs Dst\n(Pdyn=3 nPa, IMF Bz=-3 nT)', fontsize=12, weight='bold')
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xlim(0, -200)
     
+    # Pdyn variation
+    ax2.plot(pdyn_values, scatter_pdyn, 'r-o', linewidth=2, markersize=8)
+    ax2.set_xlabel('Pdyn (nPa)', fontsize=12)
+    ax2.set_ylabel('Scattering Fraction (%)', fontsize=12)
+    ax2.set_title('Scattering vs Pdyn\n(Dst=-30 nT, IMF Bz=-3 nT)', fontsize=12, weight='bold')
+    ax2.grid(True, alpha=0.3)
+    ax2.set_xlim(0, 9)
+    
+    plt.suptitle('Parameter Dependence of Curvature Scattering\nTs01 Model, 100 keV Electrons, Z=0 Re', 
+                fontsize=14, weight='bold')
     plt.tight_layout()
     
-    output_file = os.path.join(output_dir, 'fig12_parameter_dependence_summary.png')
+    output_file = os.path.join(output_dir, 'fig12_parameter_dependence_summary_ts01.png')
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close(fig)
     
-    print(f"Summary plot saved: {output_file}")
+    print(f"\nParameter summary saved: {output_file}")
 
 
 if __name__ == "__main__":
-    # Create Figure 3 variations (XZ plane)
-    create_fig3_variations()
-    
-    # Create Figure 5 variations (XY slices)
-    create_fig5_variations()
-    
-    # Create summary plot
-    create_summary_plot()
+    # Create all plots
+    create_fig3_variations()  # Figure 10
+    create_fig5_variations()  # Figure 11
+    create_parameter_summary()  # Figure 12
     
     print("\n" + "="*80)
-    print("Parameter variation analysis complete!")
+    print("PARAMETER VARIATION ANALYSIS COMPLETE (Ts01)")
     print("="*80)
     print("\nKey findings:")
     print("- Scattering increases during storms (more negative Dst)")
     print("- Lower Pdyn can increase scattering (tail stretching)")
     print("- Southward IMF (negative Bz) enhances scattering")
     print("- Extreme conditions can create large scattering regions")
+    print("- Ts01 includes storm-time corrections through G1 and G2 parameters")
     print("="*80)

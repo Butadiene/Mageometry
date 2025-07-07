@@ -75,7 +75,7 @@ def create_curvature_radius_slices():
     axes = axes.flatten()
     
     # Create XY grid
-    x_grid = np.linspace(-15, 5, 101)
+    x_grid = np.linspace(-20, 5, 126)
     y_grid = np.linspace(-12, 12, 121)
     X, Y = np.meshgrid(x_grid, y_grid)
     
@@ -116,7 +116,7 @@ def create_curvature_radius_slices():
         
         # Add field vectors (sparse)
         if idx % 2 == 0:  # Only for some panels
-            x_vec = np.linspace(-15, 5, 11)
+            x_vec = np.linspace(-20, 5, 11)
             y_vec = np.linspace(-12, 12, 13)
             X_vec, Y_vec = np.meshgrid(x_vec, y_vec)
             Z_vec = np.full_like(X_vec, z_height)
@@ -152,7 +152,7 @@ def create_curvature_radius_slices():
                     fontsize=10, weight='bold')
         ax.set_aspect('equal')
         ax.grid(True, alpha=0.3)
-        ax.set_xlim(-15, 5)
+        ax.set_xlim(-20, 5)
         ax.set_ylim(-12, 12)
     
     # Hide unused subplots
@@ -194,7 +194,7 @@ def create_larmor_radius_slices():
     axes = axes.flatten()
     
     # Create XY grid
-    x_grid = np.linspace(-15, 5, 101)
+    x_grid = np.linspace(-20, 5, 126)
     y_grid = np.linspace(-12, 12, 121)
     X, Y = np.meshgrid(x_grid, y_grid)
     
@@ -246,7 +246,7 @@ def create_larmor_radius_slices():
         
         # Add field vectors (sparse)
         if idx % 2 == 0:  # Only for some panels
-            x_vec = np.linspace(-15, 5, 11)
+            x_vec = np.linspace(-20, 5, 11)
             y_vec = np.linspace(-12, 12, 13)
             X_vec, Y_vec = np.meshgrid(x_vec, y_vec)
             Z_vec = np.full_like(X_vec, z_height)
@@ -282,7 +282,7 @@ def create_larmor_radius_slices():
                     fontsize=10, weight='bold')
         ax.set_aspect('equal')
         ax.grid(True, alpha=0.3)
-        ax.set_xlim(-15, 5)
+        ax.set_xlim(-20, 5)
         ax.set_ylim(-12, 12)
     
     # Hide unused subplots

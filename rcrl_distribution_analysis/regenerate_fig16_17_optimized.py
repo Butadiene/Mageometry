@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
-Curvature Radius and Larmor Radius Parameter Variations
-Shows how different model parameters affect curvature radius and Larmor radius
-Similar to Figure 11 but showing Rc and RL instead of Rc/RL ratio
+Regenerate fig16 and fig17 with extended X range (-20 to 5 Re) - Optimized version
 """
 
 import numpy as np
@@ -24,7 +22,7 @@ e = 1.602176634e-19  # Elementary charge (C)
 Re = 6.371e6  # Earth radius (m)
 
 print("="*80)
-print("CURVATURE AND LARMOR RADIUS PARAMETER VARIATIONS")
+print("REGENERATING FIGURES 16 AND 17 (OPTIMIZED)")
 print("="*80)
 
 # Initialize geopack
@@ -56,7 +54,6 @@ def create_curvature_radius_variations():
     
     # Define parameter sets
     param_sets = [
-        # [Pdyn, Dst, By_IMF, Bz_IMF, description]
         ([2.0, 0.0, 0.0, 0.0], "Quiet"),
         ([3.0, -30.0, 1.0, -3.0], "Moderate"),
         ([5.0, -100.0, 5.0, -10.0], "Storm"),
@@ -68,15 +65,16 @@ def create_curvature_radius_variations():
     
     fig, axes = plt.subplots(4, 4, figsize=(20, 20))
     
-    # Create XY grid
-    x_grid = np.linspace(-20, 5, 126)
-    y_grid = np.linspace(-12, 12, 121)
+    # Create XY grid with optimized resolution
+    x_grid = np.linspace(-20, 5, 51)  # Reduced from 126 to 51 points
+    y_grid = np.linspace(-12, 12, 49)  # Reduced from 121 to 49 points
     X, Y = np.meshgrid(x_grid, y_grid)
     
     print("\nCreating curvature radius variations...")
     
     for row_idx, (params, condition) in enumerate(param_sets):
         parmod = params + [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        print(f"  Processing {condition}...")
         
         for col_idx, z_height in enumerate(z_heights):
             ax = axes[row_idx, col_idx]
@@ -114,33 +112,6 @@ def create_curvature_radius_variations():
             # Add Earth
             earth = plt.Circle((0, 0), 1, color='white', zorder=10)
             ax.add_patch(earth)
-            
-            # Add field vectors (sparse) for middle panels
-            if col_idx == 1 or col_idx == 2:
-                x_vec = np.linspace(-20, 5, 11)
-                y_vec = np.linspace(-12, 12, 11)
-                X_vec, Y_vec = np.meshgrid(x_vec, y_vec)
-                Z_vec = np.full_like(X_vec, z_height)
-                
-                x_vec_flat = X_vec.flatten()
-                y_vec_flat = Y_vec.flatten()
-                z_vec_flat = Z_vec.flatten()
-                
-                bx_vec, by_vec, bz_vec = t96_vectorized(parmod, ps, 
-                                                       x_vec_flat, y_vec_flat, z_vec_flat)
-                
-                Bx_grid = bx_vec.reshape(X_vec.shape)
-                By_grid = by_vec.reshape(Y_vec.shape)
-                
-                B_vec_mag = np.sqrt(Bx_grid**2 + By_grid**2)
-                Bx_norm = np.divide(Bx_grid, B_vec_mag, out=np.zeros_like(Bx_grid), 
-                                  where=B_vec_mag>0)
-                By_norm = np.divide(By_grid, B_vec_mag, out=np.zeros_like(By_grid), 
-                                  where=B_vec_mag>0)
-                
-                ax.quiver(X_vec, Y_vec, Bx_norm*0.5, By_norm*0.5,
-                         color='white', alpha=0.5, width=0.002, headwidth=3, 
-                         scale=20, scale_units='xy')
             
             # Labels
             if col_idx == 0:
@@ -207,9 +178,9 @@ def create_larmor_radius_variations():
     
     fig, axes = plt.subplots(4, 4, figsize=(20, 20))
     
-    # Create XY grid
-    x_grid = np.linspace(-20, 5, 126)
-    y_grid = np.linspace(-12, 12, 121)
+    # Create XY grid with optimized resolution
+    x_grid = np.linspace(-20, 5, 51)  # Reduced resolution
+    y_grid = np.linspace(-12, 12, 49)
     X, Y = np.meshgrid(x_grid, y_grid)
     
     # Fixed energy
@@ -219,6 +190,7 @@ def create_larmor_radius_variations():
     
     for row_idx, (params, condition) in enumerate(param_sets):
         parmod = params + [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        print(f"  Processing {condition}...")
         
         for col_idx, z_height in enumerate(z_heights):
             ax = axes[row_idx, col_idx]
@@ -259,33 +231,6 @@ def create_larmor_radius_variations():
             # Add Earth
             earth = plt.Circle((0, 0), 1, color='white', zorder=10)
             ax.add_patch(earth)
-            
-            # Add field vectors (sparse) for middle panels
-            if col_idx == 1 or col_idx == 2:
-                x_vec = np.linspace(-20, 5, 11)
-                y_vec = np.linspace(-12, 12, 11)
-                X_vec, Y_vec = np.meshgrid(x_vec, y_vec)
-                Z_vec = np.full_like(X_vec, z_height)
-                
-                x_vec_flat = X_vec.flatten()
-                y_vec_flat = Y_vec.flatten()
-                z_vec_flat = Z_vec.flatten()
-                
-                bx_vec, by_vec, bz_vec = t96_vectorized(parmod, ps, 
-                                                       x_vec_flat, y_vec_flat, z_vec_flat)
-                
-                Bx_grid = bx_vec.reshape(X_vec.shape)
-                By_grid = by_vec.reshape(Y_vec.shape)
-                
-                B_vec_mag = np.sqrt(Bx_grid**2 + By_grid**2)
-                Bx_norm = np.divide(Bx_grid, B_vec_mag, out=np.zeros_like(Bx_grid), 
-                                  where=B_vec_mag>0)
-                By_norm = np.divide(By_grid, B_vec_mag, out=np.zeros_like(By_grid), 
-                                  where=B_vec_mag>0)
-                
-                ax.quiver(X_vec, Y_vec, Bx_norm*0.5, By_norm*0.5,
-                         color='white', alpha=0.5, width=0.002, headwidth=3, 
-                         scale=20, scale_units='xy')
             
             # Labels
             if col_idx == 0:
@@ -336,98 +281,6 @@ def create_larmor_radius_variations():
     print(f"Larmor radius variations saved: {output_file}")
 
 
-def create_combined_summary():
-    """Create summary plots showing how Rc and RL vary with parameters"""
-    
-    # Parameter ranges
-    dst_values = np.array([0, -30, -50, -100, -150, -200])
-    
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-    
-    # Fixed energy
-    energy = 100  # keV
-    
-    # Sample the current sheet region
-    x_sample = -10.0
-    y_sample = 0.0
-    z_sample = 0.0
-    
-    print("\nCalculating parameter dependencies for Rc and RL...")
-    
-    # Arrays to store results
-    rc_min_values = []
-    rc_median_values = []
-    rl_max_values = []
-    rl_median_values = []
-    
-    for dst in dst_values:
-        parmod = [3.0, dst, 1.0, -3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        
-        # Create small grid around sample point
-        x_grid = np.linspace(x_sample-2, x_sample+2, 21)
-        z_grid = np.linspace(z_sample-1, z_sample+1, 11)
-        X, Z = np.meshgrid(x_grid, z_grid)
-        Y = np.full_like(X, y_sample)
-        
-        x_flat = X.flatten()
-        y_flat = Y.flatten()
-        z_flat = Z.flatten()
-        
-        # Calculate curvature
-        kappa = field_line_curvature_vectorized(t96_vectorized, parmod, ps, 
-                                               x_flat, y_flat, z_flat)
-        Rc_Re = np.where(kappa > 1e-10, 1.0 / kappa, 1e3)
-        
-        rc_min_values.append(np.min(Rc_Re))
-        rc_median_values.append(np.median(Rc_Re))
-        
-        # Calculate field and Larmor radius
-        bx, by, bz = t96_vectorized(parmod, ps, x_flat, y_flat, z_flat)
-        B_magnitude = np.sqrt(bx**2 + by**2 + bz**2)
-        RL_m = calculate_larmor_radius(energy, B_magnitude)
-        RL_Re = RL_m / Re
-        
-        rl_max_values.append(np.max(RL_Re))
-        rl_median_values.append(np.median(RL_Re))
-    
-    # Plot 1: Curvature radius vs Dst
-    ax1.plot(dst_values, rc_min_values, 'b-o', linewidth=2, markersize=8, label='Min Rc')
-    ax1.plot(dst_values, rc_median_values, 'b--s', linewidth=2, markersize=6, label='Median Rc')
-    ax1.set_xlabel('Dst (nT)', fontsize=12)
-    ax1.set_ylabel('Radius of Curvature (Re)', fontsize=12)
-    ax1.set_title('Curvature Radius vs Storm Index', fontsize=14, weight='bold')
-    ax1.set_yscale('log')
-    ax1.grid(True, alpha=0.3)
-    ax1.legend()
-    ax1.set_ylim(0.01, 100)
-    
-    # Plot 2: Larmor radius vs Dst
-    ax2.plot(dst_values, np.array(rl_max_values)*6371, 'g-o', linewidth=2, markersize=8, label='Max RL')
-    ax2.plot(dst_values, np.array(rl_median_values)*6371, 'g--s', linewidth=2, markersize=6, label='Median RL')
-    ax2.set_xlabel('Dst (nT)', fontsize=12)
-    ax2.set_ylabel('Larmor Radius (km)', fontsize=12)
-    ax2.set_title(f'{energy} keV Electron Larmor Radius vs Storm Index', fontsize=14, weight='bold')
-    ax2.set_yscale('log')
-    ax2.grid(True, alpha=0.3)
-    ax2.legend()
-    ax2.set_ylim(10, 10000)
-    
-    # Add annotations
-    ax1.text(0.05, 0.95, f'Sample region:\nX = {x_sample} Re\nY = {y_sample} Re\nZ = {z_sample} Re',
-            transform=ax1.transAxes, fontsize=9, va='top',
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
-    
-    plt.suptitle('Curvature and Larmor Radius Dependence on Storm Conditions', 
-                fontsize=16, weight='bold')
-    plt.tight_layout()
-    
-    output_file = os.path.join(output_dir, 'fig18_rc_rl_parameter_summary.png')
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    plt.close(fig)
-    
-    print(f"Summary plot saved: {output_file}")
-
-
 if __name__ == "__main__":
     # Create curvature radius variations
     create_curvature_radius_variations()
@@ -435,15 +288,6 @@ if __name__ == "__main__":
     # Create Larmor radius variations
     create_larmor_radius_variations()
     
-    # Create summary plots
-    create_combined_summary()
-    
     print("\n" + "="*80)
-    print("Curvature and Larmor radius parameter variations complete!")
-    print("="*80)
-    print("\nKey findings:")
-    print("- Minimum Rc decreases dramatically during storms")
-    print("- Maximum RL increases during storms (weaker B field)")
-    print("- Current sheet region shows strongest parameter dependence")
-    print("- Extreme conditions create optimal conditions for scattering")
+    print("Figures 16 and 17 regenerated successfully with extended X range (-20 to 5 Re)!")
     print("="*80)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Rc/RL Ratio in XY Plane Slices for 100 keV Electrons
+Rc/RL Ratio in XY Plane Slices for 1000 keV Electrons
 Shows XY plane slices from Z=-0.6 to Z=0.8 Re in 0.2 Re increments
 """
 
@@ -26,7 +26,7 @@ Re = 6.371e6  # Earth radius (m)
 CRITICAL_RATIO = 8.0
 
 print("="*80)
-print("Rc/RL RATIO IN XY PLANE SLICES - 100 keV ELECTRONS")
+print("Rc/RL RATIO IN XY PLANE SLICES - 1000 keV ELECTRONS")
 print("="*80)
 
 # Initialize geopack
@@ -80,7 +80,7 @@ def create_xy_slices():
     X, Y = np.meshgrid(x_grid, y_grid)
     
     # Fixed energy
-    energy = 100  # keV
+    energy = 1000  # keV
     
     # Color levels - same as Figure 2
     levels = np.logspace(-1, 3, 20)
@@ -192,14 +192,14 @@ def create_xy_slices():
     # Add text annotation for the critical line
     cbar.ax.text(1.3, 8, 'Critical', fontsize=9, va='center')
     
-    plt.suptitle(f'Rc/RL Ratio in XY Planes: 100 keV Electrons\n' +
+    plt.suptitle(f'Rc/RL Ratio in XY Planes: 1000 keV Electrons\n' +
                 f'T96 Model, Pdyn={parmod[0]} nPa, Dst={parmod[1]} nT',
                 fontsize=14, weight='bold')
     
     plt.tight_layout(rect=[0, 0, 0.91, 0.96])
     
     # Save figure
-    output_file = os.path.join(output_dir, 'fig05_rcrl_xy_slices_100keV.png')
+    output_file = os.path.join(output_dir, 'fig05_rcrl_xy_slices_1000keV.png')
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     plt.close(fig)
     
@@ -222,7 +222,7 @@ def create_xy_slices():
     
     ax2.set_xlabel('Z GSM (Re)', fontsize=12)
     ax2.set_ylabel('Scattering Fraction (%)', fontsize=12)
-    ax2.set_title('Rc/RL < 8 Fraction vs Height: 100 keV Electrons', 
+    ax2.set_title('Rc/RL < 8 Fraction vs Height: 1000 keV Electrons', 
                  fontsize=14, weight='bold')
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim(-0.8, 1.0)
@@ -238,7 +238,7 @@ def create_xy_slices():
     
     plt.tight_layout()
     
-    output_file2 = os.path.join(output_dir, 'fig06_rcrl_vs_height_100keV.png')
+    output_file2 = os.path.join(output_dir, 'fig06_rcrl_vs_height_1000keV.png')
     plt.savefig(output_file2, dpi=300, bbox_inches='tight')
     plt.close(fig2)
     

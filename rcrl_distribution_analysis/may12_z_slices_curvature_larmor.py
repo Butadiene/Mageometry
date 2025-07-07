@@ -79,7 +79,7 @@ def create_curvature_radius_slices():
     axes = axes.flatten()
     
     # Create XY grid
-    x_grid = np.linspace(-15, 5, 81)
+    x_grid = np.linspace(-20, 5, 101)
     y_grid = np.linspace(-12, 12, 97)
     X, Y = np.meshgrid(x_grid, y_grid)
     
@@ -135,7 +135,7 @@ def create_curvature_radius_slices():
         ax.set_title(f'Z = {z_height:.1f} Re', fontsize=8, weight='bold')
         ax.set_aspect('equal')
         ax.grid(True, alpha=0.3)
-        ax.set_xlim(-15, 5)
+        ax.set_xlim(-20, 5)
         ax.set_ylim(-12, 12)
         ax.tick_params(labelsize=6)
         
@@ -206,7 +206,7 @@ def create_larmor_radius_slices():
     axes = axes.flatten()
     
     # Create XY grid
-    x_grid = np.linspace(-15, 5, 81)
+    x_grid = np.linspace(-20, 5, 101)
     y_grid = np.linspace(-12, 12, 97)
     X, Y = np.meshgrid(x_grid, y_grid)
     
@@ -265,7 +265,7 @@ def create_larmor_radius_slices():
         ax.set_title(f'Z = {z_height:.1f} Re', fontsize=8, weight='bold')
         ax.set_aspect('equal')
         ax.grid(True, alpha=0.3)
-        ax.set_xlim(-15, 5)
+        ax.set_xlim(-20, 5)
         ax.set_ylim(-12, 12)
         ax.tick_params(labelsize=6)
         
