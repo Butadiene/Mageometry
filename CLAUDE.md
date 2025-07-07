@@ -60,6 +60,10 @@ geopack-vectorize/
   - **condip1_exact_vectorized.py** - Vectorized dipole field calculations
   - **trace_field_lines_vectorized.py** - Vectorized field line tracing with boundary interpolation (30-50x speedup, recommended)
   - **trace_field_lines_vectorized_nointerp.py** - Vectorized tracing without interpolation (validation only)
+  - **field_line_geometry_vectorized.py** - Vectorized field line geometry calculations including:
+    - Frenet-Serret frame (tangent, normal, binormal vectors)
+    - Curvature and torsion
+    - Directional derivatives (new): ∂T/∂n, ∂N/∂n, ∂T/∂b, ∂N/∂b
 - **igrf_vectorized.py** - Vectorized IGRF implementation (9-13x speedup)
 - **coordinates_vectorized.py** - Vectorized coordinate transformations (25-60x speedup)
 - **coordinates_vectorized_complex.py** - Vectorized spherical/Cartesian conversions
@@ -204,6 +208,8 @@ def function_vectorized(x, y, z):
 - IGRF vectorization (9-13x speedup, exact compatibility)
 - Coordinate transformations (25-60x speedup for all systems)
 - Field line tracing (30-50x speedup, with accurate boundary handling)
+- Field line geometry (Frenet-Serret frame, curvature, torsion)
+- Field line directional derivatives (∂T/∂n, ∂N/∂n, ∂T/∂b, ∂N/∂b) with 10-50x speedup
 
 ### TODO
 - GPU acceleration support
@@ -277,6 +283,10 @@ The `examples/notebooks/` directory contains comprehensive evaluation notebooks:
 - **10_field_line_tracing_algorithm_validation.ipynb** - Algorithm validation
 - **11_field_line_tracing_comprehensive_comparison.ipynb** - Detailed comparison of implementations
 
+### Field Line Geometry and Directional Derivatives
+- **12_field_line_directional_derivatives_guide.ipynb** - Comprehensive guide to directional derivatives
+- **13_dipole_field_directional_derivatives.ipynb** - Analysis of eight parameters for dipole field
+
 ### Comparisons
 - **field_slice_comparisons.ipynb** - Visual comparisons of magnetic field patterns
 
@@ -297,6 +307,7 @@ All notebooks include execution outputs demonstrating:
 - `docs/vectorization/direction_vectorize.md` - Core vectorization principles
 - `docs/vectorization/COORDINATE_TRANSFORMATIONS_VECTORIZED.md` - Coordinate transformation guide
 - `docs/vectorization/IGRF_VECTORIZATION_SUMMARY.md` - IGRF implementation details
+- `docs/vectorization/FIELD_LINE_DIRECTIONAL_DERIVATIVES_DESIGN.md` - Directional derivatives design and math
 - `docs/FILE_ORGANIZATION.md` - Project structure guide
 
 ## References

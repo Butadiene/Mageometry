@@ -14,7 +14,11 @@ from .field_line_geometry_vectorized import (
     field_line_binormal_vectorized,
     field_line_torsion_vectorized,
     field_line_frenet_frame_vectorized,
-    field_line_geometry_complete_vectorized
+    field_line_geometry_complete_vectorized,
+    field_line_tangent_normal_derivative_vectorized,
+    field_line_normal_normal_derivative_vectorized,
+    field_line_tangent_binormal_derivative_vectorized,
+    field_line_normal_binormal_derivative_vectorized
 )
 
 __all__ = [
@@ -23,5 +27,9 @@ __all__ = [
     'field_line_tangent_vectorized', 'field_line_curvature_vectorized',
     'field_line_normal_vectorized', 'field_line_binormal_vectorized',
     'field_line_torsion_vectorized', 'field_line_frenet_frame_vectorized',
-    'field_line_geometry_complete_vectorized'
+    'field_line_geometry_complete_vectorized',
+    'field_line_tangent_normal_derivative_vectorized',
+    'field_line_normal_normal_derivative_vectorized',
+    'field_line_tangent_binormal_derivative_vectorized',
+    'field_line_normal_binormal_derivative_vectorized'
 ]
