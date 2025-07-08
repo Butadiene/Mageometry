@@ -28,10 +28,9 @@ from .vectorized import (
     field_line_torsion_vectorized,
     field_line_frenet_frame_vectorized,
     field_line_geometry_complete_vectorized,
-    field_line_tangent_normal_derivative_vectorized,
-    field_line_normal_normal_derivative_vectorized,
-    field_line_tangent_binormal_derivative_vectorized,
-    field_line_normal_binormal_derivative_vectorized
+    field_line_directional_derivatives_vectorized,
+    verify_antisymmetry_relations,
+    get_curvature_torsion_from_derivatives
 )
 
 # Vectorized coordinate transformations
@@ -73,10 +72,9 @@ __all__ = [
     'field_line_normal_vectorized', 'field_line_binormal_vectorized',
     'field_line_torsion_vectorized', 'field_line_frenet_frame_vectorized',
     'field_line_geometry_complete_vectorized',
-    'field_line_tangent_normal_derivative_vectorized',
-    'field_line_normal_normal_derivative_vectorized',
-    'field_line_tangent_binormal_derivative_vectorized',
-    'field_line_normal_binormal_derivative_vectorized',
+    'field_line_directional_derivatives_vectorized',
+    'verify_antisymmetry_relations',
+    'get_curvature_torsion_from_derivatives',
     # Vectorized coordinate transformations
     'gsmgse_vectorized', 'geigeo_vectorized', 'magsm_vectorized',
     'smgsm_vectorized', 'geomag_vectorized', 'geogsm_vectorized',

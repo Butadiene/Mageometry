@@ -63,7 +63,11 @@ geopack-vectorize/
   - **field_line_geometry_vectorized.py** - Vectorized field line geometry calculations including:
     - Frenet-Serret frame (tangent, normal, binormal vectors)
     - Curvature and torsion
-    - Directional derivatives (new): ∂T/∂n, ∂N/∂n, ∂T/∂b, ∂N/∂b
+  - **field_line_directional_derivatives_new.py** - Vectorized implementation of the 9 directional derivative formulas:
+    - (∂T/∂T)·n = κ (curvature), (∂T/∂T)·b = 0, (∂n/∂T)·b = τ (torsion)
+    - (∂T/∂n)·n, (∂T/∂n)·b, (∂n/∂n)·b
+    - (∂n/∂b)·b, (∂n/∂b)·T, (∂b/∂b)·T
+    - Includes antisymmetry validation functions
 - **igrf_vectorized.py** - Vectorized IGRF implementation (9-13x speedup)
 - **coordinates_vectorized.py** - Vectorized coordinate transformations (25-60x speedup)
 - **coordinates_vectorized_complex.py** - Vectorized spherical/Cartesian conversions
@@ -209,7 +213,7 @@ def function_vectorized(x, y, z):
 - Coordinate transformations (25-60x speedup for all systems)
 - Field line tracing (30-50x speedup, with accurate boundary handling)
 - Field line geometry (Frenet-Serret frame, curvature, torsion)
-- Field line directional derivatives (∂T/∂n, ∂N/∂n, ∂T/∂b, ∂N/∂b) with 10-50x speedup
+- Field line directional derivatives (9 formulas with antisymmetry relations) with 10-50x speedup
 
 ### TODO
 - GPU acceleration support
@@ -284,8 +288,8 @@ The `examples/notebooks/` directory contains comprehensive evaluation notebooks:
 - **11_field_line_tracing_comprehensive_comparison.ipynb** - Detailed comparison of implementations
 
 ### Field Line Geometry and Directional Derivatives
-- **12_field_line_directional_derivatives_guide.ipynb** - Comprehensive guide to directional derivatives
-- **13_dipole_field_directional_derivatives.ipynb** - Analysis of eight parameters for dipole field
+- **12_field_line_directional_derivatives_guide.ipynb** - Comprehensive guide to the 9 directional derivative formulas
+- **13_dipole_field_directional_derivatives.ipynb** - Analysis of the 9 formulas for dipole field
 
 ### Comparisons
 - **field_slice_comparisons.ipynb** - Visual comparisons of magnetic field patterns
@@ -307,7 +311,8 @@ All notebooks include execution outputs demonstrating:
 - `docs/vectorization/direction_vectorize.md` - Core vectorization principles
 - `docs/vectorization/COORDINATE_TRANSFORMATIONS_VECTORIZED.md` - Coordinate transformation guide
 - `docs/vectorization/IGRF_VECTORIZATION_SUMMARY.md` - IGRF implementation details
-- `docs/vectorization/FIELD_LINE_DIRECTIONAL_DERIVATIVES_DESIGN.md` - Directional derivatives design and math
+- `docs/vectorization/FIELD_LINE_DIRECTIONAL_DERIVATIVES_CORRECT.md` - Correct mathematical framework for 9 directional derivative formulas
+- `docs/vectorization/FIELD_LINE_DIRECTIONAL_DERIVATIVES_DESIGN.md` - Original design (deprecated)
 - `docs/FILE_ORGANIZATION.md` - Project structure guide
 
 ## References
