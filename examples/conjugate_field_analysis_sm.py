@@ -11,6 +11,7 @@ import matplotlib.colors as colors
 from datetime import datetime
 import sys
 import os
+from multiprocessing import Pool, cpu_count
 
 # Add parent directory to path to import geopack
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -31,19 +32,23 @@ def create_sm_grid(radius=1.0, nlat=8, nlon=8):
     In SM coordinates:
     - Z_SM axis: aligned with magnetic dipole axis
     - Y_SM axis: perpendicular to both dipole axis and Sun-Earth line
+      +Y_SM points toward MLT 18 (dusk), -Y_SM points toward MLT 6 (dawn)
     - X_SM axis: completes right-handed system
     """
     # Create latitude grid in SM coordinates (0° = SM equator, 90° = north magnetic pole)
     sm_lat = np.linspace(55, 75, nlat)
     
     # Create longitude grid for midnight sector (MLT 20-04)
-    # In SM coordinates: 0° = noon, 180° = midnight
-    # MLT to SM longitude conversion: SM_lon = 180° - (MLT * 15°)
-    # MLT 20 = 180° - (20 * 15°) = 180° - 300° = -120° = 240° (mod 360)
-    # MLT 00 = 180° - (0 * 15°) = 180°
-    # MLT 04 = 180° - (4 * 15°) = 180° - 60° = 120°
-    # So we want 120° to 240° in SM coordinates for MLT 20-04
-    sm_lon = np.linspace(120, 240, nlon, endpoint=True)
+    # In SM coordinates: 0° = noon (MLT 12), 180° = midnight (MLT 0)
+    # +Y_SM = MLT 18 (dusk) = 90° SM longitude
+    # -Y_SM = MLT 6 (dawn) = 270° SM longitude
+    # MLT to SM longitude conversion: SM_lon = (MLT * 15°) mod 360°
+    # MLT 20 = 20 * 15° = 300°
+    # MLT 00 = 0 * 15° = 0° (but we use 360° to maintain continuity)
+    # MLT 04 = 4 * 15° = 60°
+    # So we want 300° to 420° (mod 360) = 300° to 60° for MLT 20-04
+    sm_lon = np.linspace(300, 420, nlon, endpoint=True)
+    sm_lon = sm_lon % 360  # Wrap around at 360°
     
     # Create meshgrid
     SM_LON_GRID, SM_LAT_GRID = np.meshgrid(sm_lon, sm_lat)
@@ -64,31 +69,33 @@ def create_sm_grid(radius=1.0, nlat=8, nlon=8):
     return x_sm, y_sm, z_sm, sm_lat_flat, sm_lon_flat
 
 
-def calculate_electron_larmor_radius(B_magnitude, electron_energy_keV=100.0):
+def calculate_electron_larmor_radius(B_magnitude, electron_energy_keV=100.0, momentum_factor=None):
     """Calculate the electron Larmor radius."""
-    # Constants
-    m_e = 9.10938356e-31  # electron mass in kg
-    e = 1.602176634e-19   # elementary charge in C
-    c = 299792458.0       # speed of light in m/s
+    if momentum_factor is None:
+        # Constants
+        m_e = 9.10938356e-31  # electron mass in kg
+        e = 1.602176634e-19   # elementary charge in C
+        c = 299792458.0       # speed of light in m/s
+        
+        # Convert energy to Joules
+        E_joules = electron_energy_keV * 1000 * e
+        
+        # Calculate relativistic momentum
+        E_rest = m_e * c**2
+        E_total = E_joules + E_rest
+        p = np.sqrt(E_total**2 - E_rest**2) / c
+        
+        # Pre-compute momentum factor for reuse
+        momentum_factor = p / e
     
-    # Convert energy to Joules
-    E_joules = electron_energy_keV * 1000 * e
-    
-    # Calculate relativistic momentum
-    E_rest = m_e * c**2
-    E_total = E_joules + E_rest
-    p = np.sqrt(E_total**2 - E_rest**2) / c
-    
-    # Convert B to Tesla
+    # Convert B to Tesla and calculate Larmor radius
     B_tesla = B_magnitude * 1e-9
-    
-    # Calculate Larmor radius: RL = p / (eB)
-    RL_m = p / (e * B_tesla)
+    RL_m = momentum_factor / B_tesla
     
     # Convert to km
     RL_km = RL_m / 1000.0
     
-    return RL_km
+    return RL_km, momentum_factor
 
 
 def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm, 
@@ -190,16 +197,27 @@ def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm,
     
     print("Analyzing field lines...")
     
-    # Check if conjugate
-    for i in range(nlines):
-        r_final = np.sqrt(xf[i]**2 + yf[i]**2 + zf[i]**2)
-        if status[i] == 0 and zf[i] < 0 and abs(r_final - 1.0) < 0.1:
-            conjugate_mask[i] = True
+    # Create T96 SM wrapper function once (not inside loop)
+    def t96_sm_wrapper(parmod, ps, x_sm, y_sm, z_sm):
+        x_gsm, y_gsm, z_gsm = smgsm_vectorized(x_sm, y_sm, z_sm, 1)
+        bx_gsm, by_gsm, bz_gsm = t96_vectorized(parmod, ps, x_gsm, y_gsm, z_gsm)
+        bx_sm, by_sm, bz_sm = smgsm_vectorized(bx_gsm, by_gsm, bz_gsm, -1)
+        return bx_sm, by_sm, bz_sm
+    
+    # Vectorized conjugate check
+    r_final = np.sqrt(xf**2 + yf**2 + zf**2)
+    conjugate_mask = (status == 0) & (zf < 0) & (np.abs(r_final - 1.0) < 0.1)
     
     # Process conjugate field lines
+    n_conjugate = np.sum(conjugate_mask)
+    print(f"  Processing {n_conjugate} conjugate field lines...")
+    
+    # Pre-compute electron momentum factor for Larmor radius calculation
+    _, momentum_factor = calculate_electron_larmor_radius(1.0, electron_energy_keV)
+    
     for i in range(nlines):
-        if i % 50 == 0:
-            print(f"  Processing field line {i}/{nlines}...")
+        if i % 100 == 0 and i > 0:
+            print(f"    Progress: {i}/{nlines} ({100*i/nlines:.1f}%)")
             
         if conjugate_mask[i]:
             # Get valid points
@@ -245,18 +263,11 @@ def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm,
             lon_min_b_rad = np.arctan2(y_min_b, x_min_b)
             
             min_b_lat[i] = np.degrees(lat_min_b_rad)
-            # Convert SM longitude to MLT: MLT = (180 - SM_lon) / 15
+            # Convert SM longitude to MLT: MLT = SM_lon / 15
             sm_lon_deg = np.degrees(lon_min_b_rad) % 360
-            min_b_mlt[i] = ((180 - sm_lon_deg) / 15) % 24
+            min_b_mlt[i] = (sm_lon_deg / 15) % 24
             
             # Calculate curvature and Rc/RL
-            # Need to create a wrapper function that handles SM coordinates
-            def t96_sm_wrapper(parmod, ps, x_sm, y_sm, z_sm):
-                x_gsm, y_gsm, z_gsm = smgsm_vectorized(x_sm, y_sm, z_sm, 1)
-                bx_gsm, by_gsm, bz_gsm = t96_vectorized(parmod, ps, x_gsm, y_gsm, z_gsm)
-                bx_sm, by_sm, bz_sm = smgsm_vectorized(bx_gsm, by_gsm, bz_gsm, -1)
-                return bx_sm, by_sm, bz_sm
-            
             kappa = field_line_curvature_vectorized(
                 t96_sm_wrapper, parmod, ps, x_line, y_line, z_line
             )
@@ -266,7 +277,7 @@ def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm,
             valid_kappa = kappa > 0
             Rc_km[valid_kappa] = (1.0 / kappa[valid_kappa]) * 6371.2
             
-            RL_km = calculate_electron_larmor_radius(b_mag, electron_energy_keV)
+            RL_km, _ = calculate_electron_larmor_radius(b_mag, electron_energy_keV, momentum_factor)
             
             # Calculate Rc/RL ratio
             rc_rl_ratio = np.zeros_like(Rc_km)
@@ -295,9 +306,9 @@ def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm,
                     lon_min_rc_rad = np.arctan2(y_min_rc, x_min_rc)
                     
                     min_rc_rl_lat[i] = np.degrees(lat_min_rc_rad)
-                    # Convert SM longitude to MLT
+                    # Convert SM longitude to MLT: MLT = SM_lon / 15
                     sm_lon_deg = np.degrees(lon_min_rc_rad) % 360
-                    min_rc_rl_mlt[i] = ((180 - sm_lon_deg) / 15) % 24
+                    min_rc_rl_mlt[i] = (sm_lon_deg / 15) % 24
                     
                     # Store minimum Rc/RL position for vectorized calculation
                     min_rc_rl_x[i] = x_min_rc
@@ -375,28 +386,37 @@ def create_sm_coord_plots(results, electron_energy_keV, figsize=(40, 30)):
     
     # Common plot settings for polar plots
     def setup_axis(ax, title):
-        ax.set_theta_zero_location('N')  # 0° longitude at top
-        ax.set_theta_direction(-1)  # Clockwise
+        # Set up polar plot with MLT orientation:
+        # Top = MLT 12, Left = MLT 18, Bottom = MLT 0/24, Right = MLT 6
+        ax.set_theta_zero_location('N')  # Put 0° at top
+        ax.set_theta_direction(-1)  # Clockwise (so MLT increases clockwise)
         ax.set_ylim(0, 35)  # 90° at center (r=0) to 55° at edge (r=35)
         ax.set_title(title, fontsize=14, pad=20)
         ax.grid(True, alpha=0.3)
         
         # Set theta (MLT) labels
-        # SM longitude to MLT: MLT = (SM_lon - 180) / 15
-        # MLT 0 = 180° SM, MLT 6 = 270° SM, MLT 12 = 0° SM, MLT 18 = 90° SM
-        mlt_angles = np.array([180, 225, 270, 315, 0, 45, 90, 135])  # SM longitude
-        mlt_labels = ['00', '03', '06', '09', '12', '15', '18', '21']  # MLT hours
-        ax.set_thetagrids(mlt_angles, mlt_labels)
+        # MLT to plot angle mapping:
+        # MLT 12 at top (0°), MLT 18 at left (270°), MLT 0 at bottom (180°), MLT 6 at right (90°)
+        # Since MLT increases clockwise and we want MLT 12 at top:
+        # plot_angle = (180 - MLT * 15) % 360
+        mlt_hours = np.array([12, 15, 18, 21, 0, 3, 6, 9])
+        plot_angles = (180 - mlt_hours * 15) % 360
+        mlt_labels = ['12', '15', '18', '21', '00', '03', '06', '09']
+        ax.set_thetagrids(plot_angles, mlt_labels)
         
         # Add radial labels (inverted: high lat at center)
         ax.set_rticks([15, 25, 35], ['75°', '65°', '55°'])
         ax.set_rlabel_position(45)
     
     # Convert SM longitude to angle in radians for polar plot
-    theta_plot = sm_lon * np.pi / 180  # Convert degrees to radians
+    # Use the same transformation as in setup_axis: plot_angle = (180 - MLT * 15) % 360
+    # First convert SM lon to MLT: MLT = SM_lon / 15
+    mlt_values = (sm_lon / 15) % 24
+    # Then convert to plot angle
+    theta_plot = ((180 - mlt_values * 15) % 360) * np.pi / 180  # Convert degrees to radians
     
     # For focused midnight sector, ensure labels are appropriate
-    # The data spans SM longitude 150° to 210° (MLT 22 to 02)
+    # The data spans SM longitude 300° to 60° (MLT 20 to 04)
     
     # Invert radius: 90° at center (r=0), lower latitudes outward
     r_plot = 90 - sm_lat
