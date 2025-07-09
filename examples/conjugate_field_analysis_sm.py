@@ -38,17 +38,13 @@ def create_sm_grid(radius=1.0, nlat=8, nlon=8):
     # Create latitude grid in SM coordinates (0° = SM equator, 90° = north magnetic pole)
     sm_lat = np.linspace(55, 75, nlat)
     
-    # Create longitude grid for midnight sector (MLT 20-04)
+    # Create longitude grid for all MLT hours (0-24)
     # In SM coordinates: 0° = noon (MLT 12), 180° = midnight (MLT 0)
     # +Y_SM = MLT 18 (dusk) = 90° SM longitude
     # -Y_SM = MLT 6 (dawn) = 270° SM longitude
     # MLT to SM longitude conversion: SM_lon = (MLT * 15°) mod 360°
-    # MLT 20 = 20 * 15° = 300°
-    # MLT 00 = 0 * 15° = 0° (but we use 360° to maintain continuity)
-    # MLT 04 = 4 * 15° = 60°
-    # So we want 300° to 420° (mod 360) = 300° to 60° for MLT 20-04
-    sm_lon = np.linspace(300, 420, nlon, endpoint=True)
-    sm_lon = sm_lon % 360  # Wrap around at 360°
+    # For full coverage: MLT 0-24 hours = SM 0-360°
+    sm_lon = np.linspace(0, 360, nlon, endpoint=False)
     
     # Create meshgrid
     SM_LON_GRID, SM_LAT_GRID = np.meshgrid(sm_lon, sm_lat)
@@ -415,8 +411,8 @@ def create_sm_coord_plots(results, electron_energy_keV, figsize=(40, 30)):
     # Then convert to plot angle
     theta_plot = ((180 - mlt_values * 15) % 360) * np.pi / 180  # Convert degrees to radians
     
-    # For focused midnight sector, ensure labels are appropriate
-    # The data spans SM longitude 300° to 60° (MLT 20 to 04)
+    # For full coverage
+    # The data spans SM longitude 0° to 360° (MLT 0 to 24)
     
     # Invert radius: 90° at center (r=0), lower latitudes outward
     r_plot = 90 - sm_lat
@@ -722,8 +718,8 @@ def create_sm_coord_plots(results, electron_energy_keV, figsize=(40, 30)):
     ax1.legend(loc='upper left', fontsize=10)
     
     # Overall title
-    fig.suptitle('T96 Magnetospheric Field Analysis in SM Coordinates (Midnight Sector)\n' + 
-                 'Starting from Northern Hemisphere at 1 Re, Lat: 55-75°, MLT: 20-04\n' +
+    fig.suptitle('T96 Magnetospheric Field Analysis in SM Coordinates (Full Coverage)\n' + 
+                 'Starting from Northern Hemisphere at 1 Re, Lat: 55-75°, MLT: 0-24\n' +
                  'Rows 3-4: All Directional Derivatives at Minimum Rc/RL Location', fontsize=16, y=0.99)
     
     plt.tight_layout()
@@ -749,11 +745,11 @@ def main():
     # Create starting grid directly in SM coordinates
     print("Creating grid directly in SM coordinates...")
     print("  Latitude range: 55° to 75°")
-    print("  MLT range: 20-04 (midnight sector)")
+    print("  MLT range: 0-24 (full coverage)")
     x_start_sm, y_start_sm, z_start_sm, sm_lat_start, sm_lon_start = create_sm_grid(
         radius=1.0,
         nlat=20,   # Increased density for better resolution
-        nlon=24    # Increased density for better coverage
+        nlon=48    # Doubled longitude density for better coverage
     )
     
     # Print summary
@@ -778,8 +774,8 @@ def main():
     fig, axes = create_sm_coord_plots(results, electron_energy_keV)
     
     # Save figure
-    plt.savefig('conjugate_field_analysis_sm_midnight.png', dpi=300, bbox_inches='tight')
-    print("Saved conjugate_field_analysis_sm_midnight.png")
+    plt.savefig('conjugate_field_analysis_sm_full.png', dpi=300, bbox_inches='tight')
+    print("Saved conjugate_field_analysis_sm_full.png")
     plt.show()
     
     # Print summary
