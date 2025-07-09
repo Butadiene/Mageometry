@@ -20,10 +20,11 @@ from geopack.trace_field_lines_vectorized import trace_vectorized
 from geopack.igrf_vectorized import igrf_gsm_vectorized
 from geopack.vectorized import t96_vectorized
 from geopack.vectorized.field_line_geometry_vectorized import field_line_curvature_vectorized
+from geopack.vectorized.field_line_directional_derivatives_new import field_line_directional_derivatives_vectorized
 from geopack.coordinates_vectorized import smgsm_vectorized, geomag_vectorized, magsm_vectorized
 
 
-def create_sm_grid(radius=1.0, nlat=12, nlon=16):
+def create_sm_grid(radius=1.0, nlat=8, nlon=8):
     """
     Create a grid of starting points directly in SM coordinates.
     
@@ -33,10 +34,16 @@ def create_sm_grid(radius=1.0, nlat=12, nlon=16):
     - X_SM axis: completes right-handed system
     """
     # Create latitude grid in SM coordinates (0° = SM equator, 90° = north magnetic pole)
-    sm_lat = np.linspace(40, 80, nlat)
+    sm_lat = np.linspace(55, 75, nlat)
     
-    # Create longitude grid in SM coordinates (0° = noon meridian)
-    sm_lon = np.linspace(0, 360, nlon, endpoint=False)
+    # Create longitude grid for midnight sector (MLT 20-04)
+    # In SM coordinates: 0° = noon, 180° = midnight
+    # MLT to SM longitude conversion: SM_lon = 180° - (MLT * 15°)
+    # MLT 20 = 180° - (20 * 15°) = 180° - 300° = -120° = 240° (mod 360)
+    # MLT 00 = 180° - (0 * 15°) = 180°
+    # MLT 04 = 180° - (4 * 15°) = 180° - 60° = 120°
+    # So we want 120° to 240° in SM coordinates for MLT 20-04
+    sm_lon = np.linspace(120, 240, nlon, endpoint=True)
     
     # Create meshgrid
     SM_LON_GRID, SM_LAT_GRID = np.meshgrid(sm_lon, sm_lat)
@@ -155,9 +162,26 @@ def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm,
     nlines = len(x_start_sm)
     min_b = np.full(nlines, np.nan)
     min_b_dist = np.full(nlines, np.nan)
+    min_b_lat = np.full(nlines, np.nan)  # SM latitude at min B
+    min_b_mlt = np.full(nlines, np.nan)   # MLT at min B
     min_rc_rl = np.full(nlines, np.nan)
     min_rc_rl_dist = np.full(nlines, np.nan)
+    min_rc_rl_lat = np.full(nlines, np.nan)  # SM latitude at min Rc/RL
+    min_rc_rl_mlt = np.full(nlines, np.nan)  # MLT at min Rc/RL
     conjugate_mask = np.zeros(nlines, dtype=bool)
+    
+    # Initialize arrays for directional derivatives at min Rc/RL
+    derivatives_at_min_rc_rl = {
+        'dT_dT_n': np.full(nlines, np.nan),  # κ (curvature)
+        'dT_dT_b': np.full(nlines, np.nan),  # Should be 0
+        'dn_dT_b': np.full(nlines, np.nan),  # τ (torsion)
+        'dT_dn_n': np.full(nlines, np.nan),
+        'dT_dn_b': np.full(nlines, np.nan),
+        'dn_dn_b': np.full(nlines, np.nan),
+        'dn_db_b': np.full(nlines, np.nan),
+        'dn_db_T': np.full(nlines, np.nan),
+        'db_db_T': np.full(nlines, np.nan)
+    }
     
     print("Analyzing field lines...")
     
@@ -205,6 +229,21 @@ def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm,
             min_b[i] = b_mag[idx_min_b]
             min_b_dist[i] = distances[idx_min_b]
             
+            # Calculate SM coordinates of minimum B location
+            x_min_b = x_line[idx_min_b]
+            y_min_b = y_line[idx_min_b]
+            z_min_b = z_line[idx_min_b]
+            
+            # Convert to spherical SM coordinates
+            r_min_b = np.sqrt(x_min_b**2 + y_min_b**2 + z_min_b**2)
+            lat_min_b_rad = np.arcsin(z_min_b / r_min_b)
+            lon_min_b_rad = np.arctan2(y_min_b, x_min_b)
+            
+            min_b_lat[i] = np.degrees(lat_min_b_rad)
+            # Convert SM longitude to MLT: MLT = (180 - SM_lon) / 15
+            sm_lon_deg = np.degrees(lon_min_b_rad) % 360
+            min_b_mlt[i] = ((180 - sm_lon_deg) / 15) % 24
+            
             # Calculate curvature and Rc/RL
             # Need to create a wrapper function that handles SM coordinates
             def t96_sm_wrapper(parmod, ps, x_sm, y_sm, z_sm):
@@ -239,57 +278,102 @@ def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm,
                     
                     min_rc_rl[i] = rc_rl_ratio[idx_original]
                     min_rc_rl_dist[i] = distances[idx_original]
+                    
+                    # Calculate SM coordinates of minimum Rc/RL location
+                    x_min_rc = x_line[idx_original]
+                    y_min_rc = y_line[idx_original]
+                    z_min_rc = z_line[idx_original]
+                    
+                    # Convert to spherical SM coordinates
+                    r_min_rc = np.sqrt(x_min_rc**2 + y_min_rc**2 + z_min_rc**2)
+                    lat_min_rc_rad = np.arcsin(z_min_rc / r_min_rc)
+                    lon_min_rc_rad = np.arctan2(y_min_rc, x_min_rc)
+                    
+                    min_rc_rl_lat[i] = np.degrees(lat_min_rc_rad)
+                    # Convert SM longitude to MLT
+                    sm_lon_deg = np.degrees(lon_min_rc_rad) % 360
+                    min_rc_rl_mlt[i] = ((180 - sm_lon_deg) / 15) % 24
+                    
+                    # Calculate directional derivatives at minimum Rc/RL location
+                    deriv_results = field_line_directional_derivatives_vectorized(
+                        t96_sm_wrapper, parmod, ps, 
+                        x_min_rc, y_min_rc, z_min_rc, delta=0.01
+                    )
+                    
+                    # Store derivatives
+                    for key in derivatives_at_min_rc_rl:
+                        if key in deriv_results:
+                            derivatives_at_min_rc_rl[key][i] = deriv_results[key]
     
     print(f"Found {np.sum(conjugate_mask)} conjugate field lines out of {nlines} total")
     
     return {
         'min_b': min_b,
         'min_b_dist': min_b_dist,
+        'min_b_lat': min_b_lat,
+        'min_b_mlt': min_b_mlt,
         'min_rc_rl': min_rc_rl,
         'min_rc_rl_dist': min_rc_rl_dist,
+        'min_rc_rl_lat': min_rc_rl_lat,
+        'min_rc_rl_mlt': min_rc_rl_mlt,
         'conjugate_mask': conjugate_mask,
         'sm_lat': sm_lat_start,
-        'sm_lon': sm_lon_start
+        'sm_lon': sm_lon_start,
+        'derivatives_at_min_rc_rl': derivatives_at_min_rc_rl
     }
 
 
-def create_sm_coord_plots(results, electron_energy_keV, figsize=(20, 18)):
+def create_sm_coord_plots(results, electron_energy_keV, figsize=(40, 30)):
     """
-    Create 2x2 subplot with inverted polar plots showing SM coordinate grid.
+    Create 4x4 subplot with inverted polar plots showing SM coordinate grid.
+    Includes location (lat/MLT) of minimum values for both B and Rc/RL,
+    plus all directional derivatives at minimum Rc/RL location.
     """
-    fig, axes = plt.subplots(2, 2, figsize=figsize, subplot_kw=dict(projection='polar'))
+    fig, axes = plt.subplots(4, 4, figsize=figsize, subplot_kw=dict(projection='polar'))
     
     # Extract data
     sm_lat = results['sm_lat']
     sm_lon = results['sm_lon']
     min_b = results['min_b']
     min_b_dist = results['min_b_dist']
+    min_b_lat = results['min_b_lat']
+    min_b_mlt = results['min_b_mlt']
     min_rc_rl = results['min_rc_rl']
     min_rc_rl_dist = results['min_rc_rl_dist']
+    min_rc_rl_lat = results['min_rc_rl_lat']
+    min_rc_rl_mlt = results['min_rc_rl_mlt']
     conjugate_mask = results['conjugate_mask']
+    derivatives_at_min_rc_rl = results['derivatives_at_min_rc_rl']
     
     # Common plot settings for polar plots
     def setup_axis(ax, title):
         ax.set_theta_zero_location('N')  # 0° longitude at top
         ax.set_theta_direction(-1)  # Clockwise
-        ax.set_ylim(0, 60)  # 90° at center (r=0) to 30° at edge (r=60)
+        ax.set_ylim(0, 35)  # 90° at center (r=0) to 55° at edge (r=35)
         ax.set_title(title, fontsize=14, pad=20)
         ax.grid(True, alpha=0.3)
         
-        # Set theta (longitude) labels for SM coordinates
-        lon_angles = np.array([0, 90, 180, 270])  # SM longitude
-        ax.set_thetagrids(lon_angles, ['0°', '90°', '180°', '270°'])
+        # Set theta (MLT) labels
+        # SM longitude to MLT: MLT = (SM_lon - 180) / 15
+        # MLT 0 = 180° SM, MLT 6 = 270° SM, MLT 12 = 0° SM, MLT 18 = 90° SM
+        mlt_angles = np.array([180, 225, 270, 315, 0, 45, 90, 135])  # SM longitude
+        mlt_labels = ['00', '03', '06', '09', '12', '15', '18', '21']  # MLT hours
+        ax.set_thetagrids(mlt_angles, mlt_labels)
         
         # Add radial labels (inverted: high lat at center)
-        ax.set_rticks([10, 20, 30, 40, 50], ['80°', '70°', '60°', '50°', '40°'])
+        ax.set_rticks([15, 25, 35], ['75°', '65°', '55°'])
         ax.set_rlabel_position(45)
     
     # Convert SM longitude to angle in radians for polar plot
     theta_plot = sm_lon * np.pi / 180  # Convert degrees to radians
     
+    # For focused midnight sector, ensure labels are appropriate
+    # The data spans SM longitude 150° to 210° (MLT 22 to 02)
+    
     # Invert radius: 90° at center (r=0), lower latitudes outward
     r_plot = 90 - sm_lat
     
+    # Row 1: B-field analysis
     # Plot 1: Minimum B-field
     ax1 = axes[0, 0]
     setup_axis(ax1, 'Minimum B-field Strength (nT) - T96 Model')
@@ -328,12 +412,49 @@ def create_sm_coord_plots(results, electron_energy_keV, figsize=(20, 18)):
         cbar2 = plt.colorbar(sc2, ax=ax2, pad=0.1)
         cbar2.set_label('Distance (Re)', fontsize=10)
     
-    # Plot 3: Minimum Rc/RL
-    ax3 = axes[1, 0]
-    setup_axis(ax3, f'Minimum Rc/RL Ratio ({electron_energy_keV} keV) - T96 Model')
+    # Plot 3: SM Latitude at minimum B
+    ax3 = axes[0, 2]
+    setup_axis(ax3, 'SM Latitude at Minimum B-field (°) - T96 Model')
     
     if np.any(non_conj):
         ax3.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                   c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(min_b_lat)
+    if np.any(conj):
+        sc3 = ax3.scatter(theta_plot[conj], r_plot[conj], 
+                         c=min_b_lat[conj], s=30,
+                         cmap='coolwarm',
+                         vmin=-90, vmax=90)
+        cbar3 = plt.colorbar(sc3, ax=ax3, pad=0.1)
+        cbar3.set_label('SM Latitude (°)', fontsize=10)
+    
+    # Plot 4: MLT at minimum B
+    ax4 = axes[0, 3]
+    setup_axis(ax4, 'MLT at Minimum B-field (hours) - T96 Model')
+    
+    if np.any(non_conj):
+        ax4.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                   c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(min_b_mlt)
+    if np.any(conj):
+        sc4 = ax4.scatter(theta_plot[conj], r_plot[conj], 
+                         c=min_b_mlt[conj], s=30,
+                         cmap='hsv',
+                         vmin=0, vmax=24)
+        cbar4 = plt.colorbar(sc4, ax=ax4, pad=0.1)
+        cbar4.set_label('MLT (hours)', fontsize=10)
+        cbar4.set_ticks([0, 6, 12, 18, 24])
+        cbar4.set_ticklabels(['00', '06', '12', '18', '00'])
+    
+    # Row 2: Rc/RL analysis
+    # Plot 5: Minimum Rc/RL
+    ax5 = axes[1, 0]
+    setup_axis(ax5, f'Minimum Rc/RL Ratio ({electron_energy_keV} keV) - T96 Model')
+    
+    if np.any(non_conj):
+        ax5.scatter(theta_plot[non_conj], r_plot[non_conj], 
                    c='gray', s=20, alpha=0.3)
     
     conj = conjugate_mask & ~np.isnan(min_rc_rl) & (min_rc_rl > 0)
@@ -341,37 +462,221 @@ def create_sm_coord_plots(results, electron_energy_keV, figsize=(20, 18)):
         vmin, vmax = 1.0, 64.0
         min_rc_rl_clipped = np.clip(min_rc_rl[conj], vmin, vmax)
         
-        sc3 = ax3.scatter(theta_plot[conj], r_plot[conj], 
+        sc5 = ax5.scatter(theta_plot[conj], r_plot[conj], 
                          c=min_rc_rl_clipped, s=30,
                          cmap='RdBu_r',
                          norm=colors.LogNorm(vmin=vmin, vmax=vmax))
-        cbar3 = plt.colorbar(sc3, ax=ax3, pad=0.1)
-        cbar3.set_label(r'Min $R_c/R_L$', fontsize=10)
-        cbar3.ax.axhline(y=8, color='black', linestyle='--', linewidth=1)
+        cbar5 = plt.colorbar(sc5, ax=ax5, pad=0.1)
+        cbar5.set_label(r'Min $R_c/R_L$', fontsize=10)
+        cbar5.ax.axhline(y=8, color='black', linestyle='--', linewidth=1)
     
-    # Plot 4: Distance at minimum Rc/RL
-    ax4 = axes[1, 1]
-    setup_axis(ax4, 'Distance at Minimum Rc/RL (Re) - T96 Model')
+    # Plot 6: Distance at minimum Rc/RL
+    ax6 = axes[1, 1]
+    setup_axis(ax6, 'Distance at Minimum Rc/RL (Re) - T96 Model')
     
     if np.any(non_conj):
-        ax4.scatter(theta_plot[non_conj], r_plot[non_conj], 
+        ax6.scatter(theta_plot[non_conj], r_plot[non_conj], 
                    c='gray', s=20, alpha=0.3)
     
     conj = conjugate_mask & ~np.isnan(min_rc_rl_dist)
     if np.any(conj):
-        sc4 = ax4.scatter(theta_plot[conj], r_plot[conj], 
+        sc6 = ax6.scatter(theta_plot[conj], r_plot[conj], 
                          c=min_rc_rl_dist[conj], s=30,
                          cmap='plasma',
                          vmin=1.0, vmax=min(20.0, np.nanmax(min_rc_rl_dist[conj])))
-        cbar4 = plt.colorbar(sc4, ax=ax4, pad=0.1)
-        cbar4.set_label('Distance (Re)', fontsize=10)
+        cbar6 = plt.colorbar(sc6, ax=ax6, pad=0.1)
+        cbar6.set_label('Distance (Re)', fontsize=10)
+    
+    # Plot 7: SM Latitude at minimum Rc/RL
+    ax7 = axes[1, 2]
+    setup_axis(ax7, f'SM Latitude at Minimum Rc/RL (°) - T96 Model')
+    
+    if np.any(non_conj):
+        ax7.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                   c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(min_rc_rl_lat)
+    if np.any(conj):
+        sc7 = ax7.scatter(theta_plot[conj], r_plot[conj], 
+                         c=min_rc_rl_lat[conj], s=30,
+                         cmap='coolwarm',
+                         vmin=-90, vmax=90)
+        cbar7 = plt.colorbar(sc7, ax=ax7, pad=0.1)
+        cbar7.set_label('SM Latitude (°)', fontsize=10)
+    
+    # Plot 8: MLT at minimum Rc/RL
+    ax8 = axes[1, 3]
+    setup_axis(ax8, f'MLT at Minimum Rc/RL (hours) - T96 Model')
+    
+    if np.any(non_conj):
+        ax8.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                   c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(min_rc_rl_mlt)
+    if np.any(conj):
+        sc8 = ax8.scatter(theta_plot[conj], r_plot[conj], 
+                         c=min_rc_rl_mlt[conj], s=30,
+                         cmap='hsv',
+                         vmin=0, vmax=24)
+        cbar8 = plt.colorbar(sc8, ax=ax8, pad=0.1)
+        cbar8.set_label('MLT (hours)', fontsize=10)
+        cbar8.set_ticks([0, 6, 12, 18, 24])
+        cbar8.set_ticklabels(['00', '06', '12', '18', '00'])
+    
+    # Row 3: First set of directional derivatives at minimum Rc/RL
+    # Plot 9: (∂T/∂T)·n = κ (curvature)
+    ax9 = axes[2, 0]
+    setup_axis(ax9, 'Curvature κ = (∂T/∂T)·n at Min Rc/RL')
+    
+    if np.any(non_conj):
+        ax9.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                   c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(derivatives_at_min_rc_rl['dT_dT_n'])
+    if np.any(conj):
+        # Show curvature κ = (∂T/∂T)·n
+        sc9 = ax9.scatter(theta_plot[conj], r_plot[conj], 
+                         c=derivatives_at_min_rc_rl['dT_dT_n'][conj], s=30,
+                         cmap='viridis',
+                         vmin=0, vmax=np.nanpercentile(derivatives_at_min_rc_rl['dT_dT_n'][conj], 95))
+        cbar9 = plt.colorbar(sc9, ax=ax9, pad=0.1)
+        cbar9.set_label('κ = (∂T/∂T)·n', fontsize=10)
+    
+    # Plot 10: (∂n/∂T)·b = τ (torsion)
+    ax10 = axes[2, 1]
+    setup_axis(ax10, 'Torsion τ = (∂n/∂T)·b at Min Rc/RL')
+    
+    if np.any(non_conj):
+        ax10.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                    c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(derivatives_at_min_rc_rl['dn_dT_b'])
+    if np.any(conj):
+        # Center colormap around zero for torsion
+        max_abs_tau = np.nanpercentile(np.abs(derivatives_at_min_rc_rl['dn_dT_b'][conj]), 95)
+        sc10 = ax10.scatter(theta_plot[conj], r_plot[conj], 
+                          c=derivatives_at_min_rc_rl['dn_dT_b'][conj], s=30,
+                          cmap='RdBu_r',
+                          vmin=-max_abs_tau, vmax=max_abs_tau)
+        cbar10 = plt.colorbar(sc10, ax=ax10, pad=0.1)
+        cbar10.set_label('τ = (∂n/∂T)·b', fontsize=10)
+    
+    # Plot 11: (∂T/∂n)·b
+    ax11 = axes[2, 2]
+    setup_axis(ax11, '(∂T/∂n)·b at Min Rc/RL')
+    
+    if np.any(non_conj):
+        ax11.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                    c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(derivatives_at_min_rc_rl['dT_dn_b'])
+    if np.any(conj):
+        max_abs_val = np.nanpercentile(np.abs(derivatives_at_min_rc_rl['dT_dn_b'][conj]), 95)
+        sc11 = ax11.scatter(theta_plot[conj], r_plot[conj], 
+                          c=derivatives_at_min_rc_rl['dT_dn_b'][conj], s=30,
+                          cmap='coolwarm',
+                          vmin=-max_abs_val, vmax=max_abs_val)
+        cbar11 = plt.colorbar(sc11, ax=ax11, pad=0.1)
+        cbar11.set_label('(∂T/∂n)·b', fontsize=10)
+    
+    # Plot 12: (∂n/∂n)·b
+    ax12 = axes[2, 3]
+    setup_axis(ax12, '(∂n/∂n)·b at Min Rc/RL')
+    
+    if np.any(non_conj):
+        ax12.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                    c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(derivatives_at_min_rc_rl['dn_dn_b'])
+    if np.any(conj):
+        max_abs_val = np.nanpercentile(np.abs(derivatives_at_min_rc_rl['dn_dn_b'][conj]), 95)
+        sc12 = ax12.scatter(theta_plot[conj], r_plot[conj], 
+                          c=derivatives_at_min_rc_rl['dn_dn_b'][conj], s=30,
+                          cmap='PuOr_r',
+                          vmin=-max_abs_val, vmax=max_abs_val)
+        cbar12 = plt.colorbar(sc12, ax=ax12, pad=0.1)
+        cbar12.set_label('(∂n/∂n)·b', fontsize=10)
+    
+    # Row 4: Second set of directional derivatives at minimum Rc/RL
+    # Plot 13: (∂n/∂b)·T
+    ax13 = axes[3, 0]
+    setup_axis(ax13, '(∂n/∂b)·T at Min Rc/RL')
+    
+    if np.any(non_conj):
+        ax13.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                    c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(derivatives_at_min_rc_rl['dn_db_T'])
+    if np.any(conj):
+        max_abs_val = np.nanpercentile(np.abs(derivatives_at_min_rc_rl['dn_db_T'][conj]), 95)
+        sc13 = ax13.scatter(theta_plot[conj], r_plot[conj], 
+                          c=derivatives_at_min_rc_rl['dn_db_T'][conj], s=30,
+                          cmap='seismic',
+                          vmin=-max_abs_val, vmax=max_abs_val)
+        cbar13 = plt.colorbar(sc13, ax=ax13, pad=0.1)
+        cbar13.set_label('(∂n/∂b)·T', fontsize=10)
+    
+    # Plot 14: (∂b/∂b)·T
+    ax14 = axes[3, 1]
+    setup_axis(ax14, '(∂b/∂b)·T at Min Rc/RL')
+    
+    if np.any(non_conj):
+        ax14.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                    c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(derivatives_at_min_rc_rl['db_db_T'])
+    if np.any(conj):
+        max_abs_val = np.nanpercentile(np.abs(derivatives_at_min_rc_rl['db_db_T'][conj]), 95)
+        sc14 = ax14.scatter(theta_plot[conj], r_plot[conj], 
+                          c=derivatives_at_min_rc_rl['db_db_T'][conj], s=30,
+                          cmap='BrBG_r',
+                          vmin=-max_abs_val, vmax=max_abs_val)
+        cbar14 = plt.colorbar(sc14, ax=ax14, pad=0.1)
+        cbar14.set_label('(∂b/∂b)·T', fontsize=10)
+    
+    # Plot 15: (∂n/∂b)·b
+    ax15 = axes[3, 2]
+    setup_axis(ax15, '(∂n/∂b)·b at Min Rc/RL')
+    
+    if np.any(non_conj):
+        ax15.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                    c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(derivatives_at_min_rc_rl['dn_db_b'])
+    if np.any(conj):
+        max_abs_val = np.nanpercentile(np.abs(derivatives_at_min_rc_rl['dn_db_b'][conj]), 95)
+        sc15 = ax15.scatter(theta_plot[conj], r_plot[conj], 
+                          c=derivatives_at_min_rc_rl['dn_db_b'][conj], s=30,
+                          cmap='PRGn_r',
+                          vmin=-max_abs_val, vmax=max_abs_val)
+        cbar15 = plt.colorbar(sc15, ax=ax15, pad=0.1)
+        cbar15.set_label('(∂n/∂b)·b', fontsize=10)
+    
+    # Plot 16: (∂T/∂n)·n
+    ax16 = axes[3, 3]
+    setup_axis(ax16, '(∂T/∂n)·n at Min Rc/RL')
+    
+    if np.any(non_conj):
+        ax16.scatter(theta_plot[non_conj], r_plot[non_conj], 
+                    c='gray', s=20, alpha=0.3)
+    
+    conj = conjugate_mask & ~np.isnan(derivatives_at_min_rc_rl['dT_dn_n'])
+    if np.any(conj):
+        max_abs_val = np.nanpercentile(np.abs(derivatives_at_min_rc_rl['dT_dn_n'][conj]), 95)
+        sc16 = ax16.scatter(theta_plot[conj], r_plot[conj], 
+                          c=derivatives_at_min_rc_rl['dT_dn_n'][conj], s=30,
+                          cmap='twilight_shifted',
+                          vmin=-max_abs_val, vmax=max_abs_val)
+        cbar16 = plt.colorbar(sc16, ax=ax16, pad=0.1)
+        cbar16.set_label('(∂T/∂n)·n', fontsize=10)
     
     # Add legend to first plot
     ax1.legend(loc='upper left', fontsize=10)
     
     # Overall title
-    fig.suptitle('T96 Magnetospheric Field Analysis in SM Coordinates\n' + 
-                 'Starting from Northern Hemisphere at 1 Re (90° at center)', fontsize=16, y=0.95)
+    fig.suptitle('T96 Magnetospheric Field Analysis in SM Coordinates (Midnight Sector)\n' + 
+                 'Starting from Northern Hemisphere at 1 Re, Lat: 55-75°, MLT: 20-04\n' +
+                 'Rows 3-4: All Directional Derivatives at Minimum Rc/RL Location', fontsize=16, y=0.99)
     
     plt.tight_layout()
     return fig, axes
@@ -379,9 +684,12 @@ def create_sm_coord_plots(results, electron_energy_keV, figsize=(20, 18)):
 
 def main():
     """Main function."""
-    # Set time
-    ut = datetime.now().timestamp()
+    # Set time to spring equinox (March 20, 2024)
+    spring_equinox = datetime(2024, 3, 20, 12, 0, 0)
+    ut = spring_equinox.timestamp()
     ps = geopack.recalc(ut)
+    
+    print(f"Using spring equinox: {spring_equinox}")
     
     # Set T96 model parameters (moderate activity)
     # For T96: [Pdyn, Dst, ByIMF, BzIMF, unused...]
@@ -392,17 +700,19 @@ def main():
     
     # Create starting grid directly in SM coordinates
     print("Creating grid directly in SM coordinates...")
+    print("  Latitude range: 55° to 75°")
+    print("  MLT range: 20-04 (midnight sector)")
     x_start_sm, y_start_sm, z_start_sm, sm_lat_start, sm_lon_start = create_sm_grid(
         radius=1.0,
-        nlat=12,  # Reasonable grid size
-        nlon=16
+        nlat=8,   # Reduced for speed
+        nlon=8    # Reduced for speed
     )
     
     # Print summary
     print(f"\nConfiguration:")
     print(f"  Grid points: {len(x_start_sm)}")
     print(f"  Coordinate system: SM (Solar Magnetic)")
-    print(f"  Dipole tilt angle: {np.degrees(ps):.1f}°")
+    print(f"  Dipole tilt angle: {np.degrees(ps):.1f}° (should be near 0° for equinox)")
     print(f"  T96 Parameters:")
     print(f"    Pdyn = {parmod[0]} nPa")
     print(f"    Dst = {parmod[1]} nT")
@@ -420,8 +730,8 @@ def main():
     fig, axes = create_sm_coord_plots(results, electron_energy_keV)
     
     # Save figure
-    plt.savefig('conjugate_field_analysis_sm.png', dpi=300, bbox_inches='tight')
-    print("Saved conjugate_field_analysis_sm.png")
+    plt.savefig('conjugate_field_analysis_sm_midnight.png', dpi=300, bbox_inches='tight')
+    print("Saved conjugate_field_analysis_sm_midnight.png")
     plt.show()
     
     # Print summary
