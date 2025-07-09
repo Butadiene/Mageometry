@@ -170,6 +170,11 @@ def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm,
     min_rc_rl_mlt = np.full(nlines, np.nan)  # MLT at min Rc/RL
     conjugate_mask = np.zeros(nlines, dtype=bool)
     
+    # Arrays to store minimum Rc/RL positions for vectorized derivative calculation
+    min_rc_rl_x = np.full(nlines, np.nan)
+    min_rc_rl_y = np.full(nlines, np.nan)
+    min_rc_rl_z = np.full(nlines, np.nan)
+    
     # Initialize arrays for directional derivatives at min Rc/RL
     derivatives_at_min_rc_rl = {
         'dT_dT_n': np.full(nlines, np.nan),  # κ (curvature)
@@ -294,18 +299,41 @@ def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm,
                     sm_lon_deg = np.degrees(lon_min_rc_rad) % 360
                     min_rc_rl_mlt[i] = ((180 - sm_lon_deg) / 15) % 24
                     
-                    # Calculate directional derivatives at minimum Rc/RL location
-                    deriv_results = field_line_directional_derivatives_vectorized(
-                        t96_sm_wrapper, parmod, ps, 
-                        x_min_rc, y_min_rc, z_min_rc, delta=0.01
-                    )
-                    
-                    # Store derivatives
-                    for key in derivatives_at_min_rc_rl:
-                        if key in deriv_results:
-                            derivatives_at_min_rc_rl[key][i] = deriv_results[key]
+                    # Store minimum Rc/RL position for vectorized calculation
+                    min_rc_rl_x[i] = x_min_rc
+                    min_rc_rl_y[i] = y_min_rc
+                    min_rc_rl_z[i] = z_min_rc
     
     print(f"Found {np.sum(conjugate_mask)} conjugate field lines out of {nlines} total")
+    
+    # Vectorized calculation of directional derivatives at all minimum Rc/RL positions
+    print("Calculating directional derivatives at minimum Rc/RL positions...")
+    
+    # Extract positions where we have valid minimum Rc/RL
+    valid_mask = ~np.isnan(min_rc_rl_x) & ~np.isnan(min_rc_rl_y) & ~np.isnan(min_rc_rl_z)
+    valid_indices = np.where(valid_mask)[0]
+    n_valid = len(valid_indices)
+    
+    if n_valid > 0:
+        print(f"  Calculating derivatives for {n_valid} valid positions...")
+        
+        # Extract valid positions
+        x_valid = min_rc_rl_x[valid_indices]
+        y_valid = min_rc_rl_y[valid_indices]
+        z_valid = min_rc_rl_z[valid_indices]
+        
+        # Calculate all derivatives at once using vectorized function
+        deriv_results = field_line_directional_derivatives_vectorized(
+            t96_sm_wrapper, parmod, ps,
+            x_valid, y_valid, z_valid, delta=0.01
+        )
+        
+        # Store results back in the arrays
+        for key in derivatives_at_min_rc_rl:
+            if key in deriv_results:
+                derivatives_at_min_rc_rl[key][valid_indices] = deriv_results[key]
+    
+    print("Directional derivatives calculation completed.")
     
     return {
         'min_b': min_b,
@@ -704,8 +732,8 @@ def main():
     print("  MLT range: 20-04 (midnight sector)")
     x_start_sm, y_start_sm, z_start_sm, sm_lat_start, sm_lon_start = create_sm_grid(
         radius=1.0,
-        nlat=8,   # Reduced for speed
-        nlon=8    # Reduced for speed
+        nlat=20,   # Increased density for better resolution
+        nlon=24    # Increased density for better coverage
     )
     
     # Print summary
