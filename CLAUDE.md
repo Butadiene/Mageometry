@@ -38,7 +38,8 @@ geopack-vectorize/
 │
 ├── examples/                 # Example code and notebooks
 │   ├── basic_usage.py       # Simple usage examples
-│   └── notebooks/           # Jupyter notebooks
+│   ├── notebooks/           # Jupyter notebooks
+│   └── conjugate_test/      # Conjugate field analysis examples
 │
 ```
 
@@ -299,6 +300,24 @@ All notebooks include execution outputs demonstrating:
 - Performance benchmarks (30-50x speedup)
 - Edge case handling
 - Visualization of field patterns
+
+## Example Scripts
+
+The `examples/conjugate_test/` directory contains specialized field analysis scripts:
+
+### Conjugate Field Analysis
+- **conjugate_field_analysis_sm.py** - Main conjugate field analysis in SM coordinates
+- **conjugate_field_analysis_sm_500keV_rcrl.py** - Analysis for 500 keV particles with relativistic corrections
+- **conjugate_field_analysis_sm_500keV_rcrl_t89_kp0.py** - T89 model analysis for quiet conditions (Kp=0)
+- **dipole_tilt_annual_variation.py** - Analysis of dipole tilt variations throughout the year
+- **field_line_max_distance_analysis_sm.py** - Maximum field line distance analysis
+- **field_line_max_distance_analysis_sm_spring_equinox_0800.py** - Spring equinox specific analysis
+
+These scripts demonstrate:
+- Field line conjugate point calculations
+- Particle trajectory analysis with energy dependence
+- Seasonal and diurnal variations in field geometry
+- Maximum field line extent calculations
 
 
 ## Key Documentation
