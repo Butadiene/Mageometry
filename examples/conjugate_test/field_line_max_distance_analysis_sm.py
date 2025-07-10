@@ -281,13 +281,14 @@ def create_max_distance_plots(results, figsize=(18, 6)):
                               cmap='viridis',
                               vmin=0, vmax=8,
                               marker='o',
-                              label='Open')
+                              label='Open (×)')
         
-        # Add crosses on top
+        # Add crosses on top (don't include in legend)
         ax1.scatter(x_start[open_mask], y_start[open_mask], 
                    c='black', s=30,
                    marker='x',
-                   linewidths=1)
+                   linewidths=1,
+                   label='_nolegend_')
     
     # Add Earth circle
     earth1 = plt.Circle((0, 0), 1.0, fill=False, edgecolor='black', linewidth=2, linestyle='--')

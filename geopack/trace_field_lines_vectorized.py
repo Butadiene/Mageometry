@@ -61,7 +61,9 @@ def call_external_model_vectorized(exname: str, parmod, ps: float, x, y, z):
     
     if exname == 't89':
         if t89_vectorized is not None:
-            return t89_vectorized(parmod, ps, x, y, z)
+            # T89 expects iopt as first parameter, extract from parmod[0]
+            iopt = int(parmod[0]) if np.isscalar(parmod[0]) else int(parmod[0].item())
+            return t89_vectorized(iopt, ps, x, y, z)
         else:
             # Fallback to scalar with loop
             from .models import t89

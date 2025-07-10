@@ -6,7 +6,7 @@ Creates Cartesian plots showing:
 1. Maximum distance from Earth center (Re)
 2. SM latitude at maximum distance point
 3. SM longitude at maximum distance point
-Uses T96 magnetospheric model with SM (Solar Magnetic) coordinates.
+Uses T89 magnetospheric model with SM (Solar Magnetic) coordinates.
 """
 
 import numpy as np
@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import geopack
 from geopack.trace_field_lines_vectorized import trace_vectorized
-from geopack.vectorized import t96_vectorized
+from geopack.vectorized import t89_vectorized
 from geopack.coordinates_vectorized import smgsm_vectorized
 
 
@@ -70,7 +70,7 @@ def analyze_field_line_max_distance(ut, parmod, x_start_sm, y_start_sm, z_start_
     # Update geopack parameters
     ps = geopack.recalc(ut)
     
-    print(f"Tracing {len(x_start_sm)} field lines with T96 model...")
+    print(f"Tracing {len(x_start_sm)} field lines with T89 model...")
     
     # Convert SM to GSM for field line tracing
     x_start_gsm, y_start_gsm, z_start_gsm = smgsm_vectorized(x_start_sm, y_start_sm, z_start_sm, 1)
@@ -89,7 +89,7 @@ def analyze_field_line_max_distance(ut, parmod, x_start_sm, y_start_sm, z_start_
         rlim=30.0,  # Increased limit to capture distant field lines
         r0=1.0,
         parmod=parmod,
-        exname='t96',
+        exname='t89',
         inname='igrf',
         maxloop=2000,
         return_full_path=True
@@ -105,7 +105,7 @@ def analyze_field_line_max_distance(ut, parmod, x_start_sm, y_start_sm, z_start_
         rlim=30.0,
         r0=1.0,
         parmod=parmod,
-        exname='t96',
+        exname='t89',
         inname='igrf',
         maxloop=2000,
         return_full_path=True
@@ -282,13 +282,14 @@ def create_max_distance_plots(results, ut, figsize=(18, 6)):
                               cmap='viridis',
                               vmin=0, vmax=8,
                               marker='o',
-                              label='Open')
+                              label='Open (×)')
         
-        # Add crosses on top
+        # Add crosses on top (don't include in legend)
         ax1.scatter(x_start[open_mask], y_start[open_mask], 
                    c='black', s=30,
                    marker='x',
-                   linewidths=1)
+                   linewidths=1,
+                   label='_nolegend_')
     
     # Add Earth circle
     earth1 = plt.Circle((0, 0), 1.0, fill=False, edgecolor='black', linewidth=2, linestyle='--')
@@ -456,7 +457,7 @@ def create_max_distance_plots(results, ut, figsize=(18, 6)):
     dipole_tilt = np.degrees(ps)
     
     # Overall title
-    fig.suptitle(f'Field Line Maximum Distance Analysis - T96 Model\n' + 
+    fig.suptitle(f'Field Line Maximum Distance Analysis - T89 Model (Kp=0)\n' + 
                  f'Spring Equinox (March 20, 2024) at 08:00 UTC, Dipole Tilt: {dipole_tilt:.1f}°\n' +
                  'Starting from Northern Hemisphere at 1 Re, Lat: 55-75°', 
                  fontsize=16, y=1.02)
@@ -474,9 +475,9 @@ def main():
     
     print(f"Using date: {spring_equinox}")
     
-    # Set T96 model parameters (moderate storm conditions)
-    # For T96: [Pdyn, Dst, ByIMF, BzIMF, unused...]
-    parmod = np.array([3.0, -30.0, 0.0, -5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # Set T89 model parameters (quiet conditions)
+    # For T89: parmod[0] = iopt (1-7), where iopt=1 corresponds to Kp=0
+    parmod = np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     
     # Create starting grid directly in SM coordinates
     print("Creating grid directly in SM coordinates...")
@@ -493,11 +494,8 @@ def main():
     print(f"  Grid points: {len(x_start_sm)}")
     print(f"  Coordinate system: SM (Solar Magnetic)")
     print(f"  Dipole tilt angle: {np.degrees(ps):.1f}°")
-    print(f"  T96 Parameters:")
-    print(f"    Pdyn = {parmod[0]} nPa")
-    print(f"    Dst = {parmod[1]} nT")
-    print(f"    ByIMF = {parmod[2]} nT")
-    print(f"    BzIMF = {parmod[3]} nT")
+    print(f"  T89 Parameters:")
+    print(f"    Kp = 0 (iopt={parmod[0]:.0f}, quietest conditions)")
     
     # Analyze field lines
     results = analyze_field_line_max_distance(
