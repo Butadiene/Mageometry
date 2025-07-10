@@ -291,15 +291,28 @@ def analyze_field_lines_sm(ut, parmod, x_start_sm, y_start_sm, z_start_sm,
 def plot_results(min_b, min_b_dist, min_b_lat, min_b_lon,
                 min_rc_rl, min_rc_rl_dist, min_rc_rl_lat, min_rc_rl_lon,
                 conjugate_mask, sm_lat, sm_lon, ut, electron_energy_keV=100.0,
-                output_filename='conjugate_field_analysis_sm_basic.png'):
+                output_filename='conjugate_field_analysis_sm_basic.png',
+                tilt_angle=None, parmod=None):
     """Plot the field line analysis results in SM coordinates."""
     
     # Create figure with 2x5 subplots (B-field, Rc/RL analyses, and differences)
     fig, axes = plt.subplots(2, 5, figsize=(25, 10))
-    fig.suptitle(f'Conjugate Field Line Analysis - SM Coordinates (T96 Model)\n'
-                 f'Time: {datetime.fromtimestamp(ut, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")} UTC, '
-                 f'Electron Energy: {electron_energy_keV} keV', 
-                 fontsize=14)
+    
+    # Build title with storm conditions and tilt angle
+    title_lines = ['Conjugate Field Line Analysis - SM Coordinates (T96 Model)']
+    
+    if tilt_angle is not None:
+        title_lines.append(f'Dipole Tilt: {tilt_angle:.1f}°')
+    
+    if parmod is not None:
+        storm_info = (f'Storm Conditions: Pdyn={parmod[0]} nPa, Dst={parmod[1]} nT, '
+                     f'ByIMF={parmod[2]} nT, BzIMF={parmod[3]} nT')
+        title_lines.append(storm_info)
+    
+    title_lines.append(f'Time: {datetime.fromtimestamp(ut, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")} UTC, '
+                      f'Electron Energy: {electron_energy_keV} keV')
+    
+    fig.suptitle('\n'.join(title_lines), fontsize=14)
     
     def setup_axis(ax, title):
         """Setup common axis properties for SM coordinate plots"""
@@ -589,20 +602,18 @@ def plot_results(min_b, min_b_dist, min_b_lat, min_b_lon,
     plt.close()
 
 
-def main():
-    """Main function to run the conjugate field analysis."""
-    # Set time: September 23, 2024 00:00 UTC (autumn equinox)
-    ut = datetime(2024, 9, 23, 0, 0, 0).timestamp()
+def run_single_analysis(ut, parmod, scenario_name, electron_energy_keV=100.0):
+    """Run analysis for a single scenario."""
+    # Update geopack parameters
+    ps = geopack.recalc(ut)
     
-    # Parameters for T96 model: [Pdyn, Dst, ByIMF, BzIMF, unused...]
-    # Moderate activity: Pdyn=3.0 nPa, Dst=-20 nT, ByIMF=0, BzIMF=-5 nT
-    parmod = [3.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0]
-    
-    # Electron energy in keV
-    electron_energy_keV = 100.0
+    print(f"\n{'='*60}")
+    print(f"Running scenario: {scenario_name}")
+    print(f"  Dipole tilt angle: {np.degrees(ps):.1f}°")
+    print(f"  T96 Parameters: Pdyn={parmod[0]} nPa, Dst={parmod[1]} nT, "
+          f"ByIMF={parmod[2]} nT, BzIMF={parmod[3]} nT")
     
     # Create SM coordinate grid
-    print("Creating SM coordinate grid...")
     x_sm, y_sm, z_sm, sm_lat, sm_lon = create_sm_grid(radius=1.0, nlat=32, nlon=48)
     
     # Analyze field lines
@@ -614,34 +625,87 @@ def main():
      min_rc_rl, min_rc_rl_dist, min_rc_rl_lat, min_rc_rl_lon,
      conjugate_mask, sm_lat_out, sm_lon_out) = results
     
-    # Plot results
+    # Plot results - save to conjugate_field_analysis_sm_diff folder
+    output_dir = os.path.join(os.path.dirname(__file__), 'conjugate_field_analysis_sm_diff')
+    os.makedirs(output_dir, exist_ok=True)
+    output_filename = os.path.join(output_dir, f'{scenario_name}.png')
+    
     plot_results(min_b, min_b_dist, min_b_lat, min_b_lon,
                 min_rc_rl, min_rc_rl_dist, min_rc_rl_lat, min_rc_rl_lon,
                 conjugate_mask, sm_lat_out, sm_lon_out, ut, electron_energy_keV,
-                output_filename='conjugate_field_analysis_sm_basic.png')
+                output_filename=output_filename,
+                tilt_angle=np.degrees(ps), parmod=parmod)
     
     # Print summary statistics
-    print("\n=== Summary Statistics ===")
+    print(f"\nSummary for {scenario_name}:")
     if np.any(conjugate_mask):
         conj_idx = conjugate_mask
-        print(f"Total field lines: {len(conjugate_mask)}")
-        print(f"Conjugate field lines: {np.sum(conj_idx)} ({100*np.sum(conj_idx)/len(conjugate_mask):.1f}%)")
-        
-        if np.any(~np.isnan(min_b[conj_idx])):
-            print(f"\nMinimum B-field:")
-            print(f"  Range: {np.nanmin(min_b[conj_idx]):.1f} - {np.nanmax(min_b[conj_idx]):.1f} nT")
-            print(f"  Mean distance: {np.nanmean(min_b_dist[conj_idx]):.1f} Re")
+        print(f"  Conjugate field lines: {np.sum(conj_idx)}/{len(conjugate_mask)} ({100*np.sum(conj_idx)/len(conjugate_mask):.1f}%)")
         
         if np.any(~np.isnan(min_rc_rl[conj_idx])):
-            print(f"\nMinimum Rc/RL:")
-            print(f"  Range: {np.nanmin(min_rc_rl[conj_idx]):.2f} - {np.nanmax(min_rc_rl[conj_idx]):.2f}")
-            print(f"  Mean distance: {np.nanmean(min_rc_rl_dist[conj_idx]):.1f} Re")
-            
-            # Count field lines below threshold
             threshold = 8.0
             below_threshold = np.sum(min_rc_rl[conj_idx] < threshold)
             print(f"  Field lines with Rc/RL < {threshold}: {below_threshold} "
                   f"({100*below_threshold/np.sum(conj_idx):.1f}% of conjugate)")
+
+
+def main():
+    """Main function to run multiple conjugate field analyses."""
+    
+    # Electron energy in keV
+    electron_energy_keV = 300.0
+    
+    # Define different tilt scenarios (dates throughout the year)
+    tilt_scenarios = [
+        # (datetime, scenario_name)
+        (datetime(2024, 12, 21, 12, 0, 0), "winter_solstice"),  # Maximum negative tilt
+        (datetime(2024, 11, 15, 12, 0, 0), "november"),
+        (datetime(2024, 10, 15, 12, 0, 0), "october"),
+        (datetime(2024, 9, 23, 0, 0, 0), "autumn_equinox"),     # Near zero tilt
+        (datetime(2024, 8, 15, 12, 0, 0), "august"),
+        (datetime(2024, 7, 15, 12, 0, 0), "july"),
+        (datetime(2024, 6, 21, 12, 0, 0), "summer_solstice"),   # Maximum positive tilt
+        (datetime(2024, 5, 15, 12, 0, 0), "may"),
+        (datetime(2024, 4, 15, 12, 0, 0), "april"),
+        (datetime(2024, 3, 20, 12, 0, 0), "spring_equinox"),    # Near zero tilt
+        (datetime(2024, 2, 15, 12, 0, 0), "february"),
+        (datetime(2024, 1, 15, 12, 0, 0), "january"),
+    ]
+    
+    # Define different storm conditions
+    # Parameters for T96 model: [Pdyn, Dst, ByIMF, BzIMF, unused...]
+    storm_conditions = [
+        # (parmod, condition_name)
+        ([2.0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, 0], "quiet"),           # Quiet conditions
+        ([3.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0], "moderate"),     # Moderate activity
+        ([5.0, -50.0, 5.0, -10.0, 0, 0, 0, 0, 0, 0], "storm"),       # Storm conditions
+        ([8.0, -100.0, 10.0, -15.0, 0, 0, 0, 0, 0, 0], "intense"),   # Intense storm
+        ([2.0, -30.0, -5.0, 5.0, 0, 0, 0, 0, 0, 0], "northward"),    # Northward IMF
+    ]
+    
+    print("="*80)
+    print("Running conjugate field analysis for multiple scenarios")
+    print(f"Electron energy: {electron_energy_keV} keV")
+    print(f"Total scenarios: {len(tilt_scenarios)} tilts × {len(storm_conditions)} conditions = "
+          f"{len(tilt_scenarios) * len(storm_conditions)} images")
+    print("="*80)
+    
+    # Run analysis for each combination
+    for storm_parmod, storm_name in storm_conditions:
+        for date_time, tilt_name in tilt_scenarios:
+            ut = date_time.timestamp()
+            scenario_name = f"{tilt_name}_{storm_name}"
+            
+            try:
+                run_single_analysis(ut, storm_parmod, scenario_name, electron_energy_keV)
+            except Exception as e:
+                print(f"\nError in scenario {scenario_name}: {str(e)}")
+                continue
+    
+    print("\n" + "="*80)
+    print("All scenarios completed!")
+    print(f"Images saved in: examples/conjugate_test/conjugate_field_analysis_sm_diff/")
+    print("="*80)
 
 
 if __name__ == "__main__":
