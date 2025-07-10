@@ -771,8 +771,9 @@ def main():
     fig, axes = create_sm_coord_plots(results, electron_energy_keV)
     
     # Save figure
-    plt.savefig('conjugate_field_analysis_sm_full.png', dpi=300, bbox_inches='tight')
-    print("Saved conjugate_field_analysis_sm_full.png")
+    output_file = os.path.join(os.path.dirname(__file__), 'conjugate_field_analysis_sm_full.png')
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"Saved {output_file}")
     plt.show()
     
     # Print summary

@@ -504,8 +504,9 @@ def main():
     fig, axes = create_max_distance_plots(results)
     
     # Save figure
-    plt.savefig('field_line_max_distance_sm.png', dpi=300, bbox_inches='tight')
-    print("Saved field_line_max_distance_sm.png")
+    output_file = os.path.join(os.path.dirname(__file__), 'field_line_max_distance_sm.png')
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"Saved {output_file}")
     plt.show()
     
     # Print summary statistics
