@@ -53,7 +53,7 @@ from .igrf_vectorized import (
 from .trace_field_lines_vectorized import trace_vectorized
 
 
-__version__ = '1.1.2'
+__version__ = '1.1.3'
 
 __all__ = [
     # Core functions
