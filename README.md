@@ -2,6 +2,10 @@
 
 A vectorized implementation extending the excellent Python [geopack](https://github.com/tsssss/geopack) library by Sheng Tian, adding high-performance NumPy-based versions of Tsyganenko magnetospheric field models and field line tracing algorithms.
 
+## Attention
+
+**This code was generated using a lot of AI (Claude code etc). There are some parts that have not been fully checked. (Humans are gradually checking them.)**
+
 ## Overview
 
 This project builds upon the solid foundation of the Python geopack library, which provides faithful implementations of the Tsyganenko magnetospheric field models (T89, T96, T01, T04) and the IGRF geomagnetic field model, originally developed in Fortran by N.A. Tsyganenko. 
