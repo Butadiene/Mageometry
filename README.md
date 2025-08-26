@@ -240,6 +240,7 @@ bx, by, bz = t96_vectorized(parmod, ps, x, y, z)
 Comprehensive documentation and example notebooks are available in the repository:
 
 ### Tutorial Notebooks (`examples/notebooks/`)
+You should install matplotlib and pandas for using tutorial notebooks.
 - Coordinate transformation guide
 - Field model demonstrations
 - Performance benchmarks
