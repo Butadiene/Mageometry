@@ -280,15 +280,6 @@ The original Fortran GEOPACK code and Tsyganenko models were developed by N.A. T
 
 We are grateful to both Sheng Tian for the Python implementation and N.A. Tsyganenko for the original models that have been fundamental to magnetospheric physics research for decades.
 
-## Contributing
-
-Contributions are welcome! Areas of interest include:
-- GPU acceleration implementations
-- Additional field models
-- Performance optimizations
-- Documentation improvements
-
-Please submit issues or pull requests on the project GitHub page.
 
 ## License
 
