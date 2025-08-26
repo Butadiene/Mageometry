@@ -39,6 +39,11 @@ GEOPACK-VECTORIZE extends the original geopack by adding vectorized implementati
 - NumPy
 - SciPy
 
+### Install from PyPI
+```bash
+pip install geopack-vectorized
+```
+
 ### Install from Source
 ```bash
 git clone https://github.com/Butadiene/geopack-vectorize.git
