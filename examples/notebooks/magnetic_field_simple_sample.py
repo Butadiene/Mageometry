@@ -40,13 +40,43 @@ x_flat = X.flatten()
 y_flat = Y.flatten()
 z_flat = Z.flatten()
 
-# Calculate field
-print("Calculating field on 10,000 point grid...")
+# Calculate field using scalar T96 (loop over all points)
+print("=" * 60)
+print("Calculating field using SCALAR T96...")
+print(f"Grid size: {len(x_flat)} points")
+start_time = time.time()
+bx_scalar = np.zeros_like(x_flat)
+by_scalar = np.zeros_like(y_flat)
+bz_scalar = np.zeros_like(z_flat)
+for i in range(len(x_flat)):
+    bx_scalar[i], by_scalar[i], bz_scalar[i] = t96(parmod, ps, x_flat[i], y_flat[i], z_flat[i])
+scalar_time = time.time() - start_time
+print(f"Scalar T96 completed in {scalar_time:.3f} seconds")
+print(f"Processing rate: {len(x_flat)/scalar_time:.0f} points/second")
+
+# Calculate field using vectorized T96
+print("\n" + "=" * 60)
+print("Calculating field using VECTORIZED T96...")
 start_time = time.time()
 bx_flat, by_flat, bz_flat = t96_vectorized(parmod, ps, x_flat, y_flat, z_flat)
-calc_time = time.time() - start_time
-print(f"Calculation completed in {calc_time:.3f} seconds")
-print(f"Processing rate: {len(x_flat)/calc_time:.0f} points/second")
+vectorized_time = time.time() - start_time
+print(f"Vectorized T96 completed in {vectorized_time:.3f} seconds")
+print(f"Processing rate: {len(x_flat)/vectorized_time:.0f} points/second")
+
+# Compare results
+print("\n" + "=" * 60)
+print("PERFORMANCE COMPARISON:")
+print(f"Speedup: {scalar_time/vectorized_time:.1f}x faster")
+print(f"Time saved: {scalar_time - vectorized_time:.2f} seconds")
+
+# Verify accuracy
+max_diff = np.max([
+    np.abs(bx_scalar - bx_flat).max(),
+    np.abs(by_scalar - by_flat).max(),
+    np.abs(bz_scalar - bz_flat).max()
+])
+print(f"\nAccuracy check - Max absolute difference: {max_diff:.2e} nT")
+print("=" * 60)
 
 # Reshape results
 Bx = bx_flat.reshape(X.shape)
@@ -110,6 +140,6 @@ plt.quiver(X[::skip, ::skip], Z[::skip, ::skip],
 
 plt.xlabel('X (Re)')
 plt.ylabel('Z (Re)')
-plt.title('T96 Magnetic Field in X-Z Plane (Y=0)')
+plt.title(f'T96 Magnetic Field in X-Z Plane (Y=0)\n(Vectorized: {vectorized_time:.2f}s vs Scalar: {scalar_time:.2f}s - {scalar_time/vectorized_time:.1f}x speedup)')
 plt.axis('equal')
 plt.show()
