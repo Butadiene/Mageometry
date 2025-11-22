@@ -23,10 +23,12 @@ from .field_line_geometry_vectorized import (
 )
 
 
+import numpy as np
+
 def field_line_directional_derivatives_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
     """
     Calculate all 9 directional derivative formulas for field line geometry.
-    
+
     The Frenet-Serret frame consists of orthonormal unit vectors:
     - T: unit tangent vector (along field line)
     - n: unit normal vector (principal normal)
@@ -64,25 +66,34 @@ def field_line_directional_derivatives_vectorized(model_func, parmod, ps, x, y, 
         Note: Self-components (∂T/∂T)·T, (∂n/∂n)·n, (∂b/∂b)·b are always zero
         for unit vectors and are not included.
     """
+
+    allow_normal_flipping_val = 0.9
+
+    # ---- ラッパ関数：Frenet frame だけ返す（zero_mask はもう返さない） ----
+    def _frenet(model_func, parmod, ps, x, y, z, delta):
+        return field_line_frenet_frame_vectorized(model_func, parmod, ps, x, y, z, delta)
+
     scalar_input = np.isscalar(x)
     x = np.atleast_1d(x)
     y = np.atleast_1d(y)
     z = np.atleast_1d(z)
-    
-    # Get Frenet frame at current point
-    tx0, ty0, tz0, nx0, ny0, nz0, bx0, by0, bz0, _ = field_line_frenet_frame_vectorized(
+
+    # 基本点での Frenet frame
+    tx0, ty0, tz0, nx0, ny0, nz0, bx0, by0, bz0, _ = _frenet(
         model_func, parmod, ps, x, y, z, delta
     )
-    
-    # Initialize results dictionary
+
+    # invalid_mask の初期値：
+    # ここだけは n_plus / n_minus がないので、n0 がゼロベクトルかどうかで判定
+    invalid_mask = (nx0 == 0) & (ny0 == 0) & (nz0 == 0)
+
     results = {}
-    
+
     # === Tangential derivatives (∂/∂T) ===
-    # Step in tangent direction
     x_t_plus = x + delta * tx0
     y_t_plus = y + delta * ty0
     z_t_plus = z + delta * tz0
-    
+
     x_t_minus = x - delta * tx0
     y_t_minus = y - delta * ty0
     z_t_minus = z - delta * tz0
@@ -94,6 +105,9 @@ def field_line_directional_derivatives_vectorized(model_func, parmod, ps, x, y, 
     tx_t_minus, ty_t_minus, tz_t_minus, nx_t_minus, ny_t_minus, nz_t_minus, bx_t_minus, by_t_minus, bz_t_minus, _ = \
         field_line_frenet_frame_vectorized(model_func, parmod, ps, x_t_minus, y_t_minus, z_t_minus, delta)
     
+    dot_n_t = nx_t_plus * nx_t_minus + ny_t_plus * ny_t_minus + nz_t_plus * nz_t_minus
+    invalid_mask |= (dot_n_t <= allow_normal_flipping_val)
+    
     # Central differences for ∂T/∂T, ∂n/∂T, ∂b/∂T
     dT_dT_x = (tx_t_plus - tx_t_minus) / (2 * delta)
     dT_dT_y = (ty_t_plus - ty_t_minus) / (2 * delta)
@@ -102,7 +116,7 @@ def field_line_directional_derivatives_vectorized(model_func, parmod, ps, x, y, 
     dn_dT_x = (nx_t_plus - nx_t_minus) / (2 * delta)
     dn_dT_y = (ny_t_plus - ny_t_minus) / (2 * delta)
     dn_dT_z = (nz_t_plus - nz_t_minus) / (2 * delta)
-    
+
     db_dT_x = (bx_t_plus - bx_t_minus) / (2 * delta)
     db_dT_y = (by_t_plus - by_t_minus) / (2 * delta)
     db_dT_z = (bz_t_plus - bz_t_minus) / (2 * delta)
@@ -113,71 +127,71 @@ def field_line_directional_derivatives_vectorized(model_func, parmod, ps, x, y, 
     results['dn_dT_b'] = dn_dT_x * bx0 + dn_dT_y * by0 + dn_dT_z * bz0  # = τ
     
     # === Normal derivatives (∂/∂n) ===
-    # Step in normal direction
     x_n_plus = x + delta * nx0
     y_n_plus = y + delta * ny0
     z_n_plus = z + delta * nz0
-    
+
     x_n_minus = x - delta * nx0
     y_n_minus = y - delta * ny0
     z_n_minus = z - delta * nz0
-    
-    # Get vectors at stepped positions
+
     tx_n_plus, ty_n_plus, tz_n_plus, nx_n_plus, ny_n_plus, nz_n_plus, bx_n_plus, by_n_plus, bz_n_plus, _ = \
-        field_line_frenet_frame_vectorized(model_func, parmod, ps, x_n_plus, y_n_plus, z_n_plus, delta)
-    
+        _frenet(model_func, parmod, ps, x_n_plus, y_n_plus, z_n_plus, delta)
+
     tx_n_minus, ty_n_minus, tz_n_minus, nx_n_minus, ny_n_minus, nz_n_minus, bx_n_minus, by_n_minus, bz_n_minus, _ = \
-        field_line_frenet_frame_vectorized(model_func, parmod, ps, x_n_minus, y_n_minus, z_n_minus, delta)
-    
-    # Central differences
+        _frenet(model_func, parmod, ps, x_n_minus, y_n_minus, z_n_minus, delta)
+
+    # ★ n_n_plus・n_n_minus <= allow_normal_flipping_val ならマスク
+    dot_n_n = nx_n_plus * nx_n_minus + ny_n_plus * ny_n_minus + nz_n_plus * nz_n_minus
+    invalid_mask |= (dot_n_n <= allow_normal_flipping_val)
+
     dT_dn_x = (tx_n_plus - tx_n_minus) / (2 * delta)
     dT_dn_y = (ty_n_plus - ty_n_minus) / (2 * delta)
     dT_dn_z = (tz_n_plus - tz_n_minus) / (2 * delta)
-    
+
     dn_dn_x = (nx_n_plus - nx_n_minus) / (2 * delta)
     dn_dn_y = (ny_n_plus - ny_n_minus) / (2 * delta)
     dn_dn_z = (nz_n_plus - nz_n_minus) / (2 * delta)
-    
+
     db_dn_x = (bx_n_plus - bx_n_minus) / (2 * delta)
     db_dn_y = (by_n_plus - by_n_minus) / (2 * delta)
     db_dn_z = (bz_n_plus - bz_n_minus) / (2 * delta)
-    
-    # Key formulas
+
     results['dT_dn_n'] = dT_dn_x * nx0 + dT_dn_y * ny0 + dT_dn_z * nz0
     results['dT_dn_b'] = dT_dn_x * bx0 + dT_dn_y * by0 + dT_dn_z * bz0
     results['dn_dn_b'] = dn_dn_x * bx0 + dn_dn_y * by0 + dn_dn_z * bz0
-    
+
     # === Binormal derivatives (∂/∂b) ===
-    # Step in binormal direction
     x_b_plus = x + delta * bx0
     y_b_plus = y + delta * by0
     z_b_plus = z + delta * bz0
-    
+
     x_b_minus = x - delta * bx0
     y_b_minus = y - delta * by0
     z_b_minus = z - delta * bz0
-    
-    # Get vectors at stepped positions
+
     tx_b_plus, ty_b_plus, tz_b_plus, nx_b_plus, ny_b_plus, nz_b_plus, bx_b_plus, by_b_plus, bz_b_plus, _ = \
-        field_line_frenet_frame_vectorized(model_func, parmod, ps, x_b_plus, y_b_plus, z_b_plus, delta)
-    
+        _frenet(model_func, parmod, ps, x_b_plus, y_b_plus, z_b_plus, delta)
+
     tx_b_minus, ty_b_minus, tz_b_minus, nx_b_minus, ny_b_minus, nz_b_minus, bx_b_minus, by_b_minus, bz_b_minus, _ = \
-        field_line_frenet_frame_vectorized(model_func, parmod, ps, x_b_minus, y_b_minus, z_b_minus, delta)
-    
-    # Central differences
+        _frenet(model_func, parmod, ps, x_b_minus, y_b_minus, z_b_minus, delta)
+
+    # ★ n_b_plus・n_b_minus <= allow_normal_flipping_val ならマスク
+    dot_n_b = nx_b_plus * nx_b_minus + ny_b_plus * ny_b_minus + nz_b_plus * nz_b_minus
+    invalid_mask |= (dot_n_b <= allow_normal_flipping_val)
+
     dT_db_x = (tx_b_plus - tx_b_minus) / (2 * delta)
     dT_db_y = (ty_b_plus - ty_b_minus) / (2 * delta)
     dT_db_z = (tz_b_plus - tz_b_minus) / (2 * delta)
-    
+
     dn_db_x = (nx_b_plus - nx_b_minus) / (2 * delta)
     dn_db_y = (ny_b_plus - ny_b_minus) / (2 * delta)
     dn_db_z = (nz_b_plus - nz_b_minus) / (2 * delta)
-    
+
     db_db_x = (bx_b_plus - bx_b_minus) / (2 * delta)
     db_db_y = (by_b_plus - by_b_minus) / (2 * delta)
     db_db_z = (bz_b_plus - bz_b_minus) / (2 * delta)
-    
-    # Key formulas
+
     results['dn_db_b'] = dn_db_x * bx0 + dn_db_y * by0 + dn_db_z * bz0
     results['dn_db_T'] = dn_db_x * tx0 + dn_db_y * ty0 + dn_db_z * tz0
     results['db_db_T'] = db_db_x * tx0 + db_db_y * ty0 + db_db_z * tz0
@@ -194,6 +208,19 @@ def field_line_directional_derivatives_vectorized(model_func, parmod, ps, x, y, 
     results['db_db_n'] = db_db_x * nx0 + db_db_y * ny0 + db_db_z * nz0  # = -(∂n/∂b)·b
     results['dT_db_n'] = dT_db_x * nx0 + dT_db_y * ny0 + dT_db_z * nz0  # = -(∂n/∂b)·T
     results['dT_db_b'] = dT_db_x * bx0 + dT_db_y * by0 + dT_db_z * bz0  # = -(∂b/∂b)·T
+
+    # ---- invalid_mask を使って results をゼロにする ----
+    if np.any(invalid_mask):
+        if scalar_input:
+            # スカラー入力：どこかで条件を満たしたら全部 0
+            for k in results:
+                results[k] = 0.0
+        else:
+            # ベクトル入力：invalid_mask が True の要素だけ 0
+            for k, v in results.items():
+                arr = np.asarray(v).copy()
+                arr[invalid_mask] = 0.0
+                results[k] = arr
     
     if scalar_input:
         return {k: v.item() if hasattr(v, 'item') else v for k, v in results.items()}

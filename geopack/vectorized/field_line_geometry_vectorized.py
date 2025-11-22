@@ -54,9 +54,9 @@ def field_line_tangent_vectorized(model_func, parmod, ps, x, y, z):
     tz = np.zeros_like(z)
     
     # Normalize where field is non-zero
-    tx = np.where(mask_nonzero, bx / b_mag, 0.0)
-    ty = np.where(mask_nonzero, by / b_mag, 0.0)
-    tz = np.where(mask_nonzero, bz / b_mag, 0.0)
+    tx[mask_nonzero] = bx[mask_nonzero] / b_mag[mask_nonzero]
+    ty[mask_nonzero] = by[mask_nonzero] / b_mag[mask_nonzero]
+    tz[mask_nonzero] = bz[mask_nonzero] / b_mag[mask_nonzero]
     
     if scalar_input:
         return tx.item(), ty.item(), tz.item()
@@ -187,6 +187,18 @@ def field_line_normal_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
     
     # Handle regions with no curvature (straight field lines)
     mask_curved = dt_mag > 1e-10
+
+    # cos(theta) = |T・dT/ds| / |dT/ds|
+    dot = tx0 * dtx_ds + ty0 * dty_ds + tz0 * dtz_ds
+
+    cos_theta = np.zeros_like(dt_mag)
+
+    # dt_mag が非ゼロのところだけ割り算する
+    cos_theta[mask_curved] = np.abs(dot[mask_curved]) / dt_mag[mask_curved]
+
+    mask_orthogonal = cos_theta < 1e-3
+
+    mask_valid = mask_curved & mask_orthogonal    
     
     # Initialize output
     nx = np.zeros_like(x)
@@ -194,9 +206,9 @@ def field_line_normal_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
     nz = np.zeros_like(z)
     
     # Normalize where curvature exists
-    nx = np.where(mask_curved, dtx_ds / dt_mag, 0.0)
-    ny = np.where(mask_curved, dty_ds / dt_mag, 0.0)
-    nz = np.where(mask_curved, dtz_ds / dt_mag, 0.0)
+    nx[mask_valid] = dtx_ds[mask_valid] / dt_mag[mask_valid]
+    ny[mask_valid] = dty_ds[mask_valid] / dt_mag[mask_valid]
+    nz[mask_valid] = dtz_ds[mask_valid] / dt_mag[mask_valid]
     
     if scalar_input:
         return nx.item(), ny.item(), nz.item()
