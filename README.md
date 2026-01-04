@@ -22,15 +22,14 @@ GEOPACK-VECTORIZE extends the original geopack by adding vectorized implementati
 
 ## Performance Benchmarks
 
-| Component | Scalar Time (1000 points) | Vectorized Time | Speedup |
-|-----------|--------------------------|-----------------|---------|
-| T89 Model | 1.64 s | 0.012 s | **137x** |
-| T96 Model | 15.97 s | 0.135 s | **118x** |
-| T01 Model | 37.95 s | 0.250 s | **152x** |
-| T04 Model | 34.89 s | 0.278 s | **125x** |
-| IGRF | 0.156 s | 0.017 s | **9x** |
-| Coordinate Transforms | 0.025 s | 0.001 s | **25x** |
-| Field Line Tracing | 2.5 s | 0.08 s | **31x** |
+| Component | Scalar Time (1000 points) [s] | Vectorized Time [s] | Speedup |
+|-----------|-------------------------------:|---------------------:|--------:|
+| T89 Model | 0.048 | 0.000 | **112x** |
+| T96 Model | 1.244 | 0.035 | **35.1x** |
+| T01 Model | 1.894 | 0.041 | **46.3x** |
+| T04 Model | 1.952 | 0.041 | **47.2x** |
+| IGRF (GSW) | 0.060 | 0.006 | **9.4x** |
+| Coordinate Transforms (subset) | 0.003 | 0.000 | **64.5x** |
 
 ## Installation
 
