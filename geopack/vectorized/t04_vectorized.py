@@ -29,7 +29,7 @@ def t04_vectorized(parmod, ps, x, y, z):
     Assembled: March 25, 2004; Updated: August 2 & 31, December 27, 2004.
     A bug eliminated March 14, 2005 (might cause compilation problems with some fortran compilers)
 
-    Attention: The model is based on data taken sunward from x=-15Re, and hence becomes invalid at larger tailward distances !!!
+    Attention: The model is based on data taken sunward from x=-20Re, and hence becomes invalid at larger tailward distances !!!
 
     Parameters
     ----------
@@ -78,10 +78,10 @@ def t04_vectorized(parmod, ps, x, y, z):
 
 
     # Handle invalid X values by clipping instead of raising error
-    invalid_mask = x < -15
+    invalid_mask = x < -20
     if np.any(invalid_mask):
-        print(f'Warning: T04 model is valid only for X > -15 Re. Clipping {np.sum(invalid_mask)} points to X = -15 Re.')
-        x = np.where(invalid_mask, -15, x)
+        print(f'Warning: T04 model is valid only for X > -20 Re. Clipping {np.sum(invalid_mask)} points to X = -20 Re.')
+        x = np.where(invalid_mask, -20, x)
 
     iopgen,ioptt,iopb,iopr = [0,0,0,0]
 
@@ -146,20 +146,31 @@ def extern(iopgen,iopt,iopb,iopr,a,ntot,pdyn,dst,bximf,byimf,bzimf,w1,w2,w3,w4,w
     xss=x.copy()
     zss=z.copy()
 
-    # Vectorized iterative search for unwarped coords
+    tol = 1e-6
+    active = np.ones_like(x, dtype=bool)
+
     for _ in range(100):
-        xsold=xss.copy()
-        zsold=zss.copy()
-        rh=rh0+rh2*(zss/r_safe)**2
-        rh_safe = np.where(rh==0, 1e-9, rh)
-        sinpsas=sps/(1+(r/rh_safe)**3)**0.33333333
-        cospsas=np.sqrt(1-sinpsas**2)
-        zss_new=x*sinpsas+z*cospsas
-        xss_new=x*cospsas-z*sinpsas
-        dd=np.abs(xss_new-xsold)+np.abs(zss_new-zsold)
-        xss, zss = xss_new, zss_new
-        if not np.any(dd > 1e-6):
+        if not np.any(active):
             break
+
+        xsold = xss.copy()
+        zsold = zss.copy()
+
+        rh = rh0 + rh2 * (zss / r_safe) ** 2
+        rh_safe = np.where(rh == 0, 1e-9, rh)
+
+        sinpsas = sps / (1 + (r / rh_safe) ** 3) ** 0.33333333
+        cospsas = np.sqrt(1 - sinpsas ** 2)
+
+        zss_new = x * sinpsas + z * cospsas
+        xss_new = x * cospsas - z * sinpsas
+
+        dd = np.where(active, np.abs(xss_new - xsold) + np.abs(zss_new - zsold), 0.0)
+
+        xss = np.where(active, xss_new, xss)
+        zss = np.where(active, zss_new, zss)
+
+        active = active & (dd > tol)
 
     rho2=y**2+zss**2
     asq=am**2

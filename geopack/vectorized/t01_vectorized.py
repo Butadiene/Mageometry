@@ -24,7 +24,7 @@ def t01_vectorized(parmod, ps, x, y, z):
     A data-based model of the external (i.e., without earth's contribution) part of the
     magnetospheric magnetic field, calibrated by solar wind and geomagnetic parameters.
     
-    Attention: The model is based on data taken sunward from x=-15Re, and hence becomes
+    Attention: The model is based on data taken sunward from x=-20Re, and hence becomes
     invalid at larger tailward distances!
     
     Parameters
@@ -74,10 +74,10 @@ def t01_vectorized(parmod, ps, x, y, z):
         1.02978, 0.02968, 0.15821, 9.00519, 28.17582, 1.35285, 0.42279])
 
     # Handle invalid X values by clipping instead of raising error
-    invalid_mask = x < -15
+    invalid_mask = x < -20
     if np.any(invalid_mask):
-        print(f'Warning: T01 model is valid only for X > -15 Re. Clipping {np.sum(invalid_mask)} points to X = -15 Re.')
-        x = np.where(invalid_mask, -15, x)
+        print(f'Warning: T01 model is valid only for X > -20 Re. Clipping {np.sum(invalid_mask)} points to X = -20 Re.')
+        x = np.where(invalid_mask, -20, x)
 
     pdyn = parmod[0]
     dst_ast = parmod[1]*0.8-13.*np.sqrt(pdyn)
@@ -146,27 +146,34 @@ def extall(iopgen,iopt,iopb,iopr,a,ntot,pdyn,dst,byimf,bzimf,vbimf1,vbimf2,ps,x,
     oimfy=byimf*factimf
     oimfz=bzimf*factimf
 
-    r=np.sqrt(x**2+y**2+z**2)
-    r_safe = np.where(r == 0, 1e-9, r)
+    r = np.sqrt(x**2 + y**2 + z**2)
+    xss = x.copy()
+    zss = z.copy()
 
-    xss=x.copy()
-    zss=z.copy()
-
-    # Vectorized iterative search for unwarped coords (to find sigma)
-    for _ in range(100): # Assume 100 iterations are enough for convergence
-        xsold = xss.copy()
-        zsold = zss.copy()
-        rh=rh0+rh2*(zss/r_safe)**2
-        # to avoid division by zero
-        rh_safe = np.where(rh==0, 1e-9, rh)
-        sinpsas=sps/(1+(r/rh_safe)**3)**0.33333333
-        cospsas=np.sqrt(1-sinpsas**2)
-        zss_new=x*sinpsas+z*cospsas
-        xss_new=x*cospsas-z*sinpsas
-        dd = np.abs(xss_new-xsold)+np.abs(zss_new-zsold)
-        xss, zss = xss_new, zss_new
-        if not np.any(dd > 1e-6):
+    active = np.ones_like(xss, dtype=bool)
+    for _ in range(100):
+        if not np.any(active):
             break
+
+        xsold = xss[active]
+        zsold = zss[active]
+        r_act = r[active]
+
+        rh = rh0 + rh2 * (zsold / r_act)**2
+        sinpsas = sps / (1 + (r_act / rh)**3)**0.33333333
+        cospsas = np.sqrt(1 - sinpsas**2)
+
+        znew = x[active] * sinpsas + z[active] * cospsas
+        xnew = x[active] * cospsas - z[active] * sinpsas
+
+        dd = np.abs(xnew - xsold) + np.abs(znew - zsold)
+
+        xss[active] = xnew
+        zss[active] = znew
+
+        # 収束した点は次以降更新しない
+        active_idx = np.where(active)[0]
+        active[active_idx] = dd > 1e-6
 
     rho2=y**2+zss**2
     asq=am**2

@@ -186,12 +186,19 @@ def igrf_geo_vectorized(r, theta, phi):
         bf_contribution[smlst] = tbf[smlst]
         
         # Only add for points where m < k
-        mask = m < k
-        bf[mask] += bf_contribution[mask]
-        
-        # Update for next m
+        mask_m = m < k
+        bf[mask_m] += tbf[mask_m] * m   # <-- ALWAYS multiply by m, no /st here
+
+        # Update for next m (same as before)
         d = st * d + ct * p
         p = st * p
+        
+    # Apply the same post-processing as scalar:
+    non_pole = ~smlst
+    bf[non_pole] /= st[non_pole]
+
+    # Pole handling: if ct < 0 (south pole), flip sign; otherwise leave as is
+    bf[smlst & (ct < 0)] *= -1.0
     
     # Reshape output
     br = br.reshape(shape)

@@ -166,7 +166,7 @@ def t96_vectorized(parmod, ps, x, y, z):
         
         # Interpolation factors
         fint = 0.5 * (1.0 - (sigma_layer - s0) / dsig)
-        fext = 1.0 - fint
+        fext = 0.5 * (1.0 + (sigma_layer - s0) / dsig)
         
         # Blend internal and external fields
         bx[idx] = (bx_int + qx) * fint + oimfx[idx] * fext - qx
@@ -856,6 +856,9 @@ def birk1tot_02_vectorized(ps, x, y, z):
     Vectorized Birkeland field region 1.
     This is the most complex function with 4 different regions and interpolation.
     """
+    ONE_SIXTH = 0.1666666667
+    HPI = 1.5707963
+    
     # Ensure arrays
     x = np.atleast_1d(x)
     y = np.atleast_1d(y)
@@ -900,14 +903,14 @@ def birk1tot_02_vectorized(ps, x, y, z):
     stas = np.sin(tas)
     
     # Calculate f with safe division
-    f_denom = (stas**6 * (1 - r3) + r3)**(1.0/6.0)
+    f_denom = (stas**6 * (1 - r3) + r3)**ONE_SIXTH
     f_denom_safe = np.where(f_denom < 1e-9, 1e-9, f_denom)
     f = stas / f_denom_safe
     
     # Ensure f is in valid range for arcsin
     f = np.clip(f, -1.0, 1.0)
     tet0 = np.arcsin(f)
-    tet0 = np.where(tas > np.pi/2, np.pi - tet0, tet0)
+    tet0 = np.where(tas > HPI, np.pi - tet0, tet0)
     
     # Calculate region boundaries
     dtet = dtetdn * np.sin(pas * 0.5)**2
@@ -972,6 +975,9 @@ def birk1tot_02_vectorized(ps, x, y, z):
 
 def interpolate_region3(x, y, z, r, r3, ps, sps, cpsas, spsas, pas, tetr1n, dtet0):
     """Interpolate between high-lat (diploop1) and plasma sheet (condip1) for north PSBL."""
+
+    ONE_SIXTH = 0.1666666667
+    
     # Ensure arrays
     x = np.atleast_1d(x)
     y = np.atleast_1d(y)
@@ -991,8 +997,8 @@ def interpolate_region3(x, y, z, r, r3, ps, sps, cpsas, spsas, pas, tetr1n, dtet
     t01 = tetr1n - dtet0
     t02 = tetr1n + dtet0
     sqr = np.sqrt(r)
-    st01as = sqr / (r3 + 1/np.sin(t01)**6 - 1)**(1.0/6.0)
-    st02as = sqr / (r3 + 1/np.sin(t02)**6 - 1)**(1.0/6.0)
+    st01as = sqr / (r3 + 1/np.sin(t01)**6 - 1)**ONE_SIXTH
+    st02as = sqr / (r3 + 1/np.sin(t02)**6 - 1)**ONE_SIXTH
     ct01as = np.sqrt(1 - st01as**2)
     ct02as = np.sqrt(1 - st02as**2)
     
