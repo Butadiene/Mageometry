@@ -29,7 +29,7 @@ def t04_vectorized(parmod, ps, x, y, z):
     Assembled: March 25, 2004; Updated: August 2 & 31, December 27, 2004.
     A bug eliminated March 14, 2005 (might cause compilation problems with some fortran compilers)
 
-    Attention: The model is based on data taken sunward from x=-20Re, and hence becomes invalid at larger tailward distances !!!
+    Attention: The model is based on data taken sunward from x=-15Re, and hence becomes invalid at larger tailward distances !!!
 
     Parameters
     ----------
@@ -78,10 +78,10 @@ def t04_vectorized(parmod, ps, x, y, z):
 
 
     # Handle invalid X values by clipping instead of raising error
-    invalid_mask = x < -20
+    invalid_mask = x < -15
     if np.any(invalid_mask):
-        print(f'Warning: T04 model is valid only for X > -20 Re. Clipping {np.sum(invalid_mask)} points to X = -20 Re.')
-        x = np.where(invalid_mask, -20, x)
+        print(f'Warning: T04 model is valid only for X > -15 Re. Clipping {np.sum(invalid_mask)} points to X = -15 Re.')
+        x = np.where(invalid_mask, -15, x)
 
     iopgen,ioptt,iopb,iopr = [0,0,0,0]
 

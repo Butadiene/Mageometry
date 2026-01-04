@@ -24,7 +24,7 @@ def t01_vectorized(parmod, ps, x, y, z):
     A data-based model of the external (i.e., without earth's contribution) part of the
     magnetospheric magnetic field, calibrated by solar wind and geomagnetic parameters.
     
-    Attention: The model is based on data taken sunward from x=-20Re, and hence becomes
+    Attention: The model is based on data taken sunward from x=-15Re, and hence becomes
     invalid at larger tailward distances!
     
     Parameters
@@ -74,10 +74,10 @@ def t01_vectorized(parmod, ps, x, y, z):
         1.02978, 0.02968, 0.15821, 9.00519, 28.17582, 1.35285, 0.42279])
 
     # Handle invalid X values by clipping instead of raising error
-    invalid_mask = x < -20
+    invalid_mask = x < -15
     if np.any(invalid_mask):
-        print(f'Warning: T01 model is valid only for X > -20 Re. Clipping {np.sum(invalid_mask)} points to X = -20 Re.')
-        x = np.where(invalid_mask, -20, x)
+        print(f'Warning: T01 model is valid only for X > -15 Re. Clipping {np.sum(invalid_mask)} points to X = -15 Re.')
+        x = np.where(invalid_mask, -15, x)
 
     pdyn = parmod[0]
     dst_ast = parmod[1]*0.8-13.*np.sqrt(pdyn)
