@@ -66,6 +66,8 @@ from .field_line_directional_derivatives import (
     verify_unit_vectors,
 )
 
+from .trace_vectorized import trace_vectorized
+
 # core 側（同じグローバル状態を使う想定なら残してOK）
 from ..geopack import (
     recalc,

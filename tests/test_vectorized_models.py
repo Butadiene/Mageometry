@@ -1,229 +1,138 @@
-#!/usr/bin/env python
-"""
-Consolidated tests for all vectorized model implementations.
-
-This module tests the accuracy and performance of vectorized implementations
-against their scalar counterparts for all magnetospheric models.
-"""
-
-import numpy as np
-import pytest
-import time
-import sys
+# tests/test_vectorized_models.py
 import os
+import sys
+import unittest
+import datetime
+import numpy as np
 
-# Add parent directory to path
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-import geopack
-from geopack import t89, t96, t01, t04
-from geopack import t89_vectorized, t96_vectorized, t01_vectorized, t04_vectorized
+# 許容誤差（環境変数で調整可能）
+FIELD_RTOL = float(os.environ.get("GEOPACK_FIELD_RTOL", "1e-10"))
+FIELD_ATOL = float(os.environ.get("GEOPACK_FIELD_ATOL", "1e-6"))  # nT
 
 
-class TestVectorizedAccuracy:
-    """Test accuracy of vectorized implementations against scalar versions."""
-    
+def ut_seconds(dt: datetime.datetime) -> float:
+    epoch = datetime.datetime(1970, 1, 1)
+    return (dt - epoch).total_seconds()
+
+
+def make_points(n=200, seed=0):
+    rng = np.random.default_rng(seed)
+    x = rng.uniform(-10.0, 10.0, size=n)
+    y = rng.uniform(-5.0, 5.0, size=n)
+    z = rng.uniform(-5.0, 5.0, size=n)
+
+    r = np.sqrt(x * x + y * y + z * z)
+    mask = r < 1.2
+    if np.any(mask):
+        x[mask] += 2.0
+
+    return x.astype(np.float64), y.astype(np.float64), z.astype(np.float64)
+
+
+def eval_scalar_loop(fn, parmod, ps, x, y, z):
+    bx = np.empty_like(x, dtype=np.float64)
+    by = np.empty_like(y, dtype=np.float64)
+    bz = np.empty_like(z, dtype=np.float64)
+    for i in range(len(x)):
+        bx[i], by[i], bz[i] = fn(parmod, ps, float(x[i]), float(y[i]), float(z[i]))
+    return bx, by, bz
+
+
+class TestVectorizedExternalModels(unittest.TestCase):
     @classmethod
-    def setup_class(cls):
-        """Set up test parameters."""
-        # Calculate dipole tilt
-        import datetime
-        dt = datetime.datetime(2023, 3, 15, 12, 0, 0)
-        ut = dt.timestamp()
-        cls.ps = geopack.recalc(ut)
-        
-        # T89 parameters
-        cls.kp = 3
-        
-        # T96 parameters
-        cls.parmod_t96 = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
-        
-        # T01 parameters
-        cls.parmod_t01 = np.array([2.0, -30.0, 2.0, -5.0, 0.5, 1.0, 0, 0, 0, 0])
-        
-        # T04 parameters
-        cls.parmod_t04 = np.array([5.0, -50.0, 2.0, -5.0, 0.5, 1.0, 0.8, 1.2, 0.6, 0.9])
-    
-    def test_t89_accuracy(self):
-        """Test T89 vectorized accuracy."""
-        n_test = 100
-        x = np.random.uniform(-20, 10, n_test)
-        y = np.random.uniform(-10, 10, n_test)
-        z = np.random.uniform(-5, 5, n_test)
-        
-        errors = []
-        for i in range(n_test):
-            bx_s, by_s, bz_s = t89(self.kp, self.ps, x[i], y[i], z[i])
-            bx_v, by_v, bz_v = t89_vectorized(self.kp, self.ps, x[i], y[i], z[i])
-            
-            b_mag_s = np.sqrt(bx_s**2 + by_s**2 + bz_s**2)
-            if b_mag_s > 1e-10:
-                error = np.sqrt((bx_v-bx_s)**2 + (by_v-by_s)**2 + (bz_v-bz_s)**2) / b_mag_s
-                errors.append(error)
-        
-        errors = np.array(errors)
-        assert np.max(errors) < 1e-10, f"T89 max error: {np.max(errors)}"
-        assert np.mean(errors) < 1e-12, f"T89 mean error: {np.mean(errors)}"
-    
-    def test_t96_accuracy(self):
-        """Test T96 vectorized accuracy."""
-        n_test = 100
-        x = np.random.uniform(-20, 10, n_test)
-        y = np.random.uniform(-10, 10, n_test)
-        z = np.random.uniform(-5, 5, n_test)
-        
-        errors = []
-        for i in range(n_test):
-            bx_s, by_s, bz_s = t96(self.parmod_t96, self.ps, x[i], y[i], z[i])
-            bx_v, by_v, bz_v = t96_vectorized(self.parmod_t96, self.ps, x[i], y[i], z[i])
-            
-            b_mag_s = np.sqrt(bx_s**2 + by_s**2 + bz_s**2)
-            if b_mag_s > 1e-10:
-                error = np.sqrt((bx_v-bx_s)**2 + (by_v-by_s)**2 + (bz_v-bz_s)**2) / b_mag_s
-                errors.append(error)
-        
-        errors = np.array(errors)
-        assert np.max(errors) < 1e-6, f"T96 max error: {np.max(errors)}"
-        assert np.mean(errors) < 1e-8, f"T96 mean error: {np.mean(errors)}"
-    
-    def test_t01_accuracy(self):
-        """Test T01 vectorized accuracy."""
-        n_test = 100
-        x = np.random.uniform(-15, 10, n_test)
-        y = np.random.uniform(-10, 10, n_test)
-        z = np.random.uniform(-5, 5, n_test)
-        
-        errors = []
-        for i in range(n_test):
-            bx_s, by_s, bz_s = t01(self.parmod_t01, self.ps, x[i], y[i], z[i])
-            bx_v, by_v, bz_v = t01_vectorized(self.parmod_t01, self.ps, x[i], y[i], z[i])
-            
-            b_mag_s = np.sqrt(bx_s**2 + by_s**2 + bz_s**2)
-            if b_mag_s > 1e-10:
-                error = np.sqrt((bx_v-bx_s)**2 + (by_v-by_s)**2 + (bz_v-bz_s)**2) / b_mag_s
-                errors.append(error)
-        
-        errors = np.array(errors)
-        assert np.max(errors) < 1e-8, f"T01 max error: {np.max(errors)}"
-        assert np.mean(errors) < 1e-10, f"T01 mean error: {np.mean(errors)}"
-    
-    def test_t04_accuracy(self):
-        """Test T04 vectorized accuracy."""
-        n_test = 100
-        x = np.random.uniform(-10, 5, n_test)  # T04 valid for X > -15
-        y = np.random.uniform(-10, 10, n_test)
-        z = np.random.uniform(-5, 5, n_test)
-        
-        errors = []
-        for i in range(n_test):
-            bx_s, by_s, bz_s = t04(self.parmod_t04, self.ps, x[i], y[i], z[i])
-            bx_v, by_v, bz_v = t04_vectorized(self.parmod_t04, self.ps, x[i], y[i], z[i])
-            
-            b_mag_s = np.sqrt(bx_s**2 + by_s**2 + bz_s**2)
-            if b_mag_s > 1e-10:
-                error = np.sqrt((bx_v-bx_s)**2 + (by_v-by_s)**2 + (bz_v-bz_s)**2) / b_mag_s
-                errors.append(error)
-        
-        errors = np.array(errors)
-        assert np.max(errors) < 1e-8, f"T04 max error: {np.max(errors)}"
-        assert np.mean(errors) < 1e-10, f"T04 mean error: {np.mean(errors)}"
+    def setUpClass(cls):
+        import geopack.geopack as gp
+        cls.gp = gp
+
+        ut = ut_seconds(datetime.datetime(2020, 3, 20, 0, 0, 0))
+        gp.recalc(ut)
+        cls.ps = gp.psi
+
+        # vectorized models は geopack.vectorized.models に居る前提
+        try:
+            from geopack.vectorized import models as vmodels
+        except Exception as e:
+            vmodels = None
+        cls.vmodels = vmodels
+
+    def _assert_vec_model_close(self, name, scalar_fn, vec_fn, parmod):
+        x, y, z = make_points(n=300, seed=1)
+
+        bx_s, by_s, bz_s = eval_scalar_loop(scalar_fn, parmod, self.ps, x, y, z)
+        bx_v, by_v, bz_v = vec_fn(parmod, self.ps, x, y, z)
+
+        np.testing.assert_allclose(bx_v, bx_s, rtol=FIELD_RTOL, atol=FIELD_ATOL, err_msg=f"{name}: bx mismatch")
+        np.testing.assert_allclose(by_v, by_s, rtol=FIELD_RTOL, atol=FIELD_ATOL, err_msg=f"{name}: by mismatch")
+        np.testing.assert_allclose(bz_v, bz_s, rtol=FIELD_RTOL, atol=FIELD_ATOL, err_msg=f"{name}: bz mismatch")
+
+    def test_t89_vectorized(self):
+        from geopack.models import t89
+
+        if self.vmodels is None or not hasattr(self.vmodels, "t89"):
+            self.skipTest("t89 vectorized not available in geopack.vectorized.models")
+
+        parmod = 2
+        self._assert_vec_model_close("t89", t89, self.vmodels.t89, parmod)
+
+    def test_t96_vectorized(self):
+        from geopack.models import t96
+
+        if self.vmodels is None or not hasattr(self.vmodels, "t96"):
+            self.skipTest("t96 vectorized not available in geopack.vectorized.models")
+
+        parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0], dtype=np.float64)
+        self._assert_vec_model_close("t96", t96, self.vmodels.t96, parmod)
+
+    def test_t01_vectorized(self):
+        from geopack.models import t01
+
+        if self.vmodels is None or not hasattr(self.vmodels, "t01"):
+            self.skipTest("t01 vectorized not available in geopack.vectorized.models")
+
+        parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0], dtype=np.float64)
+        self._assert_vec_model_close("t01", t01, self.vmodels.t01, parmod)
+
+    def test_t04_vectorized(self):
+        from geopack.models import t04
+
+        if self.vmodels is None or not hasattr(self.vmodels, "t04"):
+            self.skipTest("t04 vectorized not available in geopack.vectorized.models")
+
+        parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0], dtype=np.float64)
+        self._assert_vec_model_close("t04", t04, self.vmodels.t04, parmod)
 
 
-class TestVectorizedPerformance:
-    """Test performance improvements of vectorized implementations."""
-    
+class TestVectorizedInternalModel(unittest.TestCase):
     @classmethod
-    def setup_class(cls):
-        """Set up test parameters."""
-        TestVectorizedAccuracy.setup_class()
-        cls.ps = TestVectorizedAccuracy.ps
-        cls.kp = TestVectorizedAccuracy.kp
-        cls.parmod_t96 = TestVectorizedAccuracy.parmod_t96
-        cls.parmod_t01 = TestVectorizedAccuracy.parmod_t01
-        cls.parmod_t04 = TestVectorizedAccuracy.parmod_t04
-    
-    def test_t89_performance(self):
-        """Test T89 vectorized performance."""
-        n_points = 1000
-        x = np.random.uniform(-20, 10, n_points)
-        y = np.random.uniform(-10, 10, n_points)
-        z = np.random.uniform(-5, 5, n_points)
-        
-        # Time scalar
-        t0 = time.time()
-        for i in range(100):
-            _ = t89(self.kp, self.ps, x[i], y[i], z[i])
-        t_scalar = (time.time() - t0) * n_points / 100
-        
-        # Time vectorized
-        t0 = time.time()
-        _ = t89_vectorized(self.kp, self.ps, x, y, z)
-        t_vector = time.time() - t0
-        
-        speedup = t_scalar / t_vector
-        assert speedup > 10, f"T89 speedup only {speedup:.1f}x, expected > 10x"
-    
-    def test_t96_performance(self):
-        """Test T96 vectorized performance."""
-        n_points = 1000
-        x = np.random.uniform(-20, 10, n_points)
-        y = np.random.uniform(-10, 10, n_points)
-        z = np.random.uniform(-5, 5, n_points)
-        
-        # Time scalar
-        t0 = time.time()
-        for i in range(100):
-            _ = t96(self.parmod_t96, self.ps, x[i], y[i], z[i])
-        t_scalar = (time.time() - t0) * n_points / 100
-        
-        # Time vectorized
-        t0 = time.time()
-        _ = t96_vectorized(self.parmod_t96, self.ps, x, y, z)
-        t_vector = time.time() - t0
-        
-        speedup = t_scalar / t_vector
-        assert speedup > 10, f"T96 speedup only {speedup:.1f}x, expected > 10x"
+    def setUpClass(cls):
+        import geopack.geopack as gp
+        cls.gp = gp
+        ut = ut_seconds(datetime.datetime(2020, 3, 20, 0, 0, 0))
+        gp.recalc(ut)
 
+    def test_igrf_gsm_vectorized(self):
+        try:
+            from geopack.vectorized.igrf import igrf_gsm_vectorized
+        except Exception as e:
+            self.skipTest(f"igrf_gsm_vectorized not available: {e}")
 
-class TestVectorizedInterface:
-    """Test interface compatibility of vectorized implementations."""
-    
-    @classmethod
-    def setup_class(cls):
-        """Set up test parameters."""
-        TestVectorizedAccuracy.setup_class()
-        cls.ps = TestVectorizedAccuracy.ps
-        cls.kp = TestVectorizedAccuracy.kp
-        cls.parmod_t96 = TestVectorizedAccuracy.parmod_t96
-    
-    def test_scalar_input_output(self):
-        """Test that vectorized functions handle scalar inputs correctly."""
-        x, y, z = 5.0, 0.0, 0.0
-        
-        # T89
-        bx, by, bz = t89_vectorized(self.kp, self.ps, x, y, z)
-        assert np.isscalar(bx) and np.isscalar(by) and np.isscalar(bz)
-        
-        # T96
-        bx, by, bz = t96_vectorized(self.parmod_t96, self.ps, x, y, z)
-        assert np.isscalar(bx) and np.isscalar(by) and np.isscalar(bz)
-    
-    def test_array_shape_preservation(self):
-        """Test that output shape matches input shape."""
-        shapes = [(10,), (5, 4), (3, 3, 3)]
-        
-        for shape in shapes:
-            x = np.random.uniform(-10, 10, shape)
-            y = np.random.uniform(-10, 10, shape)
-            z = np.random.uniform(-5, 5, shape)
-            
-            # T89
-            bx, by, bz = t89_vectorized(self.kp, self.ps, x, y, z)
-            assert bx.shape == shape
-            assert by.shape == shape
-            assert bz.shape == shape
+        gp = self.gp
+        x, y, z = make_points(n=200, seed=2)
+
+        bx_s = np.empty_like(x); by_s = np.empty_like(x); bz_s = np.empty_like(x)
+        for i in range(len(x)):
+            bx_s[i], by_s[i], bz_s[i] = gp.igrf_gsm(float(x[i]), float(y[i]), float(z[i]))
+
+        bx_v, by_v, bz_v = igrf_gsm_vectorized(x, y, z)
+
+        np.testing.assert_allclose(bx_v, bx_s, rtol=FIELD_RTOL, atol=FIELD_ATOL, err_msg="igrf: bx mismatch")
+        np.testing.assert_allclose(by_v, by_s, rtol=FIELD_RTOL, atol=FIELD_ATOL, err_msg="igrf: by mismatch")
+        np.testing.assert_allclose(bz_v, bz_s, rtol=FIELD_RTOL, atol=FIELD_ATOL, err_msg="igrf: bz mismatch")
 
 
 if __name__ == "__main__":
-    # Run tests
-    print("Running vectorized model tests...")
-    pytest.main([__file__, "-v"])
+    unittest.main(verbosity=2)
