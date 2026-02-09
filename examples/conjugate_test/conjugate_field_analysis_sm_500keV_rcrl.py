@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import geopack
 from geopack.trace_field_lines_vectorized import trace_vectorized
 from geopack.vectorized import t96_vectorized
-from geopack.vectorized.field_line_geometry_vectorized import field_line_curvature_vectorized
+from geopack.vectorized.field_line_geometry import field_line_curvature_vectorized
 from geopack.vectorized.field_line_directional_derivatives import field_line_directional_derivatives_vectorized
 from geopack.vectorized.coordinates import smgsm_vectorized
 

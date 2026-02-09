@@ -15,17 +15,17 @@ to themselves: (∂T/∂T)·T = 0, (∂n/∂n)·n = 0, (∂b/∂b)·b = 0.
 """
 
 import numpy as np
-from .field_line_geometry_vectorized import (
-    field_line_tangent_vectorized,
-    field_line_normal_vectorized,
-    field_line_binormal_vectorized,
-    field_line_frenet_frame_vectorized
+from .field_line_geometry import (
+    field_line_tangent,
+    field_line_normal,
+    field_line_binormal,
+    field_line_frenet_frame
 )
 
 
 import numpy as np
 
-def field_line_directional_derivatives_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_directional_derivatives(model_func, parmod, ps, x, y, z, delta=0.01):
     """
     Calculate all 9 directional derivative formulas for field line geometry.
 
@@ -71,7 +71,7 @@ def field_line_directional_derivatives_vectorized(model_func, parmod, ps, x, y, 
 
     # ---- ラッパ関数：Frenet frame だけ返す（zero_mask はもう返さない） ----
     def _frenet(model_func, parmod, ps, x, y, z, delta):
-        return field_line_frenet_frame_vectorized(model_func, parmod, ps, x, y, z, delta)
+        return field_line_frenet_frame(model_func, parmod, ps, x, y, z, delta)
 
     scalar_input = np.isscalar(x)
     x = np.atleast_1d(x)
@@ -100,10 +100,10 @@ def field_line_directional_derivatives_vectorized(model_func, parmod, ps, x, y, 
     
     # Get vectors at stepped positions
     tx_t_plus, ty_t_plus, tz_t_plus, nx_t_plus, ny_t_plus, nz_t_plus, bx_t_plus, by_t_plus, bz_t_plus, _ = \
-        field_line_frenet_frame_vectorized(model_func, parmod, ps, x_t_plus, y_t_plus, z_t_plus, delta)
+        field_line_frenet_frame(model_func, parmod, ps, x_t_plus, y_t_plus, z_t_plus, delta)
     
     tx_t_minus, ty_t_minus, tz_t_minus, nx_t_minus, ny_t_minus, nz_t_minus, bx_t_minus, by_t_minus, bz_t_minus, _ = \
-        field_line_frenet_frame_vectorized(model_func, parmod, ps, x_t_minus, y_t_minus, z_t_minus, delta)
+        field_line_frenet_frame(model_func, parmod, ps, x_t_minus, y_t_minus, z_t_minus, delta)
     
     dot_n_t = nx_t_plus * nx_t_minus + ny_t_plus * ny_t_minus + nz_t_plus * nz_t_minus
     invalid_mask |= (dot_n_t <= allow_normal_flipping_val)
@@ -235,7 +235,7 @@ def verify_antisymmetry_relations(derivatives):
     Parameters
     ----------
     derivatives : dict
-        Dictionary from field_line_directional_derivatives_vectorized
+        Dictionary from field_line_directional_derivatives
         
     Returns
     -------
@@ -269,7 +269,7 @@ def get_curvature_torsion_from_derivatives(derivatives):
     Parameters
     ----------
     derivatives : dict
-        Dictionary from field_line_directional_derivatives_vectorized
+        Dictionary from field_line_directional_derivatives
         
     Returns
     -------

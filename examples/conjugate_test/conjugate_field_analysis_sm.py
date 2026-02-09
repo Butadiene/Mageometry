@@ -20,7 +20,7 @@ import geopack
 from geopack.trace_field_lines_vectorized import trace_vectorized
 from geopack.vectorized.igrf import igrf_gsm_vectorized
 from geopack.vectorized import t96_vectorized
-from geopack.vectorized.field_line_geometry_vectorized import field_line_curvature_vectorized
+from geopack.vectorized.field_line_geometry import field_line_curvature_vectorized
 from geopack.vectorized.field_line_directional_derivatives import field_line_directional_derivatives_vectorized
 from geopack.vectorized.coordinates import smgsm_vectorized, geomag_vectorized, magsm_vectorized
 

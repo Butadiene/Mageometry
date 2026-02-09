@@ -32,7 +32,7 @@ from ..geopack import dip, igrf_gsm
 
 # Optional vectorized internal model
 try:
-    from .igrf import igrf_gsm_vectorized  # type: ignore
+    from .igrf import igrf_gsm as igrf_gsm_vectorized  # type: ignore
 except Exception:
     igrf_gsm_vectorized = None
 
@@ -47,7 +47,7 @@ def _as_1d_float64(a) -> np.ndarray:
     return np.atleast_1d(a).astype(np.float64)
 
 
-def call_external_model_vectorized(
+def call_external_model(
     exname: str,
     parmod,
     ps: float,
@@ -111,7 +111,7 @@ def call_external_model_vectorized(
     raise ValueError(f"Unknown external field model: {exname}")
 
 
-def call_internal_model_vectorized(
+def call_internal_model(
     inname: str,
     x: np.ndarray,
     y: np.ndarray,
@@ -147,7 +147,7 @@ def call_internal_model_vectorized(
     raise ValueError(f"Unknown internal field model: {inname}")
 
 
-def rhand_vectorized(
+def rhand(
     x: np.ndarray,
     y: np.ndarray,
     z: np.ndarray,
@@ -168,10 +168,10 @@ def rhand_vectorized(
     from .. import geopack  # to read geopack.psi as scalar does
     ps = geopack.psi
 
-    bxgsm, bygsm, bzgsm = call_external_model_vectorized(
+    bxgsm, bygsm, bzgsm = call_external_model(
         exname, parmod, ps, x, y, z, strict_scalar_models=strict_scalar_models
     )
-    hxgsm, hygsm, hzgsm = call_internal_model_vectorized(
+    hxgsm, hygsm, hzgsm = call_internal_model(
         inname, x, y, z, strict_scalar_models=strict_scalar_models
     )
 
@@ -189,7 +189,7 @@ def rhand_vectorized(
     return r1, r2, r3
 
 
-def step_vectorized_scalar_like(
+def step(
     x: np.ndarray,
     y: np.ndarray,
     z: np.ndarray,
@@ -241,11 +241,11 @@ def step_vectorized_scalar_like(
         ds3 = -ds / 3.0
 
         # RK5 stages (exactly as scalar step())
-        k1x, k1y, k1z = rhand_vectorized(
+        k1x, k1y, k1z = rhand(
             xw, yw, zw, parmod, exname, inname, ds3, strict_scalar_models=strict_scalar_models
         )
 
-        k2x, k2y, k2z = rhand_vectorized(
+        k2x, k2y, k2z = rhand(
             xw + k1x,
             yw + k1y,
             zw + k1z,
@@ -256,7 +256,7 @@ def step_vectorized_scalar_like(
             strict_scalar_models=strict_scalar_models,
         )
 
-        k3x, k3y, k3z = rhand_vectorized(
+        k3x, k3y, k3z = rhand(
             xw + 0.5 * (k1x + k2x),
             yw + 0.5 * (k1y + k2y),
             zw + 0.5 * (k1z + k2z),
@@ -267,7 +267,7 @@ def step_vectorized_scalar_like(
             strict_scalar_models=strict_scalar_models,
         )
 
-        k4x, k4y, k4z = rhand_vectorized(
+        k4x, k4y, k4z = rhand(
             xw + 0.375 * (k1x + 3.0 * k3x),
             yw + 0.375 * (k1y + 3.0 * k3y),
             zw + 0.375 * (k1z + 3.0 * k3z),
@@ -278,7 +278,7 @@ def step_vectorized_scalar_like(
             strict_scalar_models=strict_scalar_models,
         )
 
-        k5x, k5y, k5z = rhand_vectorized(
+        k5x, k5y, k5z = rhand(
             xw + 1.5 * (k1x - 3.0 * k3x + 4.0 * k4x),
             yw + 1.5 * (k1y - 3.0 * k3y + 4.0 * k4y),
             zw + 1.5 * (k1z - 3.0 * k3z + 4.0 * k4z),
@@ -334,7 +334,7 @@ def step_vectorized_scalar_like(
     return x2, y2, z2
 
 
-def adjust_step_sizes_scalar_like(
+def adjust_step_sizes(
     r: np.ndarray,
     rr_prev: np.ndarray,
     r0: float,
@@ -376,7 +376,7 @@ def adjust_step_sizes_scalar_like(
         ds_array[mask_in] = dir * al
 
 
-def trace_vectorized(
+def trace(
     xi: Union[float, np.ndarray],
     yi: Union[float, np.ndarray],
     zi: Union[float, np.ndarray],
@@ -437,7 +437,7 @@ def trace_vectorized(
 
     # Initial direction check for ad (scalar)
     ds3_init = -(0.5 * dir) / 3.0
-    r1, r2, r3 = rhand_vectorized(
+    r1, r2, r3 = rhand(
         xi, yi, zi, parmod, exname, inname, ds3_init,
         strict_scalar_models=strict_scalar_models
     )
@@ -506,7 +506,7 @@ def trace_vectorized(
         rr_prev = rr.copy()
 
         # ds update based on scalar logic (uses rr_prev)
-        adjust_step_sizes_scalar_like(r, rr_prev, r0, dir, ds_array, active)
+        adjust_step_sizes(r, rr_prev, r0, dir, ds_array, active)
 
         # scalar sets rr=r (for next iteration)
         rr[active] = r[active]
@@ -516,7 +516,7 @@ def trace_vectorized(
         y_before = y.copy()
         z_before = z.copy()
 
-        x, y, z = step_vectorized_scalar_like(
+        x, y, z = step(
             x, y, z,
             ds_array, errin,
             parmod, exname, inname,

@@ -8,7 +8,7 @@ that involve conditional logic (sphcar, bcarsp, bspcar).
 import numpy as np
 
 
-def sphcar_vectorized(r, theta, phi, j):
+def sphcar(r, theta, phi, j):
     """
     Vectorized transformation between spherical and Cartesian coordinates.
     
@@ -64,7 +64,7 @@ def sphcar_vectorized(r, theta, phi, j):
         return out1, out2, out3
 
 
-def bspcar_vectorized(theta, phi, br, btheta, bphi):
+def bspcar(theta, phi, br, btheta, bphi):
     """
     Vectorized transformation of magnetic field components from spherical to Cartesian.
     
@@ -109,7 +109,7 @@ def bspcar_vectorized(theta, phi, br, btheta, bphi):
         return bx, by, bz
 
 
-def bcarsp_vectorized(x, y, z, bx, by, bz):
+def bcarsp(x, y, z, bx, by, bz):
     """
     Vectorized transformation of magnetic field components from Cartesian to spherical.
     

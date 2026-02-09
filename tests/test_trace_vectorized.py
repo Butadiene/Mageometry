@@ -124,7 +124,7 @@ class TestTraceEquivalence(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import geopack.geopack as gp
-        tv = importlib.import_module("geopack.vectorized.trace_vectorized")
+        tv = importlib.import_module("geopack.vectorized.trace")
 
         cls.gp = gp
         cls.tv = tv
@@ -163,8 +163,8 @@ class TestTraceEquivalence(unittest.TestCase):
         tv.call_external_model_vectorized = external_scalar
         tv.call_internal_model_vectorized = internal_scalar
 
-        if not hasattr(tv, "trace_vectorized"):
-            raise AttributeError("geopack.vectorized.trace_vectorized に trace_vectorized がありません。")
+        if not hasattr(tv, "trace"):
+            raise AttributeError("geopack.vectorized.trace に trace がありません。")
 
     def run_scalar_one(self, xi, yi, zi, dir, rlim, r0, parmod, exname, inname, maxloop):
         gp = self.gp
@@ -181,7 +181,7 @@ class TestTraceEquivalence(unittest.TestCase):
 
     def run_vectorized_batch(self, xi, yi, zi, dir, rlim, r0, parmod, exname, inname, maxloop):
         tv = self.tv
-        xf, yf, zf, xx, yy, zz, status = tv.trace_vectorized(
+        xf, yf, zf, xx, yy, zz, status = tv.trace(
             xi, yi, zi,
             dir=dir, rlim=rlim, r0=r0,
             parmod=parmod,

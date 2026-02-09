@@ -13,7 +13,7 @@ import numpy as np
 from .. import geopack as gp
 
 
-def igrf_geo_vectorized(r, theta, phi):
+def igrf_geo(r, theta, phi):
     """
     Vectorized IGRF calculation in spherical geographic coordinates.
     
@@ -212,7 +212,7 @@ def igrf_geo_vectorized(r, theta, phi):
         return br, bt, bf
 
 
-def igrf_gsm_vectorized(xgsm, ygsm, zgsm):
+def igrf_gsm(xgsm, ygsm, zgsm):
     """
     Vectorized calculation of IGRF magnetic field in GSM coordinates.
     
@@ -233,22 +233,22 @@ def igrf_gsm_vectorized(xgsm, ygsm, zgsm):
     zgsm = np.atleast_1d(zgsm)
     
     # Transform GSM to GEO coordinates
-    from .coordinates import geogsm_vectorized
-    xgeo, ygeo, zgeo = geogsm_vectorized(xgsm, ygsm, zgsm, -1)
+    from .coordinates import geogsm
+    xgeo, ygeo, zgeo = geogsm(xgsm, ygsm, zgsm, -1)
     
     # Convert to spherical coordinates
-    from .coordinates_complex import sphcar_vectorized
-    r, theta, phi = sphcar_vectorized(xgeo, ygeo, zgeo, -1)
+    from .coordinates_complex import sphcar
+    r, theta, phi = sphcar(xgeo, ygeo, zgeo, -1)
     
     # Calculate field in spherical coordinates
-    br, btheta, bphi = igrf_geo_vectorized(r, theta, phi)
+    br, btheta, bphi = igrf_geo(r, theta, phi)
     
     # Convert to Cartesian components
-    from .coordinates_complex import bspcar_vectorized
-    bxgeo, bygeo, bzgeo = bspcar_vectorized(theta, phi, br, btheta, bphi)
+    from .coordinates_complex import bspcar
+    bxgeo, bygeo, bzgeo = bspcar(theta, phi, br, btheta, bphi)
     
     # Transform back to GSM
-    bxgsm, bygsm, bzgsm = geogsm_vectorized(bxgeo, bygeo, bzgeo, 1)
+    bxgsm, bygsm, bzgsm = geogsm(bxgeo, bygeo, bzgeo, 1)
     
     # Return scalar if input was scalar
     if scalar_input:
@@ -257,7 +257,7 @@ def igrf_gsm_vectorized(xgsm, ygsm, zgsm):
         return bxgsm, bygsm, bzgsm
 
 
-def igrf_gsw_vectorized(xgsw, ygsw, zgsw):
+def igrf_gsw(xgsw, ygsw, zgsw):
     """
     Vectorized calculation of IGRF magnetic field in GSW coordinates.
     
@@ -278,14 +278,14 @@ def igrf_gsw_vectorized(xgsw, ygsw, zgsw):
     zgsw = np.atleast_1d(zgsw)
     
     # Transform GSW to GSM
-    from .coordinates import gswgsm_vectorized
-    xgsm, ygsm, zgsm = gswgsm_vectorized(xgsw, ygsw, zgsw, 1)
+    from .coordinates import gswgsm
+    xgsm, ygsm, zgsm = gswgsm(xgsw, ygsw, zgsw, 1)
     
     # Calculate field in GSM
-    bxgsm, bygsm, bzgsm = igrf_gsm_vectorized(xgsm, ygsm, zgsm)
+    bxgsm, bygsm, bzgsm = igrf_gsm(xgsm, ygsm, zgsm)
     
     # Transform field back to GSW
-    bxgsw, bygsw, bzgsw = gswgsm_vectorized(bxgsm, bygsm, bzgsm, -1)
+    bxgsw, bygsw, bzgsw = gswgsm(bxgsm, bygsm, bzgsm, -1)
     
     # Return scalar if input was scalar
     if scalar_input:

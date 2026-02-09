@@ -13,7 +13,7 @@ from geopack.vectorized.field_line_directional_derivatives import (
     verify_antisymmetry_relations,
     get_curvature_torsion_from_derivatives
 )
-from geopack.vectorized.field_line_geometry_vectorized import (
+from geopack.vectorized.field_line_geometry import (
     field_line_curvature_vectorized,
     field_line_torsion_vectorized
 )

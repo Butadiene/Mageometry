@@ -10,7 +10,7 @@ Author: geopack-vectorize
 import numpy as np
 
 
-def field_line_tangent_vectorized(model_func, parmod, ps, x, y, z):
+def field_line_tangent(model_func, parmod, ps, x, y, z):
     """
     Calculate unit tangent vectors along magnetic field lines.
     
@@ -64,7 +64,7 @@ def field_line_tangent_vectorized(model_func, parmod, ps, x, y, z):
         return tx, ty, tz
 
 
-def field_line_curvature_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_curvature(model_func, parmod, ps, x, y, z, delta=0.01):
     """
     Calculate field line curvature using finite differences.
     
@@ -94,7 +94,7 @@ def field_line_curvature_vectorized(model_func, parmod, ps, x, y, z, delta=0.01)
     z = np.atleast_1d(z)
     
     # Get tangent at current point
-    tx0, ty0, tz0 = field_line_tangent_vectorized(model_func, parmod, ps, x, y, z)
+    tx0, ty0, tz0 = field_line_tangent(model_func, parmod, ps, x, y, z)
     
     # Step forward along field line
     x_plus = x + delta * tx0
@@ -107,10 +107,10 @@ def field_line_curvature_vectorized(model_func, parmod, ps, x, y, z, delta=0.01)
     z_minus = z - delta * tz0
     
     # Get tangents at stepped positions
-    tx_plus, ty_plus, tz_plus = field_line_tangent_vectorized(
+    tx_plus, ty_plus, tz_plus = field_line_tangent(
         model_func, parmod, ps, x_plus, y_plus, z_plus
     )
-    tx_minus, ty_minus, tz_minus = field_line_tangent_vectorized(
+    tx_minus, ty_minus, tz_minus = field_line_tangent(
         model_func, parmod, ps, x_minus, y_minus, z_minus
     )
     
@@ -128,7 +128,7 @@ def field_line_curvature_vectorized(model_func, parmod, ps, x, y, z, delta=0.01)
         return curvature
 
 
-def field_line_normal_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_normal(model_func, parmod, ps, x, y, z, delta=0.01):
     """
     Calculate normal vectors of magnetic field lines.
     
@@ -158,7 +158,7 @@ def field_line_normal_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
     z = np.atleast_1d(z)
     
     # Get tangent at current point
-    tx0, ty0, tz0 = field_line_tangent_vectorized(model_func, parmod, ps, x, y, z)
+    tx0, ty0, tz0 = field_line_tangent(model_func, parmod, ps, x, y, z)
     
     # Step forward and backward along field line
     x_plus = x + delta * tx0
@@ -170,10 +170,10 @@ def field_line_normal_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
     z_minus = z - delta * tz0
     
     # Get tangents at stepped positions
-    tx_plus, ty_plus, tz_plus = field_line_tangent_vectorized(
+    tx_plus, ty_plus, tz_plus = field_line_tangent(
         model_func, parmod, ps, x_plus, y_plus, z_plus
     )
-    tx_minus, ty_minus, tz_minus = field_line_tangent_vectorized(
+    tx_minus, ty_minus, tz_minus = field_line_tangent(
         model_func, parmod, ps, x_minus, y_minus, z_minus
     )
     
@@ -216,7 +216,7 @@ def field_line_normal_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
         return nx, ny, nz
 
 
-def field_line_binormal_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_binormal(model_func, parmod, ps, x, y, z, delta=0.01):
     """
     Calculate binormal vectors of magnetic field lines.
     
@@ -243,8 +243,8 @@ def field_line_binormal_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
     scalar_input = np.isscalar(x)
     
     # Get tangent and normal vectors
-    tx, ty, tz = field_line_tangent_vectorized(model_func, parmod, ps, x, y, z)
-    nx, ny, nz = field_line_normal_vectorized(model_func, parmod, ps, x, y, z, delta)
+    tx, ty, tz = field_line_tangent(model_func, parmod, ps, x, y, z)
+    nx, ny, nz = field_line_normal(model_func, parmod, ps, x, y, z, delta)
     
     # Cross product T × N
     bx = ty * nz - tz * ny
@@ -257,7 +257,7 @@ def field_line_binormal_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
         return bx, by, bz
 
 
-def field_line_torsion_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_torsion(model_func, parmod, ps, x, y, z, delta=0.01):
     """
     Calculate field line torsion using finite differences.
     
@@ -287,11 +287,11 @@ def field_line_torsion_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
     z = np.atleast_1d(z)
     
     # Get tangent vector at current point
-    tx0, ty0, tz0 = field_line_tangent_vectorized(model_func, parmod, ps, x, y, z)
+    tx0, ty0, tz0 = field_line_tangent(model_func, parmod, ps, x, y, z)
     
     # Get normal and binormal at current point
-    nx0, ny0, nz0 = field_line_normal_vectorized(model_func, parmod, ps, x, y, z, delta)
-    bx0, by0, bz0 = field_line_binormal_vectorized(model_func, parmod, ps, x, y, z, delta)
+    nx0, ny0, nz0 = field_line_normal(model_func, parmod, ps, x, y, z, delta)
+    bx0, by0, bz0 = field_line_binormal(model_func, parmod, ps, x, y, z, delta)
     
     # Step forward and backward along field line
     x_plus = x + delta * tx0
@@ -303,10 +303,10 @@ def field_line_torsion_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
     z_minus = z - delta * tz0
     
     # Get binormal at stepped positions
-    bx_plus, by_plus, bz_plus = field_line_binormal_vectorized(
+    bx_plus, by_plus, bz_plus = field_line_binormal(
         model_func, parmod, ps, x_plus, y_plus, z_plus, delta
     )
-    bx_minus, by_minus, bz_minus = field_line_binormal_vectorized(
+    bx_minus, by_minus, bz_minus = field_line_binormal(
         model_func, parmod, ps, x_minus, y_minus, z_minus, delta
     )
     
@@ -324,7 +324,7 @@ def field_line_torsion_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
         return torsion
 
 
-def field_line_frenet_frame_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_frenet_frame(model_func, parmod, ps, x, y, z, delta=0.01):
     """
     Calculate complete Frenet-Serret frame and curvature for field lines.
     
@@ -353,15 +353,15 @@ def field_line_frenet_frame_vectorized(model_func, parmod, ps, x, y, z, delta=0.
         Field line curvature (1/Re)
     """
     # Get all components
-    tx, ty, tz = field_line_tangent_vectorized(model_func, parmod, ps, x, y, z)
-    nx, ny, nz = field_line_normal_vectorized(model_func, parmod, ps, x, y, z, delta)
-    bx, by, bz = field_line_binormal_vectorized(model_func, parmod, ps, x, y, z, delta)
-    curvature = field_line_curvature_vectorized(model_func, parmod, ps, x, y, z, delta)
+    tx, ty, tz = field_line_tangent(model_func, parmod, ps, x, y, z)
+    nx, ny, nz = field_line_normal(model_func, parmod, ps, x, y, z, delta)
+    bx, by, bz = field_line_binormal(model_func, parmod, ps, x, y, z, delta)
+    curvature = field_line_curvature(model_func, parmod, ps, x, y, z, delta)
     
     return tx, ty, tz, nx, ny, nz, bx, by, bz, curvature
 
 
-def field_line_geometry_complete_vectorized(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_geometry_complete(model_func, parmod, ps, x, y, z, delta=0.01):
     """
     Calculate complete field line geometry including Frenet frame, curvature, and torsion.
     
@@ -392,12 +392,12 @@ def field_line_geometry_complete_vectorized(model_func, parmod, ps, x, y, z, del
         Field line torsion (1/Re)
     """
     # Get Frenet frame and curvature
-    tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = field_line_frenet_frame_vectorized(
+    tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = field_line_frenet_frame(
         model_func, parmod, ps, x, y, z, delta
     )
     
     # Get torsion
-    torsion = field_line_torsion_vectorized(model_func, parmod, ps, x, y, z, delta)
+    torsion = field_line_torsion(model_func, parmod, ps, x, y, z, delta)
     
     return tx, ty, tz, nx, ny, nz, bx, by, bz, curvature, torsion
 

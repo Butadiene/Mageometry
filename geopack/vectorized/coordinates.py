@@ -17,7 +17,7 @@ import numpy as np
 from .. import geopack as gp
 
 
-def gsmgse_vectorized(xgsm, ygsm, zgsm, j):
+def gsmgse(xgsm, ygsm, zgsm, j):
     """
     Vectorized transformation between GSM and GSE coordinates.
     
@@ -66,7 +66,7 @@ def gsmgse_vectorized(xgsm, ygsm, zgsm, j):
         return x_out, y_out, z_out
 
 
-def geigeo_vectorized(xgei, ygei, zgei, j):
+def geigeo(xgei, ygei, zgei, j):
     """
     Vectorized transformation between GEI and GEO coordinates.
     
@@ -115,7 +115,7 @@ def geigeo_vectorized(xgei, ygei, zgei, j):
         return x_out, y_out, z_out
 
 
-def magsm_vectorized(xmag, ymag, zmag, j):
+def magsm(xmag, ymag, zmag, j):
     """
     Vectorized transformation between MAG and SM coordinates.
     
@@ -164,7 +164,7 @@ def magsm_vectorized(xmag, ymag, zmag, j):
         return x_out, y_out, z_out
 
 
-def smgsm_vectorized(xsm, ysm, zsm, j):
+def smgsm(xsm, ysm, zsm, j):
     """
     Vectorized transformation between SM and GSM coordinates.
     
@@ -213,7 +213,7 @@ def smgsm_vectorized(xsm, ysm, zsm, j):
         return x_out, y_out, z_out
 
 
-def geomag_vectorized(xgeo, ygeo, zgeo, j):
+def geomag(xgeo, ygeo, zgeo, j):
     """
     Vectorized transformation between GEO and MAG coordinates.
     
@@ -269,7 +269,7 @@ def geomag_vectorized(xgeo, ygeo, zgeo, j):
         return x_out, y_out, z_out
 
 
-def geogsm_vectorized(xgeo, ygeo, zgeo, j):
+def geogsm(xgeo, ygeo, zgeo, j):
     """
     Vectorized transformation between GEO and GSM coordinates.
     
@@ -325,7 +325,7 @@ def geogsm_vectorized(xgeo, ygeo, zgeo, j):
         return x_out, y_out, z_out
 
 
-def gswgsm_vectorized(xgsw, ygsw, zgsw, j):
+def gswgsm(xgsw, ygsw, zgsw, j):
     """
     Vectorized transformation between GSW and GSM coordinates.
     

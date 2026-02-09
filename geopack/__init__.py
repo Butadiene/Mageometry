@@ -57,46 +57,46 @@ from .vectorized import (
 
 # vectorized IGRF
 from .vectorized.igrf import (
-    igrf_geo_vectorized,
-    igrf_gsm_vectorized,
-    igrf_gsw_vectorized,
+    igrf_geo as igrf_geo_vectorized,
+    igrf_gsm as igrf_gsm_vectorized,
+    igrf_gsw as igrf_gsw_vectorized,
 )
 
 # vectorized coordinate transforms
 from .vectorized.coordinates import (
-    gsmgse_vectorized,
-    geigeo_vectorized,
-    magsm_vectorized,
-    smgsm_vectorized,
-    geomag_vectorized,
-    geogsm_vectorized,
-    gswgsm_vectorized,
+    gsmgse as gsmgse_vectorized,
+    geigeo as geigeo_vectorized,
+    magsm as magsm_vectorized,
+    smgsm as smgsm_vectorized,
+    geomag as geomag_vectorized,
+    geogsm as geogsm_vectorized,
+    gswgsm as gswgsm_vectorized,
 )
 
 # vectorized "complex" coordinate transforms
 from .vectorized.coordinates_complex import (
-    sphcar_vectorized,
-    bspcar_vectorized,
-    bcarsp_vectorized,
+    sphcar as sphcar_vectorized,
+    bspcar as bspcar_vectorized,
+    bcarsp as bcarsp_vectorized,
 )
 
 # vectorized utilities
 from .vectorized.condip1_exact import condip1_exact
 
 # vectorized field line geometry
-from .vectorized.field_line_geometry_vectorized import (
-    field_line_tangent_vectorized,
-    field_line_curvature_vectorized,
-    field_line_normal_vectorized,
-    field_line_binormal_vectorized,
-    field_line_torsion_vectorized,
-    field_line_frenet_frame_vectorized,
-    field_line_geometry_complete_vectorized,
+from .vectorized.field_line_geometry import (
+    field_line_tangent as field_line_tangent_vectorized,
+    field_line_curvature as field_line_curvature_vectorized,
+    field_line_normal as field_line_normal_vectorized,
+    field_line_binormal as field_line_binormal_vectorized,
+    field_line_torsion as field_line_torsion_vectorized,
+    field_line_frenet_frame as field_line_frenet_frame_vectorized,
+    field_line_geometry_complete as field_line_geometry_complete_vectorized,
 )
 
 # vectorized field line directional derivatives + helpers
 from .vectorized.field_line_directional_derivatives import (
-    field_line_directional_derivatives_vectorized,
+    field_line_directional_derivatives as field_line_directional_derivatives_vectorized,
     verify_antisymmetry_relations,
     get_curvature_torsion_from_derivatives,
     verify_unit_vectors,
@@ -109,6 +109,9 @@ from .vectorized.models import (
     t01 as t01_vectorized,
     t04 as t04_vectorized,
 )
+
+# trace functions
+from .vectorized.trace import trace as trace_vectorized
 
 __all__ = [
     # geopack.py functions
@@ -196,4 +199,7 @@ __all__ = [
     "verify_antisymmetry_relations",
     "get_curvature_torsion_from_derivatives",
     "verify_unit_vectors",
+
+    # vectorized trace function
+    "trace_vectorized",
 ]

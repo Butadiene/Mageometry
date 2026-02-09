@@ -8,11 +8,11 @@ imported directly from `geopack.vectorized`.
 
 # vectorized modules
 from . import (
+    field_line_geometry,
     models,
     coordinates,
     coordinates_complex,
     igrf,
-    field_line_geometry_vectorized,
     field_line_directional_derivatives,
 )
 
@@ -21,61 +21,58 @@ from .models import t89, t96, t01, t04
 
 # Re-export vectorized IGRF functions
 from .igrf import (
-    igrf_geo_vectorized,
-    igrf_gsm_vectorized,
-    igrf_gsw_vectorized,
+    igrf_geo,
+    igrf_gsm,
+    igrf_gsw,
 )
 
 # Re-export vectorized coordinate transforms
 from .coordinates import (
-    gsmgse_vectorized,
-    geigeo_vectorized,
-    magsm_vectorized,
-    smgsm_vectorized,
-    geomag_vectorized,
-    geogsm_vectorized,
-    gswgsm_vectorized,
+    gsmgse,
+    geigeo,
+    magsm,
+    smgsm,
+    geomag,
+    geogsm,
+    gswgsm,
 )
 
 # Re-export vectorized "complex" coordinate transforms
 from .coordinates_complex import (
-    sphcar_vectorized,
-    bspcar_vectorized,
-    bcarsp_vectorized,
+    sphcar,
+    bspcar,
+    bcarsp,
 )
 
 # Re-export extra exact implementations (vectorized utilities)
 from .condip1_exact import condip1_exact
 
 # Re-export field line geometry functions
-from .field_line_geometry_vectorized import (
-    field_line_tangent_vectorized,
-    field_line_curvature_vectorized,
-    field_line_normal_vectorized,
-    field_line_binormal_vectorized,
-    field_line_torsion_vectorized,
-    field_line_frenet_frame_vectorized,
-    field_line_geometry_complete_vectorized,
+from .field_line_geometry import (
+    field_line_tangent,
+    field_line_curvature,
+    field_line_normal,
+    field_line_binormal,
+    field_line_torsion,
+    field_line_frenet_frame,
+    field_line_geometry_complete,
 )
 
 # Re-export directional derivatives utilities
 from .field_line_directional_derivatives import (
-    field_line_directional_derivatives_vectorized,
+    field_line_directional_derivatives,
     verify_antisymmetry_relations,
     get_curvature_torsion_from_derivatives,
     verify_unit_vectors,
 )
 
-from .trace_vectorized import trace_vectorized
+from .trace import trace
 
 # core 側（同じグローバル状態を使う想定なら残してOK）
 from ..geopack import (
     recalc,
-    trace,
     dip,
     dip_gsw,
-    igrf_gsm,
-    igrf_gsw,
 )
 
 __all__ = [
@@ -84,7 +81,7 @@ __all__ = [
     "coordinates",
     "coordinates_complex",
     "igrf",
-    "field_line_geometry_vectorized",
+    "field_line_geometry",
     "field_line_directional_derivatives",
 
     # vectorized models
@@ -94,47 +91,47 @@ __all__ = [
     "t04",
 
     # vectorized IGRF
-    "igrf_geo_vectorized",
-    "igrf_gsm_vectorized",
-    "igrf_gsw_vectorized",
+    "igrf_geo",
+    "igrf_gsm",
+    "igrf_gsw",
 
     # vectorized coordinate transforms
-    "gsmgse_vectorized",
-    "geigeo_vectorized",
-    "magsm_vectorized",
-    "smgsm_vectorized",
-    "geomag_vectorized",
-    "geogsm_vectorized",
-    "gswgsm_vectorized",
+    "gsmgse",
+    "geigeo",
+    "magsm",
+    "smgsm",
+    "geomag",
+    "geogsm",
+    "gswgsm",
 
     # vectorized "complex" coordinate transforms
-    "sphcar_vectorized",
-    "bspcar_vectorized",
-    "bcarsp_vectorized",
+    "sphcar",
+    "bspcar",
+    "bcarsp",
 
     # vectorized utilities
     "condip1_exact",
 
     # field line geometry
-    "field_line_tangent_vectorized",
-    "field_line_curvature_vectorized",
-    "field_line_normal_vectorized",
-    "field_line_binormal_vectorized",
-    "field_line_torsion_vectorized",
-    "field_line_frenet_frame_vectorized",
-    "field_line_geometry_complete_vectorized",
+    "field_line_tangent",
+    "field_line_curvature",
+    "field_line_normal",
+    "field_line_binormal",
+    "field_line_torsion",
+    "field_line_frenet_frame",
+    "field_line_geometry_complete",
 
     # field line directional derivatives + helpers
-    "field_line_directional_derivatives_vectorized",
+    "field_line_directional_derivatives",
     "verify_antisymmetry_relations",
     "get_curvature_torsion_from_derivatives",
     "verify_unit_vectors",
 
+    # vectorized trace function
+    "trace",
+
     # core functions re-exported
     "recalc",
-    "trace",
     "dip",
     "dip_gsw",
-    "igrf_gsm",
-    "igrf_gsw",
 ]

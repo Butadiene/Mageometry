@@ -51,7 +51,7 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
         import geopack.geopack as gp
         cls.gp = gp
 
-        cls.tv = importlib.import_module("geopack.vectorized.trace_vectorized")
+        cls.tv = importlib.import_module("geopack.vectorized.trace")
 
         ut = ut_seconds(datetime.datetime(2020, 3, 20, 0, 0, 0))
         gp.recalc(ut)
@@ -66,8 +66,8 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
             cls.skip_reason = None
             cls.vmodels = vmodels
 
-        if not hasattr(cls.tv, "trace_vectorized"):
-            raise AttributeError("geopack.vectorized.trace_vectorized に trace_vectorized がありません。")
+        if not hasattr(cls.tv, "trace"):
+            raise AttributeError("geopack.vectorized.trace に trace がありません。")
 
         # ★重要：trace_vectorized.py が参照する “tXX_vectorized 変数” を差し替える
         if cls.vmodels is not None:
@@ -95,7 +95,7 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
 
     def _run_vectorized(self, xi, yi, zi, *, dir, rlim, r0, parmod, exname, inname, maxloop):
         tv = self.tv
-        xf, yf, zf, status = tv.trace_vectorized(
+        xf, yf, zf, status = tv.trace(
             np.asarray(xi, dtype=np.float64),
             np.asarray(yi, dtype=np.float64),
             np.asarray(zi, dtype=np.float64),
@@ -111,14 +111,13 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
         if getattr(self, "skip_reason", None):
             self.skipTest(self.skip_reason)
 
-        # 해당 외部モデルが vectorized 側にあるか確認（없으면 skip）
         if self.vmodels is None or not hasattr(self.vmodels, exname.lower()):
             self.skipTest(f"{exname} vectorized not available in geopack.vectorized.models")
 
         # igrf の場合は internal vectorized がある前提で「ベクトル版モデル使用」を強める
         if inname.lower() == "igrf":
             try:
-                from geopack.vectorized.igrf import igrf_gsm_vectorized  # noqa: F401
+                from geopack.vectorized.igrf import igrf_gsm as igrf_gsm_vectorized  # noqa: F401
             except Exception as e:
                 self.skipTest(f"igrf_gsm_vectorized not available: {e}")
 

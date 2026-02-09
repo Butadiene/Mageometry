@@ -116,7 +116,7 @@ class TestVectorizedInternalModel(unittest.TestCase):
 
     def test_igrf_gsm_vectorized(self):
         try:
-            from geopack.vectorized.igrf import igrf_gsm_vectorized
+            from geopack.vectorized.igrf import igrf_gsm as igrf_gsm_vectorized
         except Exception as e:
             self.skipTest(f"igrf_gsm_vectorized not available: {e}")
 
