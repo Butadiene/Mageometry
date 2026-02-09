@@ -152,7 +152,7 @@ def call_internal_model_vectorized(inname: str, x, y, z):
     if inname_lower == 'igrf' or inname_lower == 'igrf_gsm':
         # Try vectorized version first
         try:
-            from .igrf_vectorized import igrf_gsm_vectorized
+            from .vectorized.igrf import igrf_gsm_vectorized
             return igrf_gsm_vectorized(x, y, z)
         except ImportError:
             # Fall back to scalar version

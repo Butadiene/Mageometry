@@ -1,26 +1,90 @@
+# geopack/__init__.py
 """
-Geopack - Python implementation of Tsyganenko magnetospheric field models.
+geopack package initializer.
 
-This package provides both scalar and vectorized implementations of various
-magnetospheric field models including T89, T96, T01, and T04.
+This module re-exports all public functions defined in geopack/geopack.py,
+so that they can be imported directly from `geopack`.
 """
 
-# Core functionality
 from .geopack import (
-    recalc, igrf_gsw, igrf_gsm, igrf_geo, dip, sun,
-    sphcar, bcarsp, bspcar, 
-    geomag, magsm, gswgsm, gsmgse, smgsm,
-    geigeo, geogsm, geodgeo
+    update_igrf,
+    init_igrf,
+    load_igrf,
+    igrf_gsw,
+    igrf_gsm,
+    igrf_geo,
+    dip,
+    dip_gsw,
+    recalc,
+    sun,
+    gswgsm,
+    geomag,
+    geigeo,
+    magsm,
+    gsmgse,
+    smgsm,
+    geogsm,
+    geodgeo,
+    sphcar,
+    bspcar,
+    bcarsp,
+    call_external_model,
+    call_internal_model,
+    rhand,
+    step,
+    trace,
+    shuetal_mgnp,
+    t96_mgnp,
 )
 
-# Scalar models
+# Re-export external field model functions (imported/used by geopack.py)
 from .models import t89, t96, t01, t04
 
-# Vectorized models
+# -----------------------------
+# vectorized (re-export)
+# -----------------------------
+
+# サブパッケージそのもの（from geopack import vectorized を可能に）
+from . import vectorized
+
+# vectorized 側のモジュール（scalar 側と名前が衝突しやすいので別名で公開）
 from .vectorized import (
-    t89_vectorized, t96_vectorized, 
-    t01_vectorized, t04_vectorized,
-    condip1_exact_vectorized,
+    models as vectorized_models,
+    coordinates as vectorized_coordinates,
+    coordinates_complex as vectorized_coordinates_complex,
+    igrf as vectorized_igrf,
+)
+
+# vectorized IGRF
+from .vectorized.igrf import (
+    igrf_geo_vectorized,
+    igrf_gsm_vectorized,
+    igrf_gsw_vectorized,
+)
+
+# vectorized coordinate transforms
+from .vectorized.coordinates import (
+    gsmgse_vectorized,
+    geigeo_vectorized,
+    magsm_vectorized,
+    smgsm_vectorized,
+    geomag_vectorized,
+    geogsm_vectorized,
+    gswgsm_vectorized,
+)
+
+# vectorized "complex" coordinate transforms
+from .vectorized.coordinates_complex import (
+    sphcar_vectorized,
+    bspcar_vectorized,
+    bcarsp_vectorized,
+)
+
+# vectorized utilities
+from .vectorized.condip1_exact import condip1_exact
+
+# vectorized field line geometry
+from .vectorized.field_line_geometry_vectorized import (
     field_line_tangent_vectorized,
     field_line_curvature_vectorized,
     field_line_normal_vectorized,
@@ -28,60 +92,108 @@ from .vectorized import (
     field_line_torsion_vectorized,
     field_line_frenet_frame_vectorized,
     field_line_geometry_complete_vectorized,
+)
+
+# vectorized field line directional derivatives + helpers
+from .vectorized.field_line_directional_derivatives import (
     field_line_directional_derivatives_vectorized,
     verify_antisymmetry_relations,
-    get_curvature_torsion_from_derivatives
+    get_curvature_torsion_from_derivatives,
+    verify_unit_vectors,
 )
 
-# Vectorized coordinate transformations
-from .coordinates_vectorized import (
-    gsmgse_vectorized, geigeo_vectorized, magsm_vectorized,
-    smgsm_vectorized, geomag_vectorized, geogsm_vectorized,
-    gswgsm_vectorized
+# vectorized external models（scalar と同名衝突するので alias）
+from .vectorized.models import (
+    t89 as t89_vectorized,
+    t96 as t96_vectorized,
+    t01 as t01_vectorized,
+    t04 as t04_vectorized,
 )
-
-from .coordinates_vectorized_complex import (
-    sphcar_vectorized, bspcar_vectorized, bcarsp_vectorized
-)
-
-# Vectorized IGRF functions
-from .igrf_vectorized import (
-    igrf_geo_vectorized, igrf_gsm_vectorized, igrf_gsw_vectorized
-)
-
-# Field line tracing
-from .trace_field_lines_vectorized import trace_vectorized
-
-
-__version__ = '1.1.3'
 
 __all__ = [
-    # Core functions
-    'recalc', 'igrf_gsw', 'igrf_gsm', 'igrf_geo', 'dip', 'sun',
-    'sphcar', 'bcarsp', 'bspcar',
-    'geomag', 'magsm', 'gswgsm', 'gsmgse', 'smgsm',
-    'geigeo', 'geogsm', 'geodgeo',
-    # Scalar models
-    't89', 't96', 't01', 't04',
-    # Vectorized models
-    't89_vectorized', 't96_vectorized', 
-    't01_vectorized', 't04_vectorized',
-    'condip1_exact_vectorized',
-    # Field line geometry
-    'field_line_tangent_vectorized', 'field_line_curvature_vectorized',
-    'field_line_normal_vectorized', 'field_line_binormal_vectorized',
-    'field_line_torsion_vectorized', 'field_line_frenet_frame_vectorized',
-    'field_line_geometry_complete_vectorized',
-    'field_line_directional_derivatives_vectorized',
-    'verify_antisymmetry_relations',
-    'get_curvature_torsion_from_derivatives',
-    # Vectorized coordinate transformations
-    'gsmgse_vectorized', 'geigeo_vectorized', 'magsm_vectorized',
-    'smgsm_vectorized', 'geomag_vectorized', 'geogsm_vectorized',
-    'gswgsm_vectorized', 'sphcar_vectorized', 'bspcar_vectorized', 
-    'bcarsp_vectorized',
-    # Vectorized IGRF functions
-    'igrf_geo_vectorized', 'igrf_gsm_vectorized', 'igrf_gsw_vectorized',
-    # Field line tracing
-    'trace_vectorized'
+    # geopack.py functions
+    "update_igrf",
+    "init_igrf",
+    "load_igrf",
+    "igrf_gsw",
+    "igrf_gsm",
+    "igrf_geo",
+    "dip",
+    "dip_gsw",
+    "recalc",
+    "sun",
+    "gswgsm",
+    "geomag",
+    "geigeo",
+    "magsm",
+    "gsmgse",
+    "smgsm",
+    "geogsm",
+    "geodgeo",
+    "sphcar",
+    "bspcar",
+    "bcarsp",
+    "call_external_model",
+    "call_internal_model",
+    "rhand",
+    "step",
+    "trace",
+    "shuetal_mgnp",
+    "t96_mgnp",
+
+    # scalar models
+    "t89",
+    "t96",
+    "t01",
+    "t04",
+
+    # vectorized package + modules (namespaced)
+    "vectorized",
+    "vectorized_models",
+    "vectorized_coordinates",
+    "vectorized_coordinates_complex",
+    "vectorized_igrf",
+
+    # vectorized IGRF
+    "igrf_geo_vectorized",
+    "igrf_gsm_vectorized",
+    "igrf_gsw_vectorized",
+
+    # vectorized models
+    "t89_vectorized",
+    "t96_vectorized",
+    "t01_vectorized",
+    "t04_vectorized",
+
+    # vectorized coordinate transforms
+    "gsmgse_vectorized",
+    "geigeo_vectorized",
+    "magsm_vectorized",
+    "smgsm_vectorized",
+    "geomag_vectorized",
+    "geogsm_vectorized",
+    "gswgsm_vectorized",
+
+    # vectorized "complex" coordinate transforms
+    "sphcar_vectorized",
+    "bspcar_vectorized",
+    "bcarsp_vectorized",
+
+    # vectorized utilities
+    "condip1_exact",
+
+    # vectorized field line geometry
+    "field_line_tangent_vectorized",
+    "field_line_curvature_vectorized",
+    "field_line_normal_vectorized",
+    "field_line_binormal_vectorized",
+    "field_line_torsion_vectorized",
+    "field_line_frenet_frame_vectorized",
+    "field_line_geometry_complete_vectorized",
+
+    # vectorized field line directional derivatives + helpers
+    "field_line_directional_derivatives_vectorized",
+    "verify_antisymmetry_relations",
+    "get_curvature_torsion_from_derivatives",
+    "verify_unit_vectors",
 ]

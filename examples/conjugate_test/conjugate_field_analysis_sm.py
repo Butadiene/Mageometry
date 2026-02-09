@@ -18,11 +18,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import geopack
 from geopack.trace_field_lines_vectorized import trace_vectorized
-from geopack.igrf_vectorized import igrf_gsm_vectorized
+from geopack.vectorized.igrf import igrf_gsm_vectorized
 from geopack.vectorized import t96_vectorized
 from geopack.vectorized.field_line_geometry_vectorized import field_line_curvature_vectorized
-from geopack.vectorized.field_line_directional_derivatives_new import field_line_directional_derivatives_vectorized
-from geopack.coordinates_vectorized import smgsm_vectorized, geomag_vectorized, magsm_vectorized
+from geopack.vectorized.field_line_directional_derivatives import field_line_directional_derivatives_vectorized
+from geopack.vectorized.coordinates import smgsm_vectorized, geomag_vectorized, magsm_vectorized
 
 
 def create_sm_grid(radius=1.0, nlat=8, nlon=8):

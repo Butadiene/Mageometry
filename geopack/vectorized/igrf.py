@@ -10,7 +10,7 @@ Date: 2025-01-07
 """
 
 import numpy as np
-from . import geopack as gp
+from .. import geopack as gp
 
 
 def igrf_geo_vectorized(r, theta, phi):
@@ -233,18 +233,18 @@ def igrf_gsm_vectorized(xgsm, ygsm, zgsm):
     zgsm = np.atleast_1d(zgsm)
     
     # Transform GSM to GEO coordinates
-    from .coordinates_vectorized import geogsm_vectorized
+    from .coordinates import geogsm_vectorized
     xgeo, ygeo, zgeo = geogsm_vectorized(xgsm, ygsm, zgsm, -1)
     
     # Convert to spherical coordinates
-    from .coordinates_vectorized_complex import sphcar_vectorized
+    from .coordinates_complex import sphcar_vectorized
     r, theta, phi = sphcar_vectorized(xgeo, ygeo, zgeo, -1)
     
     # Calculate field in spherical coordinates
     br, btheta, bphi = igrf_geo_vectorized(r, theta, phi)
     
     # Convert to Cartesian components
-    from .coordinates_vectorized_complex import bspcar_vectorized
+    from .coordinates_complex import bspcar_vectorized
     bxgeo, bygeo, bzgeo = bspcar_vectorized(theta, phi, br, btheta, bphi)
     
     # Transform back to GSM
@@ -278,7 +278,7 @@ def igrf_gsw_vectorized(xgsw, ygsw, zgsw):
     zgsw = np.atleast_1d(zgsw)
     
     # Transform GSW to GSM
-    from .coordinates_vectorized import gswgsm_vectorized
+    from .coordinates import gswgsm_vectorized
     xgsm, ygsm, zgsm = gswgsm_vectorized(xgsw, ygsw, zgsw, 1)
     
     # Calculate field in GSM

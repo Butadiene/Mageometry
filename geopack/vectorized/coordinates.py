@@ -14,7 +14,7 @@ Key features:
 """
 
 import numpy as np
-import geopack.geopack as gp
+from .. import geopack as gp
 
 
 def gsmgse_vectorized(xgsm, ygsm, zgsm, j):

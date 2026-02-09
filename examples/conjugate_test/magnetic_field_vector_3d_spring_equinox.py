@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import geopack
 from geopack.vectorized import t89_vectorized
-from geopack.coordinates_vectorized import smgsm_vectorized
+from geopack.vectorized.coordinates import smgsm_vectorized
 
 
 def create_3d_grid(xrange=(-15, 15), yrange=(-15, 15), zrange=(-10, 10), 
@@ -63,7 +63,7 @@ def compute_magnetic_field(x_sm, y_sm, z_sm, ut, parmod):
     bx_ext_gsm, by_ext_gsm, bz_ext_gsm = t89_vectorized(iopt, ps, x_gsm, y_gsm, z_gsm)
     
     # Internal field (IGRF)
-    from geopack.igrf_vectorized import igrf_gsm_vectorized
+    from geopack.vectorized.igrf import igrf_gsm_vectorized
     bx_int_gsm, by_int_gsm, bz_int_gsm = igrf_gsm_vectorized(x_gsm, y_gsm, z_gsm)
     
     # Total field in GSM

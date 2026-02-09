@@ -14,13 +14,11 @@ for processing multiple points simultaneously.
 
 import numpy as np
 from scipy import special
-try:
-    from .condip1_exact_vectorized import condip1_exact_vectorized
-except ImportError:
-    from condip1_exact_vectorized import condip1_exact_vectorized
+
+from ..condip1_exact import condip1_exact
 
 
-def t96_vectorized(parmod, ps, x, y, z):
+def t96(parmod, ps, x, y, z):
     """
     Vectorized version of the T96 magnetic field model.
     
@@ -940,7 +938,7 @@ def birk1tot_02_vectorized(ps, x, y, z):
     # Region 2: Plasma sheet - use condip1
     if np.any(loc2):
         idx = loc2
-        bx2, by2, bz2 = condip1_exact_vectorized(x[idx], y[idx], z[idx], ps)
+        bx2, by2, bz2 = condip1_exact(x[idx], y[idx], z[idx], ps)
         bx[idx] = bx2
         by[idx] = by2
         bz[idx] = bz2
@@ -1021,7 +1019,7 @@ def interpolate_region3(x, y, z, r, r3, ps, sps, cpsas, spsas, pas, tetr1n, dtet
     z2 = -xas2 * spsas + zas2 * cpsas
     
     # Get field at southern boundary using condip1
-    bx2, by2, bz2 = condip1_exact_vectorized(x2, y2, z2, ps)
+    bx2, by2, bz2 = condip1_exact(x2, y2, z2, ps)
     
     # Interpolate
     ss = np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
@@ -1070,7 +1068,7 @@ def interpolate_region4(x, y, z, r, r3, ps, sps, cpsas, spsas, pas, tetr1s, dtet
     z1 = -xas1 * spsas + zas1 * cpsas
     
     # Get field at northern boundary using condip1
-    bx1, by1, bz1 = condip1_exact_vectorized(x1, y1, z1, ps)
+    bx1, by1, bz1 = condip1_exact(x1, y1, z1, ps)
     
     # Southern boundary point (high-lat)
     xas2 = r * st02as * np.cos(pas)
@@ -2428,21 +2426,6 @@ def fexp1_vectorized(s, a):
         return np.where(a <= 0, np.exp(a * s**2), np.exp(a * (s**2 - 1)))
 
 
-# Utility function to handle scalar inputs
-def t96(parmod, ps, x, y, z):
-    """
-    Wrapper for scalar inputs - maintains compatibility with original interface.
-    """
-    scalar_input = np.isscalar(x)
-    
-    bx, by, bz = t96_vectorized(parmod, ps, x, y, z)
-    
-    if scalar_input:
-        return float(bx.item()), float(by.item()), float(bz.item())
-    else:
-        return bx, by, bz
-
-
 if __name__ == '__main__':
     # Test the vectorized implementation
     print("Testing T96 vectorized implementation...")
@@ -2450,18 +2433,13 @@ if __name__ == '__main__':
     # Test parameters
     parmod = [2.0, -10.0, 0.5, -3.0, 0, 0, 0, 0, 0, 0]
     ps = 0.1
-    
-    # Test with scalar inputs
-    x, y, z = 5.0, 0.0, 0.0
-    bx, by, bz = t96(parmod, ps, x, y, z)
-    print(f"Scalar input: B = ({bx:.3f}, {by:.3f}, {bz:.3f}) nT")
-    
+
     # Test with array inputs
     x_arr = np.array([5.0, -10.0, 0.0])
     y_arr = np.array([0.0, 0.0, 5.0])
     z_arr = np.array([0.0, 0.0, 0.0])
     
-    bx_arr, by_arr, bz_arr = t96_vectorized(parmod, ps, x_arr, y_arr, z_arr)
+    bx_arr, by_arr, bz_arr = t96(parmod, ps, x_arr, y_arr, z_arr)
     print("\nArray input:")
     for i in range(len(x_arr)):
         print(f"  Point ({x_arr[i]}, {y_arr[i]}, {z_arr[i]}): "

@@ -19,8 +19,8 @@ import geopack
 from geopack.trace_field_lines_vectorized import trace_vectorized
 from geopack.vectorized import t96_vectorized
 from geopack.vectorized.field_line_geometry_vectorized import field_line_curvature_vectorized
-from geopack.vectorized.field_line_directional_derivatives_new import field_line_directional_derivatives_vectorized
-from geopack.coordinates_vectorized import smgsm_vectorized
+from geopack.vectorized.field_line_directional_derivatives import field_line_directional_derivatives_vectorized
+from geopack.vectorized.coordinates import smgsm_vectorized
 
 # Import the original functions from the original script
 from conjugate_field_analysis_sm import (

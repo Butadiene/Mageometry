@@ -5,7 +5,7 @@ Fixed exact vectorized implementation of condip1 that matches the original.
 import numpy as np
 
 
-def condip1_exact_vectorized(x, y, z, ps):
+def condip1_exact(x, y, z, ps):
     """
     Exact vectorized implementation matching the original condip1.
     Returns the field directly (with c2 coefficients applied).

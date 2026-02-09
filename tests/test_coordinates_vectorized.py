@@ -12,12 +12,12 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import geopack
-from geopack.coordinates_vectorized import (
+from geopack.vectorized.coordinates import (
     gsmgse_vectorized, geigeo_vectorized, magsm_vectorized,
     smgsm_vectorized, geomag_vectorized, geogsm_vectorized,
     gswgsm_vectorized
 )
-from geopack.coordinates_vectorized_complex import (
+from geopack.vectorized.coordinates_complex import (
     sphcar_vectorized, bspcar_vectorized, bcarsp_vectorized
 )
 

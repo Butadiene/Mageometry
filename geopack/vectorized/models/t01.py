@@ -1,5 +1,5 @@
 """
-Vectorized implementation of the T04 magnetospheric magnetic field model.
+Vectorized implementation of the T01 magnetospheric magnetic field model.
 
 This implementation follows the principles outlined in direction_vectorize.md:
 1. All functions accept NumPy arrays for x, y, z coordinates
@@ -13,100 +13,92 @@ for processing multiple points simultaneously.
 """
 
 import numpy as np
-import warnings
 
-
-def t04_vectorized(parmod, ps, x, y, z):
+def t01(parmod, ps, x, y, z):
     """
+    Vectorized version of the T01 magnetic field model.
+    
+    Release date of this version: August 8, 2001.
+    Latest modifications/bugs removed: June 24, 2006.
+    
     A data-based model of the external (i.e., without earth's contribution) part of the
-    magnetospheric magnetic field, calibrated by
-        (1) solar wind pressure pdyn (nanopascals),
-        (2) dst (nanotesla),
-        (3) byimf,
-        (4) bzimf (nanotesla)
-        (5-10) indices w1 - w6, calculated as time integrals from the beginning of a storm
-
-    Assembled: March 25, 2004; Updated: August 2 & 31, December 27, 2004.
-    A bug eliminated March 14, 2005 (might cause compilation problems with some fortran compilers)
-
-    Attention: The model is based on data taken sunward from x=-15Re, and hence becomes invalid at larger tailward distances !!!
-
+    magnetospheric magnetic field, calibrated by solar wind and geomagnetic parameters.
+    
+    Attention: The model is based on data taken sunward from x=-15Re, and hence becomes
+    invalid at larger tailward distances!
+    
     Parameters
     ----------
     parmod : array_like
-        10-element array containing model parameters.
+        10-element array containing model parameters:
+        [0] - solar wind pressure pdyn (nanopascals)
+        [1] - dst (nanotesla)
+        [2] - byimf (nanotesla)
+        [3] - bzimf (nanotesla)
+        [4] - g1-index
+        [5] - g2-index (see Tsyganenko [2001] for definition)
+        [6-9] - unused
     ps : float
-        Geodipole tilt angle in radians.
+        Geodipole tilt angle in radians
     x, y, z : array_like
-        GSM coordinates in Re (Earth radii).
-
+        GSM coordinates in Re (Earth radii)
+        
     Returns
     -------
     bx, by, bz : ndarray or float
         Magnetic field components in GSM system (nT).
         Returns scalars if all inputs were scalars.
-
+        
     References
     ----------
-    (1) N. A. Tsyganenko, A new data-based model of the near magnetosphere magnetic field:
-        1. Mathematical structure.
-        2. Parameterization and fitting to observations.  JGR v. 107(A8), 1176/1179, doi:10.1029/2001JA000219/220, 2002.
-    (2) N. A. Tsyganenko, H. J. Singer, J. C. Kasper, Storm-time distortion of the
-        inner magnetosphere: How severe can it get ?  JGR v. 108(A5), 1209, doi:10.1029/2002JA009808, 2003.
-    (3) N. A. Tsyganenko and M. I. Sitnov, Modeling the dynamics of the inner magnetosphere during
-        strong geomagnetic storms, J. Geophys. Res., v. 110 (A3), A03208, doi: 10.1029/2004JA010798, 2005.
+    N. A. Tsyganenko, A new data-based model of the near magnetosphere magnetic field:
+    1. Mathematical structure. 2. Parameterization and fitting to observations. 
+    (submitted to JGR, July 2001)
+    
+    (C) Copr. 2001, Nikolai A. Tsyganenko, USRA, Code 690.2, NASA GSFC
     """
     # Track if all inputs were scalar
     scalar_input = np.isscalar(x) and np.isscalar(y) and np.isscalar(z)
-
+    
     # Convert inputs to numpy arrays
     x = np.atleast_1d(x)
     y = np.atleast_1d(y)
     z = np.atleast_1d(z)
 
     a = np.array([
-        1.00000,5.44118,0.891995,9.09684,0.00000,-7.18972,12.2700,
-        -4.89408,0.00000,0.870536,1.36081,0.00000,0.688650,0.602330,
-        0.00000,0.316346,1.22728,-0.363620E-01,-0.405821,0.452536,
-        0.755831,0.215662,0.152759,5.96235,23.2036,11.2994,69.9596,
-        0.989596,-0.132131E-01,0.985681,0.344212E-01,1.02389,0.207867,
-        1.51220,0.682715E-01,1.84714,1.76977,1.37690,0.696350,0.343280,
-        3.28846,111.293,5.82287,4.39664,0.383403,0.648176,0.318752E-01,
-        0.581168,1.15070,0.843004,0.394732,0.846509,0.916555,0.550920,
-        0.180725,0.898772,0.387365,2.26596,1.29123,0.436819,1.28211,
-        1.33199,.405553,1.6229,.699074,1.26131,2.42297,.537116,.619441])
-
+        1.00000, 2.47341, 0.40791, 0.30429, -0.10637, -0.89108, 3.29350,
+        -0.05413, -0.00696, 1.07869, -0.02314, -0.66173, -0.68018, -0.03246,
+        0.02681, 0.28062, 0.16535, -0.02939, 0.02639, -0.24891, -0.08063,
+        0.08900, -0.02475, 0.05887, 0.57691, 0.65256, -0.03230, 2.24733,
+        4.10546, 1.13665, 0.05506, 0.97669, 0.21164, 0.64594, 1.12556, 0.01389,
+        1.02978, 0.02968, 0.15821, 9.00519, 28.17582, 1.35285, 0.42279])
 
     # Handle invalid X values by clipping instead of raising error
     invalid_mask = x < -15
     if np.any(invalid_mask):
-        print(f'Warning: T04 model is valid only for X > -15 Re. Clipping {np.sum(invalid_mask)} points to X = -15 Re.')
+        print(f'Warning: T01 model is valid only for X > -15 Re. Clipping {np.sum(invalid_mask)} points to X = -15 Re.')
         x = np.where(invalid_mask, -15, x)
 
-    iopgen,ioptt,iopb,iopr = [0,0,0,0]
+    pdyn = parmod[0]
+    dst_ast = parmod[1]*0.8-13.*np.sqrt(pdyn)
+    byimf,bzimf =parmod[2:4]
+    g1,g2 = parmod[4:6]
+    pss = ps
+    xx,yy,zz = [x,y,z]
 
-    pdyn=parmod[0]
-    dst_ast=parmod[1]*0.8-13*np.sqrt(pdyn)
-    bximf,byimf,bzimf=[0.,parmod[2],parmod[3]]
-    w1,w2,w3,w4,w5,w6 = parmod[4:10]
-    pss,xx,yy,zz = [ps,x,y,z]
+    bbx,bby,bbz = extall(0,0,0,0,a,43,pdyn,dst_ast,byimf,bzimf,g1,g2,pss,xx,yy,zz)
 
-    # Suppress warnings for expected singularities (e.g., at origin)
-    with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', category=RuntimeWarning)
-        bx,by,bz = extern(iopgen,ioptt,iopb,iopr,a,69,pdyn,dst_ast,bximf,byimf,bzimf,
-            w1,w2,w3,w4,w5,w6,pss,xx,yy,zz)
-    
     # Return scalar if input was scalar
     if scalar_input:
-        return bx.item(), by.item(), bz.item()
+        return bbx.item(), bby.item(), bbz.item()
     else:
-        return bx, by, bz
+        return bbx, bby, bbz
 
 
-def extern(iopgen,iopt,iopb,iopr,a,ntot,pdyn,dst,bximf,byimf,bzimf,w1,w2,w3,w4,w5,w6,ps,x,y,z):
+
+def extall(iopgen,iopt,iopb,iopr,a,ntot,pdyn,dst,byimf,bzimf,vbimf1,vbimf2,ps,x,y,z):
     """
-    Vectorized version of extern.
+    Vectorized version of extall.
     """
     global dxshift1, dxshift2, d, deltady
     global xkappa1, xkappa2
@@ -114,13 +106,14 @@ def extern(iopgen,iopt,iopb,iopr,a,ntot,pdyn,dst,bximf,byimf,bzimf,w1,w2,w3,w4,w
     global g
     global rh0
 
-    a0_a,a0_s0,a0_x0 = [34.586,1.1960,3.4397]
-    dsig = 0.005
-    rh0_val,rh2 = [8.0,-5.2] # rh0 is set below, so this is rh0_val
 
-    xappa = (pdyn/2.)**a[22]
-    rh0 = 7.5
-    g = 35.0
+    a0_a,a0_s0,a0_x0 = [34.586,1.1960,3.4397]
+    dsig = 0.003
+    rh0_val,rh2 = [8.0,-5.2]
+
+    xappa = (pdyn/2.)**a[38]
+    rh0=a[39]
+    g=a[40]
 
     xappa3=xappa**3
 
@@ -134,147 +127,160 @@ def extern(iopgen,iopt,iopb,iopr,a,ntot,pdyn,dst,bximf,byimf,bzimf,w1,w2,w3,w4,w
     am=a0_a/xappa
     s0=a0_s0
 
-    factimf=a[19]
+    bperp=np.sqrt(byimf**2+bzimf**2)
+
+    if (byimf == 0) & (bzimf == 0):
+        theta = 0.
+    else:
+        theta=np.arctan2(byimf,bzimf)
+        if theta <= 0: theta = 2*np.pi
+
+    ct=np.cos(theta)
+    st=np.sin(theta)
+
+    sthetah=np.sin(theta/2.)**2
+
+    factimf=a[23]+a[24]*sthetah
 
     oimfx=0.
     oimfy=byimf*factimf
     oimfz=bzimf*factimf
 
-    r=np.sqrt(x**2+y**2+z**2)
-    r_safe = np.where(r == 0, 1e-9, r)
+    r = np.sqrt(x**2 + y**2 + z**2)
+    xss = x.copy()
+    zss = z.copy()
 
-    xss=x.copy()
-    zss=z.copy()
-
-    tol = 1e-6
-    active = np.ones_like(x, dtype=bool)
-
+    active = np.ones_like(xss, dtype=bool)
     for _ in range(100):
         if not np.any(active):
             break
 
-        xsold = xss.copy()
-        zsold = zss.copy()
+        xsold = xss[active]
+        zsold = zss[active]
+        r_act = r[active]
 
-        rh = rh0 + rh2 * (zss / r_safe) ** 2
-        rh_safe = np.where(rh == 0, 1e-9, rh)
+        rh = rh0 + rh2 * (zsold / r_act)**2
+        sinpsas = sps / (1 + (r_act / rh)**3)**0.33333333
+        cospsas = np.sqrt(1 - sinpsas**2)
 
-        sinpsas = sps / (1 + (r / rh_safe) ** 3) ** 0.33333333
-        cospsas = np.sqrt(1 - sinpsas ** 2)
+        znew = x[active] * sinpsas + z[active] * cospsas
+        xnew = x[active] * cospsas - z[active] * sinpsas
 
-        zss_new = x * sinpsas + z * cospsas
-        xss_new = x * cospsas - z * sinpsas
+        dd = np.abs(xnew - xsold) + np.abs(znew - zsold)
 
-        dd = np.where(active, np.abs(xss_new - xsold) + np.abs(zss_new - zsold), 0.0)
+        xss[active] = xnew
+        zss[active] = znew
 
-        xss = np.where(active, xss_new, xss)
-        zss = np.where(active, zss_new, zss)
-
-        active = active & (dd > tol)
+        # 収束した点は次以降更新しない
+        active_idx = np.where(active)[0]
+        active[active_idx] = dd > 1e-6
 
     rho2=y**2+zss**2
     asq=am**2
     xmxm=am+xss-x0
-    xmxm = np.maximum(0., xmxm)
+    xmxm = np.maximum(0., xmxm) # Vectorized if
     axx0=xmxm**2
     aro=asq+rho2
     sigma=np.sqrt((aro+axx0+np.sqrt((aro+axx0)**2-4.*asq*axx0))/(2.*asq))
 
-    # Vectorized calculation for all regions
-    # Initialize field components
-    bxcf,bycf,bzcf = np.zeros_like(x), np.zeros_like(x), np.zeros_like(x)
-    bxt1,byt1,bzt1,bxt2,byt2,bzt2 = [np.zeros_like(x) for _ in range(6)]
-    bxr11,byr11,bzr11, bxr12,byr12,bzr12, bxr21,byr21,bzr21, bxr22,byr22,bzr22 = [np.zeros_like(x) for _ in range(12)]
-    bxsrc,bysrc,bzsrc, bxprc,byprc,bzprc = [np.zeros_like(x) for _ in range(6)]
-    hximf,hyimf,hzimf = [np.zeros_like(x) for _ in range(3)]
 
-    # Calculations for different source contributions
+    # Vectorized handling of the three cases based on sigma
+    bxcf,bycf,bzcf = [np.zeros_like(x) for _ in range(3)]
     if iopgen <= 1:
         cfx,cfy,cfz = shlcar3x3(xx,yy,zz,ps)
-        bxcf,bycf,bzcf = cfx*xappa3, cfy*xappa3, cfz*xappa3
+        bxcf=cfx*xappa3
+        bycf=cfy*xappa3
+        bzcf=cfz*xappa3
 
+    bxt1,byt1,bzt1,bxt2,byt2,bzt2 = [np.zeros_like(x) for _ in range(6)]
     if (iopgen == 0) | (iopgen == 2):
-        dstt = min(dst, -20.)
-        znam = np.abs(dstt)**0.37
-        dxshift1=a[23]-a[24]/znam
-        dxshift2=a[25]-a[26]/znam
-        d=a[35]*np.exp(-w1/a[36])+a[68]
-        deltady=4.7
+        dxshift1=a[25]+a[26]*vbimf2
+        dxshift2=0.
+        d=a[27]
+        deltady=a[28]
         bxt1,byt1,bzt1,bxt2,byt2,bzt2 = deformed(iopt,ps,xx,yy,zz)
 
+    bxr11,byr11,bzr11, bxr12,byr12,bzr12, bxr21,byr21,bzr21, bxr22,byr22,bzr22 = [np.zeros_like(x) for _ in range(12)]
     if (iopgen == 0) | (iopgen == 3):
-        znam = max(np.abs(dst), 20.) if dst >= -20 else np.abs(dst)
-        xkappa1=a[31]*(znam/20)**a[32]
-        xkappa2=a[33]*(znam/20)**a[34]
+        xkappa1=a[34]+a[35]*vbimf2
+        xkappa2=a[36]+a[37]*vbimf2
         bxr11,byr11,bzr11, bxr12,byr12,bzr12, bxr21,byr21,bzr21, bxr22,byr22,bzr22 = \
             birk_tot(iopb,ps,xx,yy,zz)
 
+    bxsrc,bysrc,bzsrc, bxprc,byprc,bzprc = [np.zeros_like(x) for _ in range(6)]
     if (iopgen == 0) | (iopgen == 4):
-        phi=a[37]
-        znam= max(np.abs(dst), 20.) if dst >= -20 else np.abs(dst)
-        sc_sy=a[27]*(20/znam)**a[28]*xappa
-        sc_pr=a[29]*(20/znam)**a[30]*xappa
+        phi=1.5707963*np.tanh(np.abs(dst)/a[33])
+        znam=np.abs(dst)
+        if znam < 20: znam=20
+        sc_sy=a[29]*(20/znam)**a[30]*xappa
+        sc_pr=a[31]*(20/znam)**a[32]*xappa
         bxsrc,bysrc,bzsrc, bxprc,byprc,bzprc = full_rc(iopr,ps,xx,yy,zz)
 
+    hximf,hyimf,hzimf = [np.zeros_like(x),np.zeros_like(x),np.zeros_like(x)]
     if (iopgen == 0) | (iopgen == 5):
-        hximf,hyimf,hzimf = np.zeros_like(x), byimf+np.zeros_like(x), bzimf+np.zeros_like(x)
+        hximf,hyimf,hzimf = [np.zeros_like(x), byimf+np.zeros_like(x), bzimf+np.zeros_like(x)]
 
-    # Calculate amplitudes
-    dlp1=(pdyn/2)**a[20]
-    dlp2=(pdyn/2)**a[21]
-    tamp1=a[1]+a[2]*dlp1+a[3]*a[38]*w1/np.sqrt(w1**2+a[38]**2)+a[4]*dst
-    tamp2=a[5]+a[6]*dlp2+a[7]*a[39]*w2/np.sqrt(w2**2+a[39]**2)+a[8]*dst
-    a_src=a[9] +a[10]*a[40]*w3/np.sqrt(w3**2+a[40]**2)+a[11]*dst
-    a_prc=a[12]+a[13]*a[41]*w4/np.sqrt(w4**2+a[41]**2)+a[14]*dst
-    a_r11=a[15]+a[16]*a[42]*w5/np.sqrt(w5**2+a[42]**2)
-    a_r21=a[17]+a[18]*a[43]*w6/np.sqrt(w6**2+a[43]**2)
+    dlp1=(pdyn/2)**a[41]
+    dlp2=(pdyn/2)**a[42]
 
-    # Sum up all components
-    bbx=a[0]*bxcf + tamp1*bxt1+tamp2*bxt2 + a_src*bxsrc+a_prc*bxprc + a_r11*bxr11+a_r21*bxr21 + a[19]*hximf
-    bby=a[0]*bycf + tamp1*byt1+tamp2*byt2 + a_src*bysrc+a_prc*byprc + a_r11*byr11+a_r21*byr21 + a[19]*hyimf
-    bbz=a[0]*bzcf + tamp1*bzt1+tamp2*bzt2 + a_src*bzsrc+a_prc*bzprc + a_r11*bzr11+a_r21*bzr21 + a[19]*hzimf
+    tamp1=a[1]+a[2]*dlp1+a[3]*vbimf1+a[4]*dst
+    tamp2=a[5]+a[6]*dlp2+a[7]*vbimf1+a[8]*dst
+    a_src=a[9] +a[10]*dst+a[11]*np.sqrt(pdyn)
+    a_prc=a[12]+a[13]*dst+a[14]*np.sqrt(pdyn)
+    a_r11=a[15]+a[16]*vbimf2
+    a_r12=a[17]+a[18]*vbimf2
+    a_r21=a[19]+a[20]*vbimf2
+    a_r22=a[21]+a[22]*vbimf2
 
-    # Three cases for sigma based on masks
+    bbx=a[0]*bxcf+tamp1*bxt1+tamp2*bxt2+a_src*bxsrc+a_prc*bxprc \
+        +a_r11*bxr11+a_r12*bxr12+a_r21*bxr21+a_r22*bxr22 \
+        +a[23]*hximf+a[24]*hximf*sthetah
+
+    bby=a[0]*bycf+tamp1*byt1+tamp2*byt2+a_src*bysrc+a_prc*byprc \
+        +a_r11*byr11+a_r12*byr12+a_r21*byr21+a_r22*byr22 \
+        +a[23]*hyimf+a[24]*hyimf*sthetah
+
+    bbz=a[0]*bzcf+tamp1*bzt1+tamp2*bzt2+a_src*bzsrc+a_prc*bzprc \
+        +a_r11*bzr11+a_r12*bzr12+a_r21*bzr21+a_r22*bzr22 \
+        +a[23]*hzimf+a[24]*hzimf*sthetah
+
+    # Three cases for sigma
     mask_in = sigma < (s0 - dsig)
     mask_interp = (sigma >= (s0 - dsig)) & (sigma < (s0 + dsig))
+    mask_out = sigma >= (s0 + dsig)
 
-    # Case 1: Inside the magnetosphere (default)
-    bx, by, bz = bbx, bby, bbz
+    bx, by, bz = np.zeros_like(x), np.zeros_like(y), np.zeros_like(z)
+
+    # Case 1: Inside the magnetosphere
+    bx = np.where(mask_in, bbx, bx)
+    by = np.where(mask_in, bby, by)
+    bz = np.where(mask_in, bbz, bz)
 
     # Case 2: Interpolation region
     if np.any(mask_interp):
-        fint = 0.5 * (1. - (sigma - s0) / dsig)
-        fext = 0.5 * (1. + (sigma - s0) / dsig)
-        qx, qy, qz = dipole(ps, x, y, z)
-        bx_interp = (bbx + qx) * fint + oimfx * fext - qx
-        by_interp = (bby + qy) * fint + oimfy * fext - qy
-        bz_interp = (bbz + qz) * fint + oimfz * fext - qz
-        bx = np.where(mask_interp, bx_interp, bx)
-        by = np.where(mask_interp, by_interp, by)
-        bz = np.where(mask_interp, bz_interp, bz)
-    
-    # Case 3: Outside the magnetosphere
-    mask_out = sigma >= (s0 + dsig)
+        fint=0.5*(1.-(sigma[mask_interp]-s0)/dsig)
+        fext=0.5*(1.+(sigma[mask_interp]-s0)/dsig)
+        qx,qy,qz = dipole(ps,x[mask_interp],y[mask_interp],z[mask_interp])
+        bx[mask_interp]=(bbx[mask_interp]+qx)*fint+oimfx*fext -qx
+        by[mask_interp]=(bby[mask_interp]+qy)*fint+oimfy*fext -qy
+        bz[mask_interp]=(bbz[mask_interp]+qz)*fint+oimfz*fext -qz
+
+    # Case 3: Outside
     if np.any(mask_out):
-        qx, qy, qz = dipole(ps, x, y, z)
-        bx_out = oimfx - qx
-        by_out = oimfy - qy
-        bz_out = oimfz - qz
-        bx = np.where(mask_out, bx_out, bx)
-        by = np.where(mask_out, by_out, by)
-        bz = np.where(mask_out, bz_out, bz)
+        qx,qy,qz = dipole(ps,x[mask_out],y[mask_out],z[mask_out])
+        bx[mask_out]=oimfx-qx
+        by[mask_out]=oimfy-qy
+        bz[mask_out]=oimfz-qz
 
     return bx,by,bz
 
-#
-# The following functions (shlcar3x3, deformed, warped, etc.) are identical
-# to the vectorized versions from t01.py, as their mathematical structure
-# is the same in both models.
-#
-def shlcar3x3(x, y, z, ps):
+
+def shlcar3x3(x,y,z,ps):
     """
-    Calculates GSM components of the shielded field for the ring current
-    (tail modes). Vectorized version.
+    This subroutine returns the shielding field for the earth's dipole, represented by
+    2x3x3=18 "cartesian" harmonics, tilted with respect to the z=0 plane  (nb#4, p.74)
+
+    This function is already vectorized.
     """
     a = np.array([
         -901.2327248,895.8011176,817.6208321,-845.5880889,-83.73539535,
@@ -287,7 +293,7 @@ def shlcar3x3(x, y, z, ps):
         -3.222069852,9.620648151,6.082014949,27.75216226,12.44199571,
         5.122226936,6.982039615,20.12149582,6.150973118,4.663639687,
         15.73319647,2.303504968,5.840511214,.8385953499E-01,.3477844929])
-    
+
     p1,p2,p3, r1,r2,r3, q1,q2,q3, s1,s2,s3 = a[36:48]
     t1,t2 = a[48:50]
 
@@ -304,9 +310,7 @@ def shlcar3x3(x, y, z, ps):
     z1=x*st1+z*ct1
     x2=x*ct2-z*st2
     z2=x*st2+z*ct2
-    
-    # make the terms in the 1st sum ("perpendicular" symmetry):
-    # i=1:
+
     sqpr= np.sqrt(1/p1**2+1/r1**2)
     cyp = np.cos(y/p1)
     syp = np.sin(y/p1)
@@ -343,7 +347,6 @@ def shlcar3x3(x, y, z, ps):
     hx3 = fx3*ct1+fz3*st1
     hz3 =-fx3*st1+fz3*ct1
 
-    # i=2:
     sqpr= np.sqrt(1/p2**2+1/r1**2)
     cyp = np.cos(y/p2)
     syp = np.sin(y/p2)
@@ -380,7 +383,6 @@ def shlcar3x3(x, y, z, ps):
     hx6 = fx6*ct1+fz6*st1
     hz6 =-fx6*st1+fz6*ct1
 
-    # i=3:
     sqpr= np.sqrt(1/p3**2+1/r1**2)
     cyp = np.cos(y/p3)
     syp = np.sin(y/p3)
@@ -430,8 +432,6 @@ def shlcar3x3(x, y, z, ps):
     by=a1*hy1+a2*hy2+a3*hy3+a4*hy4+a5*hy5+a6*hy6+a7*hy7+a8*hy8+a9*hy9
     bz=a1*hz1+a2*hz2+a3*hz3+a4*hz4+a5*hz5+a6*hz6+a7*hz7+a8*hz8+a9*hz9
 
-    # make the terms in the 2nd sum ("parallel" symmetry):
-    # i=1
     sqqs= np.sqrt(1/q1**2+1/s1**2)
     cyq = np.cos(y/q1)
     syq = np.sin(y/q1)
@@ -468,7 +468,6 @@ def shlcar3x3(x, y, z, ps):
     hx3 = fx3*ct2+fz3*st2
     hz3 =-fx3*st2+fz3*ct2
 
-    # i=2:
     sqqs= np.sqrt(1/q2**2+1/s1**2)
     cyq = np.cos(y/q2)
     syq = np.sin(y/q2)
@@ -505,7 +504,6 @@ def shlcar3x3(x, y, z, ps):
     hx6 = fx6*ct2+fz6*st2
     hz6 =-fx6*st2+fz6*ct2
 
-    # i=3:
     sqqs= np.sqrt(1/q3**2+1/s1**2)
     cyq = np.cos(y/q3)
     syq = np.sin(y/q3)
@@ -555,12 +553,14 @@ def shlcar3x3(x, y, z, ps):
     bx=bx+a1*hx1+a2*hx2+a3*hx3+a4*hx4+a5*hx5+a6*hx6+a7*hx7+a8*hx8+a9*hx9
     by=by+a1*hy1+a2*hy2+a3*hy3+a4*hy4+a5*hy5+a6*hy6+a7*hy7+a8*hy8+a9*hy9
     bz=bz+a1*hz1+a2*hz2+a3*hz3+a4*hz4+a5*hz5+a6*hz6+a7*hz7+a8*hz8+a9*hz9
-    
+
     return bx, by, bz
 
 
-def deformed(iopt, ps, x, y, z):
-    """This function is already vectorized, assuming sub-calls are vectorized."""
+def deformed(iopt,ps,x,y,z):
+    """
+    This function is already vectorized.
+    """
     global rh0
     rh2,ieps = [-5.2,3]
 
@@ -570,11 +570,10 @@ def deformed(iopt, ps, x, y, z):
     r_safe = np.where(r==0, 1e-9, r)
     zr = z/r_safe
     rh = rh0+rh2*zr**2
-    rh_safe = np.where(rh==0, 1e-9, rh)
-
     drhdr = -zr/r_safe*2*rh2*zr
     drhdz = 2*rh2*zr/r_safe
-    
+
+    rh_safe = np.where(rh==0, 1e-9, rh)
     rrh = r/rh_safe
     f = 1/(1+rrh**ieps)**(1/ieps)
     dfdr = -rrh**(ieps-1)*f**(ieps+1)/rh_safe
@@ -614,16 +613,20 @@ def deformed(iopt, ps, x, y, z):
     return bx1,by1,bz1, bx2,by2,bz2
 
 
-def warped(iopt, ps, x, y, z):
-    """Vectorized version of warped."""
+def warped(iopt,ps, x,y,z):
+    """
+    Vectorized version of warped.
+    """
     global g
     dgdx,xl,dxldx = [0.,20,0]
 
     sps=np.sin(ps)
     rho2=y**2+z**2
     rho=np.sqrt(rho2)
+    rho_safe = np.where(rho==0, 1e-9, rho)
 
     phi=np.arctan2(z,y)
+    # Ensure proper broadcasting for mixed scalar/array inputs
     cphi = np.where(rho != 0, y / rho, 1.0)
     sphi = np.where(rho != 0, z / rho, 0.0)
 
@@ -661,8 +664,10 @@ def warped(iopt, ps, x, y, z):
 
 
 
-def unwarped(iopt, x, y, z):
-    """This function is already vectorized, assuming sub-calls are vectorized."""
+def unwarped(iopt, x,y,z):
+    """
+    This function is already vectorized, assuming sub-calls are vectorized.
+    """
     global dxshift1, dxshift2, d, deltady
 
     deltadx1,alpha1,xshift1 = [1.,1.1,6]
@@ -730,7 +735,9 @@ def unwarped(iopt, x, y, z):
 
 
 def shlcar5x5(a,x,y,z,dshift):
-    """This function is already vectorized."""
+    """
+    This function is already vectorized.
+    """
     dhx,dhy,dhz = [np.zeros_like(x) for _ in range(3)]
 
     l=0
@@ -761,12 +768,15 @@ def shlcar5x5(a,x,y,z,dshift):
 
 
 def taildisk(d0,deltadx,deltady, x,y,z):
-    """Vectorized version of taildisk."""
+    """
+    Vectorized version of taildisk.
+    """
     f = np.array([-71.09346626,-1014.308601,-1272.939359,-3224.935936,-44546.86232])
     b = np.array([10.90101242,12.68393898,13.51791954,14.86775017,15.12306404])
     c = np.array([.7954069972,.6716601849,1.174866319,2.565249920,10.01986790])
 
     rho=np.sqrt(x**2+y**2)
+    rho_safe = np.where(rho==0, 1e-9, rho)
     drhodx = np.where(rho != 0, x / rho, 0.0)
     drhody = np.where(rho != 0, y / rho, 0.0)
 
@@ -807,14 +817,14 @@ def taildisk(d0,deltadx,deltady, x,y,z):
         s1ps2=s1+s2
         s1ps2sq=s1ps2**2
 
-        fac1=np.sqrt(np.maximum(s1ps2sq-(2*bi)**2, 0)) # Ensure non-negative
-        s1ts2_safe = np.where(s1ts2==0, 1e-9, s1ts2)
-        s1ps2_safe = np.where(s1ps2==0, 1e-9, s1ps2)
+        fac1=np.sqrt(s1ps2sq-(2*bi)**2)
         fac1_safe = np.where(fac1==0, 1e-9, fac1)
         s1_safe = np.where(s1==0, 1e-9, s1)
         s2_safe = np.where(s2==0, 1e-9, s2)
-        
-        asas=fac1_safe/(s1ts2_safe*s1ps2_safe**2)
+        s1ts2_safe = np.where(s1ts2==0, 1e-9, s1ts2)
+        s1ps2_safe = np.where(s1ps2==0, 1e-9, s1ps2)
+
+        asas=fac1_safe/(s1ts2_safe*s1ps2sq)
         dasds1=(1/(fac1_safe*s2_safe)-asas/s1ps2_safe*(s2*s2+s1*(3*s1+4*s2)))/(s1_safe*s1ps2_safe)
         dasds2=(1/(fac1_safe*s1_safe)-asas/s1ps2_safe*(s1*s1+s2*(3*s2+4*s1)))/(s2_safe*s1ps2_safe)
 
@@ -829,16 +839,14 @@ def taildisk(d0,deltadx,deltady, x,y,z):
     return dbx, dby, dbz
 
 
-def birk_tot(iopb, ps, x, y, z):
+
+def birk_tot(iopb,ps,x,y,z):
     """
-    Calculates components of the field from Birkeland field-aligned currents.
-    Vectorized version.
+    This function is already vectorized, assuming sub-calls are vectorized.
     """
     global xkappa1, xkappa2
     global dphi, b, rho_0, xkappa
 
-    # This function's structure is identical to T01's, so the same vectorized logic applies.
-    # The coefficients are hardcoded in the T04 model.
     sh11 = np.array([
         46488.84663,-15541.95244,-23210.09824,-32625.03856,-109894.4551,
         -71415.32808,58168.94612,55564.87578,-22890.60626,-6056.763968,
@@ -915,38 +923,47 @@ def birk_tot(iopb, ps, x, y, z):
         12.76722651,27.63870691,32.69873634,5.145153451,6.310949163,
         6.996159733,1.971629939,4.436299219,2.904964304,.1486276863,.06859991529])
 
-    xkappa = xkappa1
-    x_sc = xkappa1 - 1.1
+    xkappa=xkappa1
+    x_sc=xkappa1-1.1
 
     bx11,by11,bz11, bx12,by12,bz12, bx21,by21,bz21, bx22,by22,bz22 = [np.zeros_like(x) for _ in range(12)]
 
-    if (iopb == 0) or (iopb == 1):
+    if (iopb == 0) | (iopb == 1):
         fx11,fy11,fz11 = birk_1n2(1,1,ps,x,y,z)
         hx11,hy11,hz11 = birk_shl(sh11,ps,x_sc,x,y,z)
-        bx11,by11,bz11 = fx11+hx11, fy11+hy11, fz11+hz11
+        bx11=fx11+hx11
+        by11=fy11+hy11
+        bz11=fz11+hz11
 
         fx12,fy12,fz12 = birk_1n2(1,2,ps,x,y,z)
         hx12,hy12,hz12 = birk_shl(sh12,ps,x_sc,x,y,z)
-        bx12,by12,bz12 = fx12+hx12, fy12+hy12, fz12+hz12
+        bx12=fx12+hx12
+        by12=fy12+hy12
+        bz12=fz12+hz12
 
-    xkappa = xkappa2
-    x_sc = xkappa2 - 1.0
+    xkappa=xkappa2
+    x_sc=xkappa2-1.0
 
-    if (iopb == 0) or (iopb == 2):
+    if (iopb == 0) | (iopb == 2):
         fx21,fy21,fz21 = birk_1n2(2,1,ps,x,y,z)
         hx21,hy21,hz21 = birk_shl(sh21,ps,x_sc,x,y,z)
-        bx21,by21,bz21 = fx21+hx21, fy21+hy21, fz21+hz21
+        bx21=fx21+hx21
+        by21=fy21+hy21
+        bz21=fz21+hz21
 
         fx22,fy22,fz22 = birk_1n2(2,2,ps,x,y,z)
         hx22,hy22,hz22 = birk_shl(sh22,ps,x_sc,x,y,z)
-        bx22,by22,bz22 = fx22+hx22, fy22+hy22, fz22+hz22
+        bx22=fx22+hx22
+        by22=fy22+hy22
+        bz22=fz22+hz22
 
     return bx11,by11,bz11, bx12,by12,bz12, bx21,by21,bz21, bx22,by22,bz22
 
+
+
 def birk_1n2(numb,mode,ps,x,y,z):
     """
-    Calculates field components for a model Birkeland current field.
-    Vectorized version.
+    This function is already vectorized, assuming sub-calls are vectorized.
     """
     global dtheta, m, dphi, b, rho_0, xkappa
 
@@ -1047,10 +1064,10 @@ def birk_1n2(numb,mode,ps,x,y,z):
     return bx,by,bz
 
 
-def twocones(a,x,y,z):
+
+def twocones (a,x,y,z):
     """
-    Computes field of a model ring current by two cones.
-    Vectorized version.
+    This function is already vectorized, assuming sub-calls are vectorized.
     """
     bxn,byn,bzn = one_cone(a,x, y, z)
     bxs,bys,bzs = one_cone(a,x,-y,-z)
@@ -1060,11 +1077,9 @@ def twocones(a,x,y,z):
 
     return bx,by,bz
 
-
 def one_cone(a,x,y,z):
     """
-    Computes field components for a conical current system.
-    Vectorized version.
+    Vectorized version of one_cone.
     """
     global dtheta, m
 
@@ -1113,33 +1128,27 @@ def one_cone(a,x,y,z):
 
     return bx,by,bz
 
-
 def r_s(a,r,theta):
     """
-    Computes shifted radial distance for the Birkeland current model.
-    Vectorized version.
+    This function is already vectorized.
     """
     r_safe = np.where(r==0, 1e-9, r)
     return r+a[1]/r_safe+a[2]*r/np.sqrt(r**2+a[10]**2)+a[3]*r/(r**2+a[11]**2) \
         +(a[4]+a[5]/r_safe+a[6]*r/np.sqrt(r**2+a[12]**2)+a[7]*r/(r**2+a[13]**2))*np.cos(theta) \
         +(a[8]*r/np.sqrt(r**2+a[14]**2)+a[9]*r/(r**2+a[15]**2)**2)*np.cos(2*theta)
 
-
 def theta_s(a,r,theta):
     """
-    Computes shifted theta angle for the Birkeland current model.
-    Vectorized version.
+    This function is already vectorized.
     """
     r_safe = np.where(r==0, 1e-9, r)
     return theta+(a[16]+a[17]/r_safe+a[18]/r_safe**2+a[19]*r/np.sqrt(r**2+a[26]**2))*np.sin(theta) \
         +(a[20]+a[21]*r/np.sqrt(r**2+a[27]**2)+a[22]*r/(r**2+a[28]**2))*np.sin(2*theta) \
         +(a[23]+a[24]/r_safe+a[25]*r/(r**2+a[29]**2))*np.sin(3*theta)
 
-
 def fialcos(r,theta,phi,n,theta0,dt):
     """
-    Calculates field components in Fialco coordinates.
-    Vectorized version.
+    Vectorized version of fialcos.
     """
     r, theta, phi = np.atleast_1d(r, theta, phi)
 
@@ -1206,8 +1215,7 @@ def fialcos(r,theta,phi,n,theta0,dt):
 
 def birk_shl(a,ps,x_sc, x,y,z):
     """
-    Calculates GSM components of the external field due to Birkeland currents.
-    Vectorized version.
+    This function is already vectorized.
     """
     cps=np.cos(ps)
     sps=np.sin(ps)
@@ -1284,10 +1292,10 @@ def birk_shl(a,ps,x_sc, x,y,z):
     return bx,by,bz
 
 
+
 def full_rc(iopr,ps,x,y,z):
     """
-    Calculates GSM field components from full ring current.
-    Vectorized version.
+    This function is already vectorized, assuming sub-calls are vectorized.
     """
     global sc_sy, sc_pr, phi
 
@@ -1354,10 +1362,10 @@ def full_rc(iopr,ps,x,y,z):
     return bxsrc,bysrc,bzsrc,bxprc,byprc,bzprc
 
 
+
 def src_prc(iopr,sc_sy,sc_pr,phi,ps, x,y,z):
     """
-    Returns field components from symmetric/partial ring current.
-    Vectorized version.
+    This function is already vectorized, assuming sub-calls are vectorized.
     """
     cps=np.cos(ps)
     sps=np.sin(ps)
@@ -1407,15 +1415,9 @@ def src_prc(iopr,sc_sy,sc_pr,phi,ps, x,y,z):
     return bxsrc,bysrc,bzsrc, bxprc,byprc,bzprc
 
 
-# Create aliases for compatibility
-SRC_PRC = src_prc
-RC_SHIELD = rc_shield = None  # Will be defined below
-
-
 def rc_symm(x,y,z):
     """
-    Calculates field of the symmetric part of ring current.
-    Vectorized version.
+    Vectorized version of rc_symm.
     """
     ds = 1e-2
     dc = 0.99994999875
@@ -1461,11 +1463,9 @@ def rc_symm(x,y,z):
 
     return bx, by, bz
 
-
 def ap(r,sint,cost):
     """
-    Computes the azimuthal component of the vector potential.
-    Vectorized version.
+    Vectorized version of ap.
     """
     a1,a2,rrc1,dd1,rrc2,dd2,p1,r1,dr1,dla1,p2,r2,dr2,dla2,p3,r3,dr3 = [
         -456.5289941, 375.9055332, 4.274684950, 2.439528329, 3.367557287,
@@ -1543,8 +1543,7 @@ def ap(r,sint,cost):
 
 def prc_symm(x,y,z):
     """
-    Calculates field of the symmetric part of partial ring current.
-    Vectorized version.
+    Vectorized version of prc_symm.
     """
     ds = 1e-2
     dc = 0.99994999875
@@ -1590,11 +1589,9 @@ def prc_symm(x,y,z):
 
     return bx, by, bz
 
-
 def apprc(r,sint,cost):
     """
-    Computes the azimuthal component of the vector potential for partial ring current.
-    Vectorized version.
+    Vectorized version of apprc.
     """
     a1,a2,rrc1,dd1,rrc2,dd2,p1,alpha1,dal1,beta1,dg1,p2,alpha2,dal2,beta2,dg2,beta3,p3,\
     alpha3,dal3,beta4,dg3,beta5,q0,q1,alpha4,dal4,dg4,q2,alpha5,dal5,dg5,beta6,beta7 = [
@@ -1678,8 +1675,7 @@ def apprc(r,sint,cost):
 
 def prc_quad(x,y,z):
     """
-    Calculates field of the quadrupole part of partial ring current.
-    Vectorized version.
+    Vectorized version of prc_quad.
     """
     d  = 1e-4
     dd = 2e-4
@@ -1734,11 +1730,9 @@ def prc_quad(x,y,z):
 
     return bx,by,bz
 
-
 def br_prc_q(r,sint,cost):
     """
-    Calculates radial component of the partial ring current field.
-    Vectorized version.
+    This function is already vectorized, assuming sub-calls are vectorized.
     """
     a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15,a16,a17,a18,xk1,al1,dal1,b1,be1,xk2,al2,dal2,b2,be2,xk3,xk4,al3,dal3,b3,be3,al4,dal4,dg1,al5,dal5,dg2,c1,c2,c3,al6,dal6,drm = [
         -21.2666329, 32.24527521, -6.062894078, 7.515660734, 233.7341288,
@@ -1798,11 +1792,9 @@ def br_prc_q(r,sint,cost):
 
     return br_val
 
-
 def bt_prc_q(r,sint,cost):
     """
-    Calculates theta component of the partial ring current field.
-    Vectorized version.
+    This function is already vectorized, assuming sub-calls are vectorized.
     """
     a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15,a16,a17,xk1,al1,dal1,b1,be1,xk2,al2,dal2,be2,xk3,xk4,al3,dal3,b3,be3,al4,dal4,dg1,al5,dal5,dg2,c1,c2,c3 = [
         12.74640393, -7.516393516, -5.476233865, 3.212704645, -59.10926169,
@@ -1857,11 +1849,9 @@ def bt_prc_q(r,sint,cost):
 
     return bt_val
 
-
 def ffs(a, a0, da):
     """
-    Calculates field line mapping transformation.
-    Vectorized version.
+    This function is already vectorized.
     """
     sq1 = np.sqrt((a + a0) ** 2 + da ** 2)
     sq2 = np.sqrt((a - a0) ** 2 + da ** 2)
@@ -1878,8 +1868,7 @@ def ffs(a, a0, da):
 
 def rc_shield(a,ps,x_sc,x,y,z):
     """
-    Calculates GSM field components for the ring current shield.
-    Vectorized version.
+    This function is already vectorized.
     """
     fac_sc = (x_sc+1)**3
 
@@ -1958,14 +1947,9 @@ def rc_shield(a,ps,x_sc,x,y,z):
     return bx, by, bz
 
 
-# Update the rc_shield alias
-RC_SHIELD = rc_shield
-
-
 def dipole(ps, x, y, z):
     """
-    Calculates GSM components of a geo-dipole field.
-    Vectorized version.
+    This function is already vectorized.
     """
     q0 = 30115.
 
@@ -1983,7 +1967,3 @@ def dipole(ps, x, y, z):
     bz = q * ((x2 + y2 - 2 * z2) * cps - xz3 * sps)
 
     return bx, by, bz
-
-
-# Alias for compatibility
-t04 = t04_vectorized

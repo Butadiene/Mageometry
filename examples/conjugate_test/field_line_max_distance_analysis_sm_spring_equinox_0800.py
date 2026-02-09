@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import geopack
 from geopack.trace_field_lines_vectorized import trace_vectorized
 from geopack.vectorized import t89_vectorized
-from geopack.coordinates_vectorized import smgsm_vectorized
+from geopack.vectorized.coordinates import smgsm_vectorized
 
 
 def create_sm_grid(radius=1.0, nlat=20, nlon=48):

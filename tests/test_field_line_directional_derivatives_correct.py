@@ -8,7 +8,7 @@ import numpy as np
 import unittest
 from geopack import recalc
 from geopack.vectorized import t96_vectorized
-from geopack.vectorized.field_line_directional_derivatives_new import (
+from geopack.vectorized.field_line_directional_derivatives import (
     field_line_directional_derivatives_vectorized,
     verify_antisymmetry_relations,
     get_curvature_torsion_from_derivatives

@@ -25,7 +25,7 @@ from matplotlib.collections import LineCollection
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from geopack import recalc, dip
-from geopack.coordinates_vectorized import smgsm_vectorized
+from geopack.vectorized.coordinates import smgsm_vectorized
 from geopack.vectorized import (
     field_line_directional_derivatives_vectorized,
     verify_antisymmetry_relations,

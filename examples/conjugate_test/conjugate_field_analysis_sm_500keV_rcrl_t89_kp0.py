@@ -19,8 +19,8 @@ import geopack
 from geopack.trace_field_lines_vectorized import trace_vectorized
 from geopack.vectorized import t89_vectorized
 from geopack.vectorized.field_line_geometry_vectorized import field_line_curvature_vectorized
-from geopack.vectorized.field_line_directional_derivatives_new import field_line_directional_derivatives_vectorized
-from geopack.coordinates_vectorized import smgsm_vectorized
+from geopack.vectorized.field_line_directional_derivatives import field_line_directional_derivatives_vectorized
+from geopack.vectorized.coordinates import smgsm_vectorized
 
 
 def create_sm_grid(radius=1.0, nlat=8, nlon=8):

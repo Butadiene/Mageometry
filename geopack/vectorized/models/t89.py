@@ -17,7 +17,7 @@ numerical accuracy.
 import numpy as np
 
 
-def t89_vectorized(iopt, ps, x, y, z):
+def t89(iopt, ps, x, y, z):
     """
     Vectorized version of the T89 magnetic field model.
     
