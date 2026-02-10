@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Example demonstrating magnetic field line geometry analysis.
 
@@ -37,10 +36,8 @@ def _loop_vectorize_xyz(func, x, y, z, *args):
     if x.shape == () and y.shape == () and z.shape == ():
         return func(*args, float(x), float(y), float(z))
 
-    # Array
-    if not (x.shape == y.shape == z.shape):
-        # try broadcast
-        x, y, z = np.broadcast_arrays(x, y, z)
+    # Array (broadcast allowed)
+    x, y, z = np.broadcast_arrays(x, y, z)
 
     bx = np.empty_like(x, dtype=float)
     by = np.empty_like(x, dtype=float)
@@ -75,8 +72,8 @@ def b_igrf_plus_t96_vectorized(parmod, ps, x, y, z):
     Signature matches Tsyganenko model funcs used by the geometry utilities:
         func(parmod, ps, x, y, z) -> (bx, by, bz)
     """
-    bix, biy, biz = igrf_internal_gsm(x, y, z)                 # internal
-    bex, bey, bez = t96_vectorized(parmod, ps, x, y, z)        # external
+    bix, biy, biz = igrf_internal_gsm(x, y, z)  # internal
+    bex, bey, bez = t96_vectorized(parmod, ps, x, y, z)  # external
     return bix + bex, biy + bey, biz + bez
 
 

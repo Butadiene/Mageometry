@@ -69,8 +69,8 @@ def b_igrf_plus_t96_vectorized(parmod, ps, x, y, z):
     Signature must match:
         func(parmod, ps, x, y, z) -> (bx, by, bz)
     """
-    bix, biy, biz = igrf_internal_gsm(x, y, z)          # internal
-    bex, bey, bez = t96_vectorized(parmod, ps, x, y, z) # external
+    bix, biy, biz = igrf_internal_gsm(x, y, z)  # internal
+    bex, bey, bez = t96_vectorized(parmod, ps, x, y, z)  # external
     return bix + bex, biy + bey, biz + bez
 
 

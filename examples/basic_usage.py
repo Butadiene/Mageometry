@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 Basic usage examples for the Geopack library.
 
@@ -11,10 +10,6 @@ Notes:
 - IGRF is computed as internal field; T96 as external field.
 """
 
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import numpy as np
 import datetime
 import time
@@ -26,8 +21,8 @@ import geopack
 # ----------------------------
 def _loop_vectorize_xyz(func, x, y, z, *args):
     """
-    Fallback vectorizer for (x,y,z)->(bx,by,bz) style funcs.
-    Works for both scalar and array inputs.
+    Fallback vectorizer for funcs returning (bx,by,bz) given (x,y,z).
+    Supports scalar or array inputs.
     """
     x = np.asarray(x)
     y = np.asarray(y)
@@ -37,9 +32,8 @@ def _loop_vectorize_xyz(func, x, y, z, *args):
     if x.shape == () and y.shape == () and z.shape == ():
         return func(*args, float(x), float(y), float(z))
 
-    # Array
-    if not (x.shape == y.shape == z.shape):
-        raise ValueError("x, y, z must have the same shape.")
+    # Array (broadcast allowed)
+    x, y, z = np.broadcast_arrays(x, y, z)
 
     bx = np.empty_like(x, dtype=float)
     by = np.empty_like(x, dtype=float)
