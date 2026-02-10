@@ -70,7 +70,7 @@ pip install -e .
 
 ## Usage Examples
 
-All vectorized functions accept both scalars and NumPy arrays. Call `geopack.recalc(ut)` once before using any model or transform. See [`examples/readme_examples.py`](examples/readme_examples.py) for a runnable version of the code below.
+All vectorized functions accept both scalars and NumPy arrays. Call `geopack.recalc(ut)` once before using any model or transform. See [`examples/readme_examples.py`](examples/readme_examples.py) for a runnable version of the code below. For detailed function descriptions, please also refer to the [upstream geopack README](https://github.com/tsssss/geopack).
 
 ```python
 import geopack
@@ -125,12 +125,14 @@ bx, by, bz = t96_vectorized(parmod, ps, x, y, z)  # returns nT in GSM
 ```python
 from geopack import trace_vectorized
 
-# Trace multiple field lines simultaneously
+# Trace using dipole (internal) + T96 (external)
 x0 = np.array([5.0, 6.0, 7.0, 8.0])
 y0 = np.zeros(4)
 z0 = np.zeros(4)
 
-xf, yf, zf, status = trace_vectorized(x0, y0, z0, dir=-1, rlim=30)
+xf, yf, zf, status = trace_vectorized(
+    x0, y0, z0, dir=-1, rlim=30, parmod=parmod, exname="t96", inname="dip"
+)
 # status: 0 = hit inner boundary, 1 = hit outer boundary, 2 = max steps
 ```
 
@@ -138,26 +140,32 @@ xf, yf, zf, status = trace_vectorized(x0, y0, z0, dir=-1, rlim=30)
 ```python
 from geopack import field_line_curvature_vectorized, field_line_frenet_frame_vectorized
 
+# Combined model: dipole (internal) + T96 (external)
+def dip_plus_t96(parmod, ps, x, y, z):
+    bx_d, by_d, bz_d = geopack.dip(x, y, z)
+    bx_t, by_t, bz_t = t96_vectorized(parmod, ps, x, y, z)
+    return bx_d + bx_t, by_d + by_t, bz_d + bz_t
+
 # Curvature at several points along the noon meridian
 x = np.array([5.0, 6.0, 7.0, 8.0])
 y = np.zeros(4)
 z = np.zeros(4)
 
-kappa = field_line_curvature_vectorized(t96_vectorized, parmod, ps, x, y, z)
+kappa = field_line_curvature_vectorized(dip_plus_t96, parmod, ps, x, y, z)
 # kappa: field line curvature in 1/Re
 
 # Full Frenet-Serret frame (tangent, normal, binormal) + curvature
 tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = \
-    field_line_frenet_frame_vectorized(t96_vectorized, parmod, ps, x, y, z)
+    field_line_frenet_frame_vectorized(dip_plus_t96, parmod, ps, x, y, z)
 ```
 
 ### Field Line Directional Derivatives
 ```python
 from geopack import field_line_directional_derivatives_vectorized
 
-# All 9 directional derivatives of the Frenet-Serret frame
+# All 9 directional derivatives (using combined dipole + T96 model)
 derivs = field_line_directional_derivatives_vectorized(
-    t96_vectorized, parmod, ps, x, y, z
+    dip_plus_t96, parmod, ps, x, y, z
 )
 
 # Tangential derivatives (∂/∂T)

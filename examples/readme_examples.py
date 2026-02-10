@@ -64,33 +64,41 @@ for i in range(len(x)):
     print(f"  r = {x[i]} Re -> B = ({bx[i]:.2f}, {by[i]:.2f}, {bz[i]:.2f}) nT")
 
 # --- 4. Field Line Tracing ---
-# Trace multiple field lines simultaneously
+# Trace using dipole (internal) + T96 (external)
 x0 = np.array([5.0, 6.0, 7.0, 8.0])
 y0 = np.zeros(4)
 z0 = np.zeros(4)
 
-xf, yf, zf, status = trace_vectorized(x0, y0, z0, dir=-1, rlim=30)
+xf, yf, zf, status = trace_vectorized(
+    x0, y0, z0, dir=-1, rlim=30, parmod=parmod, exname="t96", inname="dip"
+)
 # status: 0 = hit inner boundary, 1 = hit outer boundary, 2 = max steps
-print("\n=== Field Line Tracing ===")
+print("\n=== Field Line Tracing (dipole + T96) ===")
 status_labels = {0: "inner boundary", 1: "outer boundary", 2: "max steps"}
 for i in range(len(x0)):
     print(f"  start ({x0[i]}, {y0[i]}, {z0[i]}) -> end ({xf[i]:.4f}, {yf[i]:.4f}, {zf[i]:.4f})  status: {status_labels.get(int(status[i]), '?')}")
 
 # --- 5. Field Line Geometry (Frenet-Serret Frame) ---
+# Combined model: dipole (internal) + T96 (external)
+def dip_plus_t96(parmod, ps, x, y, z):
+    bx_d, by_d, bz_d = geopack.dip(x, y, z)
+    bx_t, by_t, bz_t = t96_vectorized(parmod, ps, x, y, z)
+    return bx_d + bx_t, by_d + by_t, bz_d + bz_t
+
 # Curvature at several points along the noon meridian
 x = np.array([5.0, 6.0, 7.0, 8.0])
 y = np.zeros(4)
 z = np.zeros(4)
 
-kappa = field_line_curvature_vectorized(t96_vectorized, parmod, ps, x, y, z)
-print("\n=== Field Line Curvature ===")
+kappa = field_line_curvature_vectorized(dip_plus_t96, parmod, ps, x, y, z)
+print("\n=== Field Line Curvature (dipole + T96) ===")
 for i in range(len(x)):
     print(f"  r = {x[i]} Re -> curvature = {kappa[i]:.6f} 1/Re")
 
 # Full Frenet-Serret frame (tangent, normal, binormal) + curvature
 tx, ty, tz, nx, ny, nz, bnx, bny, bnz, curvature = \
-    field_line_frenet_frame_vectorized(t96_vectorized, parmod, ps, x, y, z)
-print("\n=== Frenet-Serret Frame ===")
+    field_line_frenet_frame_vectorized(dip_plus_t96, parmod, ps, x, y, z)
+print("\n=== Frenet-Serret Frame (dipole + T96) ===")
 for i in range(len(x)):
     print(f"  r = {x[i]} Re -> T=({tx[i]:.4f}, {ty[i]:.4f}, {tz[i]:.4f})  "
           f"N=({nx[i]:.4f}, {ny[i]:.4f}, {nz[i]:.4f})  "
@@ -98,7 +106,7 @@ for i in range(len(x)):
 
 # --- 6. Field Line Directional Derivatives ---
 derivs = field_line_directional_derivatives_vectorized(
-    t96_vectorized, parmod, ps, x, y, z
+    dip_plus_t96, parmod, ps, x, y, z
 )
 print("\n=== Field Line Directional Derivatives ===")
 
