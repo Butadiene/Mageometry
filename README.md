@@ -70,7 +70,7 @@ pip install -e .
 
 ## Usage Examples
 
-All vectorized functions accept both scalars and NumPy arrays. Call `geopack.recalc(ut)` once before using any model or transform.
+All vectorized functions accept both scalars and NumPy arrays. Call `geopack.recalc(ut)` once before using any model or transform. See [`examples/readme_examples.py`](examples/readme_examples.py) for a runnable version of the code below.
 
 ```python
 import geopack
