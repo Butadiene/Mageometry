@@ -395,23 +395,41 @@ def trace(
     """
     Vectorized version of scalar geopack.trace().
 
-    Parameters are the same intent as scalar:
-      xi,yi,zi: GSM coords (Re), should be outside r0 to start properly
-      dir: +1 (antiparallel), -1 (parallel)
-      rlim: outer boundary
-      r0: inner boundary sphere
-      parmod, exname, inname: models
-      maxloop: maximum number of integration steps
-      return_full_path: if True, returns masked arrays (n_traces, maxloop+1)
-      strict_scalar_models: if True, evaluate B models pointwise to maximize exact match
-      return_nsteps: if True, also returns per-trace step counts (number of accepted steps)
+    Parameters
+    ----------
+    xi, yi, zi : float or array_like
+        GSM coordinates in Re. Should be outside r0 to start properly.
+    dir : float, optional
+        Tracing direction: +1 (antiparallel), -1 (parallel). Default 1.0.
+    rlim : float, optional
+        Outer boundary radius in Re. Default 10.0.
+    r0 : float, optional
+        Inner boundary sphere radius in Re. Default 1.0.
+    parmod : array_like, optional
+        Model parameters. Default 2.
+    exname : str, optional
+        External field model name. Default 't89'.
+    inname : str, optional
+        Internal field model name. Default 'igrf'.
+    maxloop : int, optional
+        Maximum number of integration steps. Default 1000.
+    return_full_path : bool, optional
+        If True, returns masked arrays (n_traces, maxloop+1). Default False.
+    strict_scalar_models : bool, optional
+        If True, evaluate B models pointwise to maximize exact match. Default True.
+    return_nsteps : bool, optional
+        If True, also returns per-trace step counts. Default False.
 
-    Returns:
-      xf,yf,zf,status   (and optionally xx,yy,zz and nsteps)
-    status codes (same spirit as your version):
-      0 = hit inner boundary (stopped)
-      1 = hit outer boundary
-      2 = exceeded maxloop
+    Returns
+    -------
+    xf, yf, zf : float or ndarray
+        Final position coordinates in GSM.
+    status : int or ndarray
+        Status codes: 0 = hit inner boundary, 1 = hit outer boundary, 2 = exceeded maxloop.
+    xx, yy, zz : ndarray, optional
+        Full path arrays (returned only if return_full_path=True).
+    nsteps : int or ndarray, optional
+        Per-trace step counts (returned only if return_nsteps=True).
     """
     scalar_input = np.isscalar(xi) and np.isscalar(yi) and np.isscalar(zi)
 

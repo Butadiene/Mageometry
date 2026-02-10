@@ -12,15 +12,15 @@ def sphcar(r, theta, phi, j):
     """
     Vectorized transformation between spherical and Cartesian coordinates.
     
-    Parameters:
-    -----------
-    r, theta, phi : float or array-like
+    Parameters
+    ----------
+    r, theta, phi : float or array_like
         Input coordinates (spherical if j>0, interpreted as x,y,z if j<0)
     j : int
         Direction flag: j>0 for spherical→Cartesian, j<0 for Cartesian→spherical
         
-    Returns:
-    --------
+    Returns
+    -------
     tuple of (float or ndarray)
         Transformed coordinates (x,y,z if j>0, r,theta,phi if j<0)
     """
@@ -68,15 +68,15 @@ def bspcar(theta, phi, br, btheta, bphi):
     """
     Vectorized transformation of magnetic field components from spherical to Cartesian.
     
-    Parameters:
-    -----------
-    theta, phi : float or array-like
+    Parameters
+    ----------
+    theta, phi : float or array_like
         Spherical coordinate angles
-    br, btheta, bphi : float or array-like
+    br, btheta, bphi : float or array_like
         Magnetic field components in spherical coordinates
         
-    Returns:
-    --------
+    Returns
+    -------
     tuple of (float or ndarray)
         Magnetic field components in Cartesian coordinates (bx, by, bz)
     """
@@ -113,15 +113,15 @@ def bcarsp(x, y, z, bx, by, bz):
     """
     Vectorized transformation of magnetic field components from Cartesian to spherical.
     
-    Parameters:
-    -----------
-    x, y, z : float or array-like
+    Parameters
+    ----------
+    x, y, z : float or array_like
         Cartesian coordinates
-    bx, by, bz : float or array-like
+    bx, by, bz : float or array_like
         Magnetic field components in Cartesian coordinates
         
-    Returns:
-    --------
+    Returns
+    -------
     tuple of (float or ndarray)
         Magnetic field components in spherical coordinates (br, btheta, bphi)
     """

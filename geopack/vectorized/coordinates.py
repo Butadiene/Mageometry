@@ -21,15 +21,15 @@ def gsmgse(xgsm, ygsm, zgsm, j):
     """
     Vectorized transformation between GSM and GSE coordinates.
     
-    Parameters:
-    -----------
-    xgsm, ygsm, zgsm : float or array-like
+    Parameters
+    ----------
+    xgsm, ygsm, zgsm : float or array_like
         Input coordinates (GSM if j>0, GSE if j<0)
     j : int
         Direction flag: j>0 for GSM→GSE, j<0 for GSE→GSM
         
-    Returns:
-    --------
+    Returns
+    -------
     tuple of (float or ndarray)
         Transformed coordinates (GSE if j>0, GSM if j<0)
     """
@@ -70,15 +70,15 @@ def geigeo(xgei, ygei, zgei, j):
     """
     Vectorized transformation between GEI and GEO coordinates.
     
-    Parameters:
-    -----------
-    xgei, ygei, zgei : float or array-like
+    Parameters
+    ----------
+    xgei, ygei, zgei : float or array_like
         Input coordinates (GEI if j>0, GEO if j<0)
     j : int
         Direction flag: j>0 for GEI→GEO, j<0 for GEO→GEI
         
-    Returns:
-    --------
+    Returns
+    -------
     tuple of (float or ndarray)
         Transformed coordinates (GEO if j>0, GEI if j<0)
     """
@@ -119,15 +119,15 @@ def magsm(xmag, ymag, zmag, j):
     """
     Vectorized transformation between MAG and SM coordinates.
     
-    Parameters:
-    -----------
-    xmag, ymag, zmag : float or array-like
+    Parameters
+    ----------
+    xmag, ymag, zmag : float or array_like
         Input coordinates (MAG if j>0, SM if j<0)
     j : int
         Direction flag: j>0 for MAG→SM, j<0 for SM→MAG
         
-    Returns:
-    --------
+    Returns
+    -------
     tuple of (float or ndarray)
         Transformed coordinates (SM if j>0, MAG if j<0)
     """
@@ -168,15 +168,15 @@ def smgsm(xsm, ysm, zsm, j):
     """
     Vectorized transformation between SM and GSM coordinates.
     
-    Parameters:
-    -----------
-    xsm, ysm, zsm : float or array-like
+    Parameters
+    ----------
+    xsm, ysm, zsm : float or array_like
         Input coordinates (SM if j>0, GSM if j<0)
     j : int
         Direction flag: j>0 for SM→GSM, j<0 for GSM→SM
         
-    Returns:
-    --------
+    Returns
+    -------
     tuple of (float or ndarray)
         Transformed coordinates (GSM if j>0, SM if j<0)
     """
@@ -217,15 +217,15 @@ def geomag(xgeo, ygeo, zgeo, j):
     """
     Vectorized transformation between GEO and MAG coordinates.
     
-    Parameters:
-    -----------
-    xgeo, ygeo, zgeo : float or array-like
+    Parameters
+    ----------
+    xgeo, ygeo, zgeo : float or array_like
         Input coordinates (GEO if j>0, MAG if j<0)
     j : int
         Direction flag: j>0 for GEO→MAG, j<0 for MAG→GEO
         
-    Returns:
-    --------
+    Returns
+    -------
     tuple of (float or ndarray)
         Transformed coordinates (MAG if j>0, GEO if j<0)
     """
@@ -273,15 +273,15 @@ def geogsm(xgeo, ygeo, zgeo, j):
     """
     Vectorized transformation between GEO and GSM coordinates.
     
-    Parameters:
-    -----------
-    xgeo, ygeo, zgeo : float or array-like
+    Parameters
+    ----------
+    xgeo, ygeo, zgeo : float or array_like
         Input coordinates (GEO if j>0, GSM if j<0)
     j : int
         Direction flag: j>0 for GEO→GSM, j<0 for GSM→GEO
         
-    Returns:
-    --------
+    Returns
+    -------
     tuple of (float or ndarray)
         Transformed coordinates (GSM if j>0, GEO if j<0)
     """
@@ -329,15 +329,15 @@ def gswgsm(xgsw, ygsw, zgsw, j):
     """
     Vectorized transformation between GSW and GSM coordinates.
     
-    Parameters:
-    -----------
-    xgsw, ygsw, zgsw : float or array-like
+    Parameters
+    ----------
+    xgsw, ygsw, zgsw : float or array_like
         Input coordinates (GSW if j>0, GSM if j<0)
     j : int
         Direction flag: j>0 for GSW→GSM, j<0 for GSM→GSW
         
-    Returns:
-    --------
+    Returns
+    -------
     tuple of (float or ndarray)
         Transformed coordinates (GSM if j>0, GSW if j<0)
     """
