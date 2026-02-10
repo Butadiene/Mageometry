@@ -1,15 +1,21 @@
 """
 Usage examples from the README.
 
-Demonstrates the four core vectorized capabilities:
+Demonstrates the six core vectorized capabilities:
   1. Coordinate transformations
   2. IGRF internal field
   3. Tsyganenko external field models
   4. Field line tracing
+  5. Field line geometry (Frenet-Serret frame)
+  6. Field line directional derivatives
 """
 
 import geopack
-from geopack import geogsm_vectorized, igrf_gsm_vectorized, t96_vectorized, trace_vectorized
+from geopack import (
+    geogsm_vectorized, igrf_gsm_vectorized, t96_vectorized, trace_vectorized,
+    field_line_curvature_vectorized, field_line_frenet_frame_vectorized,
+    field_line_directional_derivatives_vectorized,
+)
 import numpy as np
 
 # --- Setup ---
@@ -38,6 +44,12 @@ print("\n=== IGRF Internal Field (GSM) ===")
 for i in range(len(x)):
     print(f"  r = {x[i]} Re -> B = ({bx[i]:.2f}, {by[i]:.2f}, {bz[i]:.2f}) nT")
 
+# Dipole field at the same positions (accepts scalars or arrays)
+dx, dy, dz = geopack.dip(x, y, z)
+print("\n=== Dipole Internal Field (GSM) ===")
+for i in range(len(x)):
+    print(f"  r = {x[i]} Re -> B = ({dx[i]:.2f}, {dy[i]:.2f}, {dz[i]:.2f}) nT")
+
 # --- 3. Tsyganenko External Field Models ---
 # T96 parameters: [Pdyn, Dst, ByIMF, BzIMF, 0, 0, 0, 0, 0, 0]
 parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
@@ -63,3 +75,50 @@ print("\n=== Field Line Tracing ===")
 status_labels = {0: "inner boundary", 1: "outer boundary", 2: "max steps"}
 for i in range(len(x0)):
     print(f"  start ({x0[i]}, {y0[i]}, {z0[i]}) -> end ({xf[i]:.4f}, {yf[i]:.4f}, {zf[i]:.4f})  status: {status_labels.get(int(status[i]), '?')}")
+
+# --- 5. Field Line Geometry (Frenet-Serret Frame) ---
+# Curvature at several points along the noon meridian
+x = np.array([5.0, 6.0, 7.0, 8.0])
+y = np.zeros(4)
+z = np.zeros(4)
+
+kappa = field_line_curvature_vectorized(t96_vectorized, parmod, ps, x, y, z)
+print("\n=== Field Line Curvature ===")
+for i in range(len(x)):
+    print(f"  r = {x[i]} Re -> curvature = {kappa[i]:.6f} 1/Re")
+
+# Full Frenet-Serret frame (tangent, normal, binormal) + curvature
+tx, ty, tz, nx, ny, nz, bnx, bny, bnz, curvature = \
+    field_line_frenet_frame_vectorized(t96_vectorized, parmod, ps, x, y, z)
+print("\n=== Frenet-Serret Frame ===")
+for i in range(len(x)):
+    print(f"  r = {x[i]} Re -> T=({tx[i]:.4f}, {ty[i]:.4f}, {tz[i]:.4f})  "
+          f"N=({nx[i]:.4f}, {ny[i]:.4f}, {nz[i]:.4f})  "
+          f"B=({bnx[i]:.4f}, {bny[i]:.4f}, {bnz[i]:.4f})")
+
+# --- 6. Field Line Directional Derivatives ---
+derivs = field_line_directional_derivatives_vectorized(
+    t96_vectorized, parmod, ps, x, y, z
+)
+print("\n=== Field Line Directional Derivatives ===")
+
+# All 9 components, grouped by derivative direction
+labels = [
+    # Tangential derivatives (∂/∂T)
+    ("(∂T/∂T)·n = κ", "dT_dT_n"),
+    ("(∂T/∂T)·b    ", "dT_dT_b"),
+    ("(∂n/∂T)·b = τ", "dn_dT_b"),
+    # Normal derivatives (∂/∂n)
+    ("(∂T/∂n)·n    ", "dT_dn_n"),
+    ("(∂T/∂n)·b    ", "dT_dn_b"),
+    ("(∂n/∂n)·b    ", "dn_dn_b"),
+    # Binormal derivatives (∂/∂b)
+    ("(∂n/∂b)·b    ", "dn_db_b"),
+    ("(∂n/∂b)·T    ", "dn_db_T"),
+    ("(∂b/∂b)·T    ", "db_db_T"),
+]
+for i in range(len(x)):
+    print(f"  r = {x[i]} Re:")
+    for label, key in labels:
+        print(f"    {label} = {derivs[key][i]:+.6f}")
+    print()

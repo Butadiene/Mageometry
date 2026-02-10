@@ -102,6 +102,9 @@ y = np.zeros(4)
 z = np.zeros(4)
 
 bx, by, bz = igrf_gsm_vectorized(x, y, z)  # returns nT
+
+# Dipole field at the same positions (accepts scalars or arrays)
+dx, dy, dz = geopack.dip(x, y, z)
 ```
 
 ### Tsyganenko External Field Models
@@ -129,6 +132,48 @@ z0 = np.zeros(4)
 
 xf, yf, zf, status = trace_vectorized(x0, y0, z0, dir=-1, rlim=30)
 # status: 0 = hit inner boundary, 1 = hit outer boundary, 2 = max steps
+```
+
+### Field Line Geometry (Frenet-Serret Frame)
+```python
+from geopack import field_line_curvature_vectorized, field_line_frenet_frame_vectorized
+
+# Curvature at several points along the noon meridian
+x = np.array([5.0, 6.0, 7.0, 8.0])
+y = np.zeros(4)
+z = np.zeros(4)
+
+kappa = field_line_curvature_vectorized(t96_vectorized, parmod, ps, x, y, z)
+# kappa: field line curvature in 1/Re
+
+# Full Frenet-Serret frame (tangent, normal, binormal) + curvature
+tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = \
+    field_line_frenet_frame_vectorized(t96_vectorized, parmod, ps, x, y, z)
+```
+
+### Field Line Directional Derivatives
+```python
+from geopack import field_line_directional_derivatives_vectorized
+
+# All 9 directional derivatives of the Frenet-Serret frame
+derivs = field_line_directional_derivatives_vectorized(
+    t96_vectorized, parmod, ps, x, y, z
+)
+
+# Tangential derivatives (∂/∂T)
+# derivs['dT_dT_n']  (∂T/∂T)·n = κ (curvature)
+# derivs['dT_dT_b']  (∂T/∂T)·b = 0 (identity)
+# derivs['dn_dT_b']  (∂n/∂T)·b = τ (torsion)
+
+# Normal derivatives (∂/∂n)
+# derivs['dT_dn_n']  (∂T/∂n)·n
+# derivs['dT_dn_b']  (∂T/∂n)·b
+# derivs['dn_dn_b']  (∂n/∂n)·b
+
+# Binormal derivatives (∂/∂b)
+# derivs['dn_db_b']  (∂n/∂b)·b
+# derivs['dn_db_T']  (∂n/∂b)·T
+# derivs['db_db_T']  (∂b/∂b)·T
 ```
 
 ## Vectorized Components
