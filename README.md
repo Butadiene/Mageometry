@@ -68,145 +68,67 @@ cd geopack-vectorize
 pip install -e .
 ```
 
-### Quick Test
+## Usage Examples
+
+All vectorized functions accept both scalars and NumPy arrays. Call `geopack.recalc(ut)` once before using any model or transform.
+
 ```python
 import geopack
-from geopack import t96_vectorized
 import numpy as np
 
-# Set up time
-ut = 0  # Unix timestamp
+ut = 100  # Unix timestamp (seconds since 1970-01-01)
 ps = geopack.recalc(ut)
+```
 
-# Vectorized calculation on multiple points
+### Coordinate Transformations
+```python
+from geopack import geogsm_vectorized
+
+# Convert multiple GEO points to GSM (j=1: GEO→GSM, j=-1: GSM→GEO)
+x_geo = np.array([1.0, 2.0, 3.0])
+y_geo = np.array([0.5, 1.0, 1.5])
+z_geo = np.array([0.0, 0.0, 0.0])
+
+x_gsm, y_gsm, z_gsm = geogsm_vectorized(x_geo, y_geo, z_geo, j=1)
+```
+
+### IGRF Internal Field
+```python
+from geopack import igrf_gsm_vectorized
+
+# IGRF magnetic field at multiple GSM positions (Earth radii)
+x = np.array([2.0, 3.0, 4.0, 5.0])
+y = np.zeros(4)
+z = np.zeros(4)
+
+bx, by, bz = igrf_gsm_vectorized(x, y, z)  # returns nT
+```
+
+### Tsyganenko External Field Models
+```python
+from geopack import t96_vectorized
+
+# T96 parameters: [Pdyn, Dst, ByIMF, BzIMF, 0, 0, 0, 0, 0, 0]
+parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
+
 x = np.array([5.0, 6.0, 7.0, 8.0, 9.0])
 y = np.zeros(5)
 z = np.zeros(5)
-parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
 
-bx, by, bz = t96_vectorized(parmod, ps, x, y, z)
-print(f"Magnetic field at x={x[0]}: Bx={bx[0]:.2f}, By={by[0]:.2f}, Bz={bz[0]:.2f} nT")
+bx, by, bz = t96_vectorized(parmod, ps, x, y, z)  # returns nT in GSM
 ```
 
-## Usage Examples
-
-### Using the Original Scalar Functions (from geopack)
-```python
-import geopack
-from geopack import t89, t96
-
-# Time setup
-ut = 100  # 1970-01-01/00:01:40 UT
-ps = geopack.recalc(ut)
-
-# Calculate field at a single point using original scalar function
-x, y, z = 5.0, 0.0, 0.0
-bx, by, bz = t89(3, ps, x, y, z)  # Kp = 3
-print(f"T89 field: Bx={bx:.2f}, By={by:.2f}, Bz={bz:.2f} nT")
-
-# T96 with solar wind parameters
-parmod = [2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0]  # [Pdyn, Dst, ByIMF, BzIMF, ...]
-bx, by, bz = t96(parmod, ps, x, y, z)
-```
-
-### Using the New Vectorized Functions
-```python
-from geopack import t89_vectorized, t96_vectorized
-import numpy as np
-
-# OPTION 1: Single point (works just like scalar version)
-x, y, z = 5.0, 0.0, 0.0
-bx, by, bz = t89_vectorized(3, ps, x, y, z)  # Returns scalars
-print(f"T89 vectorized (single): Bx={bx:.2f}, By={by:.2f}, Bz={bz:.2f} nT")
-
-# OPTION 2: Multiple points at once (this is where vectorization shines!)
-x_array = np.array([5.0, 6.0, 7.0, 8.0, 9.0])
-y_array = np.zeros(5)
-z_array = np.zeros(5)
-bx_array, by_array, bz_array = t89_vectorized(3, ps, x_array, y_array, z_array)
-print(f"Shape of output: {bx_array.shape}")  # (5,)
-print(f"First point: Bx={bx_array[0]:.2f} nT")
-
-# OPTION 3: Large arrays for maximum performance
-x_large = np.linspace(-10, 10, 10000)
-y_large = np.zeros(10000)
-z_large = np.zeros(10000)
-bx_large, by_large, bz_large = t89_vectorized(3, ps, x_large, y_large, z_large)
-# Processes all 10,000 points in ~0.1 seconds!
-```
-
-### Vectorized vs Scalar Comparison
-```python
-import time
-
-# Generate test data
-n_points = 1000
-x = np.random.uniform(-10, 5, n_points)
-y = np.random.uniform(-5, 5, n_points)
-z = np.random.uniform(-3, 3, n_points)
-
-# Scalar approach (original geopack)
-start = time.time()
-bx_scalar = np.zeros(n_points)
-by_scalar = np.zeros(n_points)
-bz_scalar = np.zeros(n_points)
-for i in range(n_points):
-    bx_scalar[i], by_scalar[i], bz_scalar[i] = t89(3, ps, x[i], y[i], z[i])
-scalar_time = time.time() - start
-
-# Vectorized approach (new)
-start = time.time()
-bx_vec, by_vec, bz_vec = t89_vectorized(3, ps, x, y, z)
-vector_time = time.time() - start
-
-print(f"Scalar time: {scalar_time:.3f} s")
-print(f"Vectorized time: {vector_time:.3f} s")
-print(f"Speedup: {scalar_time/vector_time:.0f}x")
-print(f"Results match: {np.allclose(bx_scalar, bx_vec)}")  # True
-```
-
-### Field Line Tracing - Vectorized
+### Field Line Tracing
 ```python
 from geopack import trace_vectorized
 
-# Trace a single field line (backward compatible)
-x0, y0, z0 = 5.0, 0.0, 0.0
-xf, yf, zf, status = trace_vectorized(x0, y0, z0, dir=1, rlim=30)
+# Trace multiple field lines simultaneously
+x0 = np.array([5.0, 6.0, 7.0, 8.0])
+y0 = np.zeros(4)
+z0 = np.zeros(4)
 
-# Trace multiple field lines in parallel (vectorized)
-x0_array = np.array([5.0, 6.0, 7.0, 8.0])
-y0_array = np.zeros(4)
-z0_array = np.zeros(4)
-xf_array, yf_array, zf_array, status_array = trace_vectorized(
-    x0_array, y0_array, z0_array, dir=1, rlim=30
-)
-print(f"Traced {len(x0_array)} field lines simultaneously")
-print(f"Status codes: {status_array}")  # 0 = hit inner boundary, 1 = hit outer boundary
-```
-
-### Large-Scale Field Mapping with Vectorization
-```python
-# Create 3D grid
-x = np.linspace(-20, 10, 100)
-y = np.linspace(-15, 15, 100)
-z = np.linspace(-10, 10, 50)
-X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
-
-# Flatten for vectorized calculation
-x_flat = X.ravel()
-y_flat = Y.ravel()
-z_flat = Z.ravel()
-
-# Calculate field at all 500,000 points using vectorized function
-parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
-start = time.time()
-bx, by, bz = t96_vectorized(parmod, ps, x_flat, y_flat, z_flat)
-print(f"Calculated {len(x_flat):,} points in {time.time()-start:.1f} seconds")
-
-# Reshape results back to 3D
-Bx = bx.reshape(X.shape)
-By = by.reshape(Y.shape)
-Bz = bz.reshape(Z.shape)
+xf, yf, zf, status = trace_vectorized(x0, y0, z0, dir=-1, rlim=30)
+# status: 0 = hit inner boundary, 1 = hit outer boundary, 2 = max steps
 ```
 
 ## Vectorized Components
