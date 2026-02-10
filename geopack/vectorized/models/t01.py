@@ -171,7 +171,7 @@ def extall(iopgen,iopt,iopb,iopr,a,ntot,pdyn,dst,byimf,bzimf,vbimf1,vbimf2,ps,x,
         xss[active] = xnew
         zss[active] = znew
 
-        # 収束した点は次以降更新しない
+        # Skip already-converged points in subsequent iterations
         active_idx = np.where(active)[0]
         active[active_idx] = dd > 1e-6
 

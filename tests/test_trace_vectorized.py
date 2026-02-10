@@ -9,7 +9,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# 許容 ULP（環境変数で変更可能）
+# Allowed ULP tolerance (configurable via environment variable)
 MAXULP = int(os.environ.get("GEOPACK_MAXULP", "32"))
 WARNULP = int(os.environ.get("GEOPACK_WARNULP", "8"))
 
@@ -46,9 +46,9 @@ def extract_vectorized_path(masked_arr_2d: np.ma.MaskedArray, i: int) -> np.ndar
 
 def _ulp_map_u64(x: np.ndarray) -> np.ndarray:
     """
-    float64 -> 単調増加な uint64 へ変換（ULP距離計算用）
+    Convert float64 to monotonically increasing uint64 (for ULP distance calculation).
     - negative: bitwise NOT
-    - positive: signbit を立てる
+    - positive: set the sign bit
     """
     x = np.asarray(x, dtype=np.float64)
     u = x.view(np.uint64)
@@ -58,7 +58,7 @@ def _ulp_map_u64(x: np.ndarray) -> np.ndarray:
 
 def max_ulp_diff(actual, desired):
     """
-    actual/desired の最大 ULP 差と、その flat index を返す
+    Return the maximum ULP difference between actual/desired and its flat index.
     """
     a = np.asarray(actual, dtype=np.float64)
     b = np.asarray(desired, dtype=np.float64)
@@ -78,10 +78,10 @@ def max_ulp_diff(actual, desired):
 
 def assert_close_ulps(actual, desired, *, maxulp: int, name: str, where: str = ""):
     """
-    合否判定：epsスケール（相対+絶対）で判定
-    付帯情報：最大ULP差も計算して WARN/FAIL メッセージに出す
+    Pass/fail check using eps-scaled (relative + absolute) tolerance.
+    Also computes max ULP difference for WARN/FAIL messages.
 
-    近傍ゼロで「ULPが暴れる」問題を回避する。
+    Avoids the problem of ULP instability near zero.
     """
     a = np.asarray(actual, dtype=np.float64)
     b = np.asarray(desired, dtype=np.float64)
@@ -91,12 +91,12 @@ def assert_close_ulps(actual, desired, *, maxulp: int, name: str, where: str = "
     if not (np.all(np.isfinite(a)) and np.all(np.isfinite(b))):
         raise AssertionError(f"{name}{(' '+where) if where else ''}: non-finite values detected")
 
-    # ---- 1) ULP差（表示用） ----
+    # ---- 1) ULP difference (for display) ----
     md, fi = max_ulp_diff(a, b)
 
-    # ---- 2) epsスケールで合否判定（こちらが本体） ----
+    # ---- 2) Eps-scaled pass/fail check (primary criterion) ----
     eps = np.finfo(np.float64).eps  # 2.22e-16
-    # スケール：ゼロ近傍で厳しすぎないよう max(1, |a|, |b|)
+    # Scale: use max(1, |a|, |b|) to avoid being too strict near zero
     scale = np.maximum(1.0, np.maximum(np.abs(a), np.abs(b)))
     tol = (maxulp * eps) * scale
     diff = np.abs(a - b)
@@ -106,7 +106,7 @@ def assert_close_ulps(actual, desired, *, maxulp: int, name: str, where: str = "
         bb = b.reshape(-1)
         dd = diff.reshape(-1)
         tt = tol.reshape(-1)
-        # “eps判定で落ちた”ときの情報（ULPも添える）
+        # Info when eps-scaled check fails (ULP difference included)
         raise AssertionError(
             f"{name}{(' '+where) if where else ''}: eps-scaled mismatch. "
             f"max ulp diff={md} (limit {maxulp}), "
@@ -114,7 +114,7 @@ def assert_close_ulps(actual, desired, *, maxulp: int, name: str, where: str = "
             f"absdiff={dd[fi]:.3e}, tol={tt[fi]:.3e}"
         )
 
-    # ---- WARN：ULPが大きい場合は表示だけする ----
+    # ---- WARN: display only when ULP difference is large ----
     if md > WARNULP:
         print(f"[WARN] {name}{(' '+where) if where else ''}: max ulp diff={md} (> {WARNULP})")
 
@@ -129,11 +129,11 @@ class TestTraceEquivalence(unittest.TestCase):
         cls.gp = gp
         cls.tv = tv
 
-        # global state 固定
+        # Fix global state
         ut = ut_seconds(datetime.datetime(2020, 3, 20, 0, 0, 0))
         gp.recalc(ut)
 
-        # --- モデル差を排除（vectorized側のモデル呼び出しを scalar に固定） ---
+        # --- Eliminate model differences (force vectorized side to use scalar model calls) ---
         def external_scalar(exname: str, parmod, ps: float, x, y, z, **kwargs):
             if is_scalar_like(x):
                 return gp.call_external_model(exname, parmod, ps, float(x), float(y), float(z))
@@ -164,7 +164,7 @@ class TestTraceEquivalence(unittest.TestCase):
         tv.call_internal_model_vectorized = internal_scalar
 
         if not hasattr(tv, "trace"):
-            raise AttributeError("geopack.vectorized.trace に trace がありません。")
+            raise AttributeError("geopack.vectorized.trace does not have a trace function.")
 
     def run_scalar_one(self, xi, yi, zi, dir, rlim, r0, parmod, exname, inname, maxloop):
         gp = self.gp
@@ -235,11 +235,11 @@ class TestTraceEquivalence(unittest.TestCase):
                         vzz = extract_vectorized_path(vzz_m, i)
                         vsteps = len(vxx) - 1
 
-                        # ✅ ここは完全一致（アルゴリズム差を拾う）
+                        # Require exact match here (to detect algorithm differences)
                         self.assertEqual(vsteps, ssteps, f"Step mismatch {where}: vec={vsteps} scalar={ssteps}")
                         self.assertEqual(int(vstatus[i]), int(sstat), f"Status mismatch {where}")
 
-                        # ✅ 座標は ULP 許容
+                        # Coordinates: allow ULP tolerance
                         assert_close_ulps([vxf[i], vyf[i], vzf[i]], [sxf, syf, szf],
                                           maxulp=MAXULP, name="endpoint", where=where)
                         assert_close_ulps(vxx, sxx, maxulp=MAXULP, name="path_x", where=where)

@@ -159,11 +159,11 @@ def main():
     y_flat = Y.ravel()
     z_flat = Z.ravel()
 
-    # ---- 重要: r=0 や地球内部(r<1Re)を除外 ----
+    # ---- Important: exclude r=0 and Earth's interior (r < 1 Re) ----
     r_flat = np.sqrt(x_flat**2 + y_flat**2 + z_flat**2)
 
-    # 幾何計算は内部で微小差分を取る可能性があるので、少しマージンを取るのが安全
-    r_min = 1.05  # 1.0 でもよいが、警告回避と安定性のため少し外側に
+    # Geometry calculations may use finite differences internally, so add a small margin for safety
+    r_min = 1.05  # 1.0 would work, but slightly outside avoids warnings and improves stability
     valid = r_flat >= r_min
 
     curvature_flat = np.full_like(x_flat, np.nan, dtype=float)
@@ -177,7 +177,7 @@ def main():
     # Create plot
     plt.figure(figsize=(10, 8))
 
-    # Plot curvature (NaN は自動的にマスクされます)
+    # Plot curvature (NaN values are automatically masked)
     levels = np.logspace(-2, 1, 20)
     cs = plt.contourf(X, Y, curvature_grid, levels=levels, cmap='viridis', extend='both')
     plt.colorbar(cs, label='Curvature (Re⁻¹)')
@@ -186,7 +186,7 @@ def main():
     earth = plt.Circle((0, 0), 1, color='white', zorder=10)
     plt.gca().add_patch(earth)
 
-    # Add contour lines（NaN を含むので warning が出る場合は levels を調整してください）
+    # Add contour lines (if warnings appear due to NaN values, adjust the levels)
     plt.contour(X, Y, curvature_grid, levels=[0.1, 0.3, 1.0, 3.0],
                 colors='white', linewidths=0.5, alpha=0.5)
 

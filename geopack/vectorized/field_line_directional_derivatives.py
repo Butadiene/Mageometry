@@ -69,7 +69,7 @@ def field_line_directional_derivatives(model_func, parmod, ps, x, y, z, delta=0.
 
     allow_normal_flipping_val = 0.9
 
-    # ---- ラッパ関数：Frenet frame だけ返す（zero_mask はもう返さない） ----
+    # ---- Wrapper: returns only the Frenet frame (no longer returns zero_mask) ----
     def _frenet(model_func, parmod, ps, x, y, z, delta):
         return field_line_frenet_frame(model_func, parmod, ps, x, y, z, delta)
 
@@ -78,13 +78,13 @@ def field_line_directional_derivatives(model_func, parmod, ps, x, y, z, delta=0.
     y = np.atleast_1d(y)
     z = np.atleast_1d(z)
 
-    # 基本点での Frenet frame
+    # Frenet frame at the base point
     tx0, ty0, tz0, nx0, ny0, nz0, bx0, by0, bz0, _ = _frenet(
         model_func, parmod, ps, x, y, z, delta
     )
 
-    # invalid_mask の初期値：
-    # ここだけは n_plus / n_minus がないので、n0 がゼロベクトルかどうかで判定
+    # Initial invalid_mask:
+    # At this stage n_plus/n_minus are not yet available, so check whether n0 is a zero vector
     invalid_mask = (nx0 == 0) & (ny0 == 0) & (nz0 == 0)
 
     results = {}
@@ -141,7 +141,7 @@ def field_line_directional_derivatives(model_func, parmod, ps, x, y, z, delta=0.
     tx_n_minus, ty_n_minus, tz_n_minus, nx_n_minus, ny_n_minus, nz_n_minus, bx_n_minus, by_n_minus, bz_n_minus, _ = \
         _frenet(model_func, parmod, ps, x_n_minus, y_n_minus, z_n_minus, delta)
 
-    # ★ n_n_plus・n_n_minus <= allow_normal_flipping_val ならマスク
+    # Mask points where n_n_plus . n_n_minus <= threshold (normal vector flipped)
     dot_n_n = nx_n_plus * nx_n_minus + ny_n_plus * ny_n_minus + nz_n_plus * nz_n_minus
     invalid_mask |= (dot_n_n <= allow_normal_flipping_val)
 
@@ -176,7 +176,7 @@ def field_line_directional_derivatives(model_func, parmod, ps, x, y, z, delta=0.
     tx_b_minus, ty_b_minus, tz_b_minus, nx_b_minus, ny_b_minus, nz_b_minus, bx_b_minus, by_b_minus, bz_b_minus, _ = \
         _frenet(model_func, parmod, ps, x_b_minus, y_b_minus, z_b_minus, delta)
 
-    # ★ n_b_plus・n_b_minus <= allow_normal_flipping_val ならマスク
+    # Mask points where n_b_plus . n_b_minus <= threshold (normal vector flipped)
     dot_n_b = nx_b_plus * nx_b_minus + ny_b_plus * ny_b_minus + nz_b_plus * nz_b_minus
     invalid_mask |= (dot_n_b <= allow_normal_flipping_val)
 
@@ -209,14 +209,14 @@ def field_line_directional_derivatives(model_func, parmod, ps, x, y, z, delta=0.
     results['dT_db_n'] = dT_db_x * nx0 + dT_db_y * ny0 + dT_db_z * nz0  # = -(∂n/∂b)·T
     results['dT_db_b'] = dT_db_x * bx0 + dT_db_y * by0 + dT_db_z * bz0  # = -(∂b/∂b)·T
 
-    # ---- invalid_mask を使って results をゼロにする ----
+    # ---- Zero out results where invalid_mask is True ----
     if np.any(invalid_mask):
         if scalar_input:
-            # スカラー入力：どこかで条件を満たしたら全部 0
+            # Scalar input: if any condition is met, zero everything
             for k in results:
                 results[k] = 0.0
         else:
-            # ベクトル入力：invalid_mask が True の要素だけ 0
+            # Array input: zero only the elements where invalid_mask is True
             for k, v in results.items():
                 arr = np.asarray(v).copy()
                 arr[invalid_mask] = 0.0

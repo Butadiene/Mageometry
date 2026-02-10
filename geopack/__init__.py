@@ -44,10 +44,10 @@ from .models import t89, t96, t01, t04
 # vectorized (re-export)
 # -----------------------------
 
-# サブパッケージそのもの（from geopack import vectorized を可能に）
+# Import the vectorized subpackage (enables: from geopack import vectorized)
 from . import vectorized
 
-# vectorized 側のモジュール（scalar 側と名前が衝突しやすいので別名で公開）
+# Vectorized modules (aliased to avoid name collisions with scalar counterparts)
 from .vectorized import (
     models as vectorized_models,
     coordinates as vectorized_coordinates,
@@ -102,7 +102,7 @@ from .vectorized.field_line_directional_derivatives import (
     verify_unit_vectors,
 )
 
-# vectorized external models（scalar と同名衝突するので alias）
+# Vectorized external models (aliased to avoid name collisions with scalar versions)
 from .vectorized.models import (
     t89 as t89_vectorized,
     t96 as t96_vectorized,

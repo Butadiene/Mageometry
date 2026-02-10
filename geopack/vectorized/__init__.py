@@ -68,7 +68,7 @@ from .field_line_directional_derivatives import (
 
 from .trace import trace
 
-# core 側（同じグローバル状態を使う想定なら残してOK）
+# Core functions (kept here assuming shared global state is intended)
 from ..geopack import (
     recalc,
     dip,

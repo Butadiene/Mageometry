@@ -10,7 +10,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# trace 統合テストの許容（Re 単位）
+# Trace integration test tolerance (in Re units)
 TRACE_ATOL_RE = float(os.environ.get("GEOPACK_TRACE_ATOL_RE", "1e-5"))  # 1e-5 Re ~ 63m
 TRACE_RTOL = float(os.environ.get("GEOPACK_TRACE_RTOL", "0.0"))
 
@@ -34,14 +34,14 @@ def infer_scalar_status(xf, yf, zf, r0: float, rlim: float, steps: int, maxloop:
 
 def parmod_for(exname: str):
     """
-    外部モデル用の parmod を返す。
-    t89 は iopt(int)。
-    t96/t01/t04 は 10要素配列（このプロジェクトでのモデル実装の想定に合わせる）。
+    Return parmod for the given external model.
+    t89 uses iopt (int).
+    t96/t01/t04 use a 10-element array (matching this project's model implementation).
     """
     ex = exname.lower()
     if ex == "t89":
         return 2
-    # 例: [Pdyn, Dst, ByIMF, BzIMF, W1..W6]
+    # e.g. [Pdyn, Dst, ByIMF, BzIMF, W1..W6]
     return np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0], dtype=np.float64)
 
 
@@ -56,7 +56,7 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
         ut = ut_seconds(datetime.datetime(2020, 3, 20, 0, 0, 0))
         gp.recalc(ut)
 
-        # ベクトル版モデル（外部）を確保
+        # Ensure vectorized external models are available
         try:
             from geopack.vectorized import models as vmodels
         except Exception as e:
@@ -67,9 +67,9 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
             cls.vmodels = vmodels
 
         if not hasattr(cls.tv, "trace"):
-            raise AttributeError("geopack.vectorized.trace に trace がありません。")
+            raise AttributeError("geopack.vectorized.trace does not have a trace function.")
 
-        # ★重要：trace_vectorized.py が参照する “tXX_vectorized 変数” を差し替える
+        # IMPORTANT: Replace the "tXX_vectorized" variables referenced by trace_vectorized.py
         if cls.vmodels is not None:
             if hasattr(cls.vmodels, "t89"):
                 cls.tv.t89_vectorized = cls.vmodels.t89
@@ -114,7 +114,7 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
         if self.vmodels is None or not hasattr(self.vmodels, exname.lower()):
             self.skipTest(f"{exname} vectorized not available in geopack.vectorized.models")
 
-        # igrf の場合は internal vectorized がある前提で「ベクトル版モデル使用」を強める
+        # For igrf, verify that vectorized internal model is available
         if inname.lower() == "igrf":
             try:
                 from geopack.vectorized.igrf import igrf_gsm as igrf_gsm_vectorized  # noqa: F401
@@ -124,7 +124,7 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
         rlim, r0, maxloop = 10.0, 1.0, 800
         parmod = parmod_for(exname)
 
-        # テスト点（少数）
+        # Test points (small set)
         points = np.array([
             [2.0,  0.1,  0.0],
             [3.0,  1.0,  0.5],
@@ -151,7 +151,7 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
                         parmod=parmod, exname=exname, inname=inname, maxloop=maxloop
                     )
 
-                    # まずは status 一致を要求（必要なら緩和可）
+                    # Require status match (can be relaxed if needed)
                     self.assertEqual(int(vec_status[i]), int(sc_status), f"status mismatch {where}")
 
                     np.testing.assert_allclose(

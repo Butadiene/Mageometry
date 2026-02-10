@@ -9,7 +9,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# 許容誤差（環境変数で調整可能）
+# Tolerance (configurable via environment variables)
 FIELD_RTOL = float(os.environ.get("GEOPACK_FIELD_RTOL", "1e-10"))
 FIELD_ATOL = float(os.environ.get("GEOPACK_FIELD_ATOL", "1e-6"))  # nT
 
@@ -52,7 +52,7 @@ class TestVectorizedExternalModels(unittest.TestCase):
         gp.recalc(ut)
         cls.ps = gp.psi
 
-        # vectorized models は geopack.vectorized.models に居る前提
+        # Assumes vectorized models are in geopack.vectorized.models
         try:
             from geopack.vectorized import models as vmodels
         except Exception as e:

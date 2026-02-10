@@ -188,12 +188,12 @@ def field_line_normal(model_func, parmod, ps, x, y, z, delta=0.01):
     # Handle regions with no curvature (straight field lines)
     mask_curved = dt_mag > 1e-10
 
-    # cos(theta) = |T・dT/ds| / |dT/ds|
+    # cos(theta) = |T . dT/ds| / |dT/ds|
     dot = tx0 * dtx_ds + ty0 * dty_ds + tz0 * dtz_ds
 
     cos_theta = np.zeros_like(dt_mag)
 
-    # dt_mag が非ゼロのところだけ割り算する
+    # Only divide where dt_mag is non-zero
     cos_theta[mask_curved] = np.abs(dot[mask_curved]) / dt_mag[mask_curved]
 
     mask_orthogonal = cos_theta < 1e-3
