@@ -31,6 +31,24 @@ GEOPACK-VECTORIZE extends the original geopack by adding vectorized implementati
 | IGRF (GSW) | 0.060 | 0.006 | **9.4x** |
 | Coordinate Transforms (subset) | 0.003 | 0.000 | **64.5x** |
 
+## Upgrading to v2.0.0
+
+As of v2.0.0, the PyPI package name has changed from `geopack-vectorized` to `geopack-vectorize`. The old `geopack-vectorized` package will remain available for a transitional period but will eventually be removed. Please update your installation:
+
+```bash
+pip uninstall geopack-vectorized
+pip install geopack-vectorize
+```
+
+Other notable changes from v1.1.4 to v2.0.0:
+- Internal module structure reorganized (all vectorized code now under `geopack/vectorized/`)
+- All comments and docstrings translated to English
+- Docstrings standardized to NumPy format
+- Example notebooks cleaned up and reorganized
+- See [RELEASE_NOTES_v2.0.0.md](RELEASE_NOTES_v2.0.0.md) for the full list of changes
+
+**Top-level imports are unchanged** — existing code using `from geopack import t96_vectorized` etc. will continue to work without modification.
+
 ## Installation
 
 ### Requirements
