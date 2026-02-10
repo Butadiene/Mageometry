@@ -1,18 +1,82 @@
 """
 Demonstration that T, n, and b are unit vectors and the implications for directional derivatives.
+
+Magnetic field model used here:
+    B_total = B_IGRF (internal) + B_T96 (external)
+in GSM coordinates.
 """
 
 import numpy as np
-from geopack import recalc
-from geopack.vectorized import (
-    t96_vectorized,
+import geopack
+from geopack import recalc, t96_vectorized
+from geopack import (
     field_line_frenet_frame_vectorized,
     field_line_directional_derivatives_vectorized,
     verify_antisymmetry_relations,
     verify_unit_vectors
 )
 
+
+# ----------------------------
+# Helpers: robust vectorization
+# ----------------------------
+def _loop_vectorize_xyz(func, x, y, z, *args):
+    """
+    Fallback vectorizer for funcs returning (bx,by,bz) given (x,y,z).
+    Supports scalar or array inputs.
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+    z = np.asarray(z)
+
+    # Scalar
+    if x.shape == () and y.shape == () and z.shape == ():
+        return func(*args, float(x), float(y), float(z))
+
+    # Array (broadcast allowed)
+    x, y, z = np.broadcast_arrays(x, y, z)
+
+    bx = np.empty_like(x, dtype=float)
+    by = np.empty_like(x, dtype=float)
+    bz = np.empty_like(x, dtype=float)
+
+    it = np.nditer(x, flags=["multi_index"])
+    while not it.finished:
+        idx = it.multi_index
+        bx[idx], by[idx], bz[idx] = func(*args, float(x[idx]), float(y[idx]), float(z[idx]))
+        it.iternext()
+
+    return bx, by, bz
+
+
+def igrf_internal_gsm(x, y, z):
+    """
+    Internal field (IGRF) in GSM Cartesian [nT].
+    Uses vectorized API if available; otherwise loops.
+    """
+    if hasattr(geopack, "igrf_gsm_vectorized"):
+        return geopack.igrf_gsm_vectorized(x, y, z)
+    if hasattr(geopack, "igrf_gsm"):
+        return _loop_vectorize_xyz(geopack.igrf_gsm, x, y, z)
+    raise AttributeError("geopack has no igrf_gsm / igrf_gsm_vectorized.")
+
+
+def b_igrf_plus_t96_vectorized(parmod, ps, x, y, z):
+    """
+    Total magnetic field in GSM Cartesian [nT]:
+        B_total = B_IGRF (internal) + B_T96 (external)
+
+    Signature must match:
+        func(parmod, ps, x, y, z) -> (bx, by, bz)
+    """
+    bix, biy, biz = igrf_internal_gsm(x, y, z)          # internal
+    bex, bey, bez = t96_vectorized(parmod, ps, x, y, z) # external
+    return bix + bex, biy + bey, biz + bez
+
+
+# ----------------------------
 # Set up parameters
+# ----------------------------
 ut = 0.0
 ps = recalc(ut)
 parmod = [2.0, -18.0, 2.0, -5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -24,10 +88,11 @@ z_arr = np.array([0.0, 0.0, 1.0, 0.0])
 
 print("Verification of Unit Vector Properties")
 print("=" * 60)
+print("Model: IGRF(internal) + T96(external)")
 
-# Get Frenet frame
+# Get Frenet frame (TOTAL field)
 tx, ty, tz, nx, ny, nz, bx, by, bz, curv = field_line_frenet_frame_vectorized(
-    t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
+    b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
 )
 
 # Verify unit vectors
@@ -50,9 +115,9 @@ print("-" * 40)
 max_error = np.max(np.abs(errors['b - T×n']))
 print(f"b - T×n max error: {max_error:.2e}")
 
-# Calculate directional derivatives
+# Calculate directional derivatives (TOTAL field)
 derivatives = field_line_directional_derivatives_vectorized(
-    t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
+    b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
 )
 
 print("\n\n4. Implications for Directional Derivatives:")

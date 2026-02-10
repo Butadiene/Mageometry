@@ -1,17 +1,81 @@
 """
 Simple test of the 9 directional derivative formulas implementation.
+
+Magnetic field model used here:
+    B_total = B_IGRF (internal) + B_T96 (external)
+in GSM coordinates.
 """
 
 import numpy as np
-from geopack import recalc
-from geopack.vectorized import (
-    t96_vectorized,
+import geopack
+from geopack import recalc, t96_vectorized
+from geopack import (
     field_line_directional_derivatives_vectorized,
     verify_antisymmetry_relations,
     get_curvature_torsion_from_derivatives
 )
 
+
+# ----------------------------
+# Helpers: robust vectorization
+# ----------------------------
+def _loop_vectorize_xyz(func, x, y, z, *args):
+    """
+    Fallback vectorizer for funcs returning (bx,by,bz) given (x,y,z).
+    Supports scalar or array inputs.
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+    z = np.asarray(z)
+
+    # Scalar
+    if x.shape == () and y.shape == () and z.shape == ():
+        return func(*args, float(x), float(y), float(z))
+
+    # Array (broadcast allowed)
+    x, y, z = np.broadcast_arrays(x, y, z)
+
+    bx = np.empty_like(x, dtype=float)
+    by = np.empty_like(x, dtype=float)
+    bz = np.empty_like(x, dtype=float)
+
+    it = np.nditer(x, flags=["multi_index"])
+    while not it.finished:
+        idx = it.multi_index
+        bx[idx], by[idx], bz[idx] = func(*args, float(x[idx]), float(y[idx]), float(z[idx]))
+        it.iternext()
+
+    return bx, by, bz
+
+
+def igrf_internal_gsm(x, y, z):
+    """
+    Internal field (IGRF) in GSM Cartesian [nT].
+    Uses vectorized API if available; otherwise loops.
+    """
+    if hasattr(geopack, "igrf_gsm_vectorized"):
+        return geopack.igrf_gsm_vectorized(x, y, z)
+    if hasattr(geopack, "igrf_gsm"):
+        return _loop_vectorize_xyz(geopack.igrf_gsm, x, y, z)
+    raise AttributeError("geopack has no igrf_gsm / igrf_gsm_vectorized.")
+
+
+def b_igrf_plus_t96_vectorized(parmod, ps, x, y, z):
+    """
+    Total magnetic field in GSM Cartesian [nT]:
+        B_total = B_IGRF (internal) + B_T96 (external)
+
+    Signature must match:
+        func(parmod, ps, x, y, z) -> (bx, by, bz)
+    """
+    bix, biy, biz = igrf_internal_gsm(x, y, z)          # internal
+    bex, bey, bez = t96_vectorized(parmod, ps, x, y, z) # external
+    return bix + bex, biy + bey, biz + bez
+
+
+# ----------------------------
 # Set up parameters
+# ----------------------------
 ut = 0.0
 ps = recalc(ut)
 parmod = [2.0, -18.0, 2.0, -5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -21,9 +85,9 @@ x, y, z = -5.0, 0.0, 0.0
 print(f"Testing at point ({x}, {y}, {z}) Re")
 print("=" * 60)
 
-# Calculate derivatives
+# Calculate derivatives (TOTAL field)
 derivatives = field_line_directional_derivatives_vectorized(
-    t96_vectorized, parmod, ps, x, y, z
+    b_igrf_plus_t96_vectorized, parmod, ps, x, y, z
 )
 
 # Display the 9 formulas
@@ -60,11 +124,11 @@ y_arr = np.zeros(4)
 z_arr = np.zeros(4)
 
 derivatives_arr = field_line_directional_derivatives_vectorized(
-    t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
+    b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
 )
 
 print("Curvature values:")
-for i, (xi, kappa) in enumerate(zip(x_arr, derivatives_arr['dT_dT_n'])):
+for xi, kappa in zip(x_arr, derivatives_arr['dT_dT_n']):
     print(f"  x = {xi:4.1f} Re: κ = {kappa:.6f} 1/Re")
 
 print("\nAll 9 formulas work correctly with both scalar and array inputs!")

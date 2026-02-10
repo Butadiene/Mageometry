@@ -3,19 +3,83 @@ Example demonstrating the 9 field line directional derivatives.
 
 This script shows how to calculate and interpret the 9 key formulas
 for field line geometry directional derivatives.
+
+Magnetic field model used here:
+    B_total = B_IGRF (internal) + B_T96 (external)
+in GSM coordinates.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
-from geopack import recalc
-from geopack.vectorized import t96_vectorized
-from geopack.vectorized.field_line_directional_derivatives import (
+import geopack
+from geopack import recalc, t96_vectorized
+from geopack import (
     field_line_directional_derivatives_vectorized,
     verify_antisymmetry_relations,
     get_curvature_torsion_from_derivatives
 )
 
+
+# ----------------------------
+# Helpers: robust vectorization
+# ----------------------------
+def _loop_vectorize_xyz(func, x, y, z, *args):
+    """
+    Fallback vectorizer for funcs returning (bx,by,bz) given (x,y,z).
+    Supports scalar or array inputs.
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+    z = np.asarray(z)
+
+    # Scalar
+    if x.shape == () and y.shape == () and z.shape == ():
+        return func(*args, float(x), float(y), float(z))
+
+    # Array (broadcast allowed)
+    x, y, z = np.broadcast_arrays(x, y, z)
+
+    bx = np.empty_like(x, dtype=float)
+    by = np.empty_like(x, dtype=float)
+    bz = np.empty_like(x, dtype=float)
+
+    it = np.nditer(x, flags=["multi_index"])
+    while not it.finished:
+        idx = it.multi_index
+        bx[idx], by[idx], bz[idx] = func(*args, float(x[idx]), float(y[idx]), float(z[idx]))
+        it.iternext()
+
+    return bx, by, bz
+
+
+def igrf_internal_gsm(x, y, z):
+    """
+    Internal field (IGRF) in GSM Cartesian [nT].
+    Uses vectorized API if available; otherwise loops.
+    """
+    if hasattr(geopack, "igrf_gsm_vectorized"):
+        return geopack.igrf_gsm_vectorized(x, y, z)
+    if hasattr(geopack, "igrf_gsm"):
+        return _loop_vectorize_xyz(geopack.igrf_gsm, x, y, z)
+    raise AttributeError("geopack has no igrf_gsm / igrf_gsm_vectorized.")
+
+
+def b_igrf_plus_t96_vectorized(parmod, ps, x, y, z):
+    """
+    Total magnetic field in GSM Cartesian [nT]:
+        B_total = B_IGRF (internal) + B_T96 (external)
+
+    Signature matches Tsyganenko model funcs used by the geometry utilities:
+        func(parmod, ps, x, y, z) -> (bx, by, bz)
+    """
+    bix, biy, biz = igrf_internal_gsm(x, y, z)          # internal
+    bex, bey, bez = t96_vectorized(parmod, ps, x, y, z) # external
+    return bix + bex, biy + bey, biz + bez
+
+
+# ----------------------------
 # Set up time and model parameters
+# ----------------------------
 ut = 0.0  # 1970-01-01 00:00:00
 ps = recalc(ut)
 
@@ -24,14 +88,15 @@ parmod = [2.0, -18.0, 2.0, -5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 print("Field Line Directional Derivatives - 9 Key Formulas")
 print("=" * 60)
+print("Model: IGRF(internal) + T96(external)")
 
 # Single point example
 x, y, z = -5.0, 0.0, 0.0
 print(f"\nAnalyzing point: ({x}, {y}, {z}) Re")
 
-# Calculate all derivatives
+# Calculate all derivatives (TOTAL field)
 derivatives = field_line_directional_derivatives_vectorized(
-    t96_vectorized, parmod, ps, x, y, z
+    b_igrf_plus_t96_vectorized, parmod, ps, x, y, z
 )
 
 # Display the 9 key formulas
@@ -69,9 +134,9 @@ x_line = np.linspace(-10, -3, 100)
 y_line = np.zeros_like(x_line)
 z_line = np.zeros_like(x_line)
 
-# Calculate derivatives along line
+# Calculate derivatives along line (TOTAL field)
 derivatives_line = field_line_directional_derivatives_vectorized(
-    t96_vectorized, parmod, ps, x_line, y_line, z_line
+    b_igrf_plus_t96_vectorized, parmod, ps, x_line, y_line, z_line
 )
 
 # Extract curvature and torsion
@@ -79,7 +144,7 @@ curvature, torsion = get_curvature_torsion_from_derivatives(derivatives_line)
 
 # Create visualization
 fig, axes = plt.subplots(3, 3, figsize=(15, 12))
-fig.suptitle('The 9 Directional Derivative Formulas Along Equatorial Line', fontsize=16)
+fig.suptitle('The 9 Directional Derivative Formulas Along Equatorial Line (IGRF+T96)', fontsize=16)
 
 # Plot each formula
 plots = [
@@ -104,35 +169,32 @@ for idx, (data, formula, title) in enumerate(plots):
     ax.axhline(y=0, color='k', linestyle='--', alpha=0.5)
 
 plt.tight_layout()
-plt.savefig('field_line_9_derivatives.png', dpi=150)
 plt.show()
 
 # Create antisymmetry validation plot
 fig, axes = plt.subplots(3, 3, figsize=(15, 12))
-fig.suptitle('Antisymmetry Relations Validation', fontsize=16)
+fig.suptitle('Antisymmetry Relations Validation (IGRF+T96)', fontsize=16)
 
-# Calculate all antisymmetry errors
 errors_line = verify_antisymmetry_relations(derivatives_line)
 
-# Plot each antisymmetry check
 antisym_plots = [
-    (derivatives_line['dT_dT_n'] + derivatives_line['dn_dT_T'], 
+    (derivatives_line['dT_dT_n'] + derivatives_line['dn_dT_T'],
      '(∂T/∂T)·n + (∂n/∂T)·T', 'Should be 0'),
-    (derivatives_line['dT_dT_b'] - derivatives_line['db_dT_T'], 
+    (derivatives_line['dT_dT_b'] - derivatives_line['db_dT_T'],
      '(∂T/∂T)·b - (∂b/∂T)·T', 'Should be 0'),
-    (derivatives_line['dn_dT_b'] + derivatives_line['db_dT_n'], 
+    (derivatives_line['dn_dT_b'] + derivatives_line['db_dT_n'],
      '(∂n/∂T)·b + (∂b/∂T)·n', 'Should be 0'),
-    (derivatives_line['dT_dn_n'] + derivatives_line['dn_dn_T'], 
+    (derivatives_line['dT_dn_n'] + derivatives_line['dn_dn_T'],
      '(∂T/∂n)·n + (∂n/∂n)·T', 'Should be 0'),
-    (derivatives_line['dT_dn_b'] + derivatives_line['db_dn_T'], 
+    (derivatives_line['dT_dn_b'] + derivatives_line['db_dn_T'],
      '(∂T/∂n)·b + (∂b/∂n)·T', 'Should be 0'),
-    (derivatives_line['dn_dn_b'] + derivatives_line['db_dn_n'], 
+    (derivatives_line['dn_dn_b'] + derivatives_line['db_dn_n'],
      '(∂n/∂n)·b + (∂b/∂n)·n', 'Should be 0'),
-    (derivatives_line['dn_db_b'] + derivatives_line['db_db_n'], 
+    (derivatives_line['dn_db_b'] + derivatives_line['db_db_n'],
      '(∂n/∂b)·b + (∂b/∂b)·n', 'Should be 0'),
-    (derivatives_line['dn_db_T'] + derivatives_line['dT_db_n'], 
+    (derivatives_line['dn_db_T'] + derivatives_line['dT_db_n'],
      '(∂n/∂b)·T + (∂T/∂b)·n', 'Should be 0'),
-    (derivatives_line['db_db_T'] + derivatives_line['dT_db_b'], 
+    (derivatives_line['db_db_T'] + derivatives_line['dT_db_b'],
      '(∂b/∂b)·T + (∂T/∂b)·b', 'Should be 0')
 ]
 
@@ -144,15 +206,13 @@ for idx, (data, formula, title) in enumerate(antisym_plots):
     ax.set_title(f'{formula}\n{title}')
     ax.grid(True, alpha=0.3)
     ax.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-    
-    # Add text with max error
+
     max_error = np.max(np.abs(data))
-    ax.text(0.02, 0.98, f'Max error: {max_error:.2e}', 
+    ax.text(0.02, 0.98, f'Max error: {max_error:.2e}',
             transform=ax.transAxes, verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
 plt.tight_layout()
-plt.savefig('field_line_antisymmetry_validation.png', dpi=150)
 plt.show()
 
 # Summary statistics

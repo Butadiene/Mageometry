@@ -102,7 +102,7 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
             dir=float(dir), rlim=rlim, r0=r0,
             parmod=parmod, exname=exname, inname=inname,
             maxloop=maxloop,
-            return_full_path=False,
+            return_full_path=False, strict_scalar_models=False
         )
         out = np.stack([xf, yf, zf], axis=-1).astype(np.float64)
         return out, status.astype(np.int32)
