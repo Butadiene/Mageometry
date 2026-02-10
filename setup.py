@@ -5,8 +5,8 @@ with open('README.md', 'r', encoding='utf-8') as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='geopack-vectorized',
-    version='1.1.4',
+    name='geopack-vectorize',
+    version='2.0.0',
     author='geopack-vectorize contributors',
     author_email='',
     description='Vectorized Python implementation of geopack and Tsyganenko models (fork of tsssss/geopack)',

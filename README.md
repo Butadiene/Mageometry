@@ -40,7 +40,7 @@ GEOPACK-VECTORIZE extends the original geopack by adding vectorized implementati
 
 ### Install from PyPI
 ```bash
-pip install geopack-vectorized
+pip install geopack-vectorize
 ```
 
 ### Install from Source

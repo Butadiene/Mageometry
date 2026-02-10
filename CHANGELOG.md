@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-02-11
+
+### Breaking
+- **Package renamed** from `geopack-vectorized` to `geopack-vectorize` on PyPI
+- Reorganized all vectorized modules into `geopack/vectorized/` subpackage
+  - Field models moved to `geopack/vectorized/models/` (t89, t96, t01, t04)
+  - Coordinates, IGRF, tracing, geometry, derivatives moved under `geopack/vectorized/`
+  - Removed `_vectorized` suffix from internal filenames
+- Removed legacy tracing modules (`trace_field_lines_vectorized.py`, `trace_field_lines_vectorized_nointerp.py`)
+- Removed several test/benchmark files (consolidated into remaining test suite)
+
+### Added
+- 14 new public functions exported from top-level `geopack` package
+- Subpackage namespace access (`from geopack.vectorized import models, coordinates, igrf, trace`)
+- Rewritten vectorized field line tracing (`geopack/vectorized/trace.py`)
+- New test file for trace + vectorized model integration
+- 5 new Jupyter notebooks (tracing guide, tracing validation, geometry/derivatives, T96 and dipole derivative maps)
+- `SHOW_CHRISTOFFEL` notation toggle in derivative map notebooks
+
+### Changed
+- Translated all Japanese comments and docstrings to English
+- Standardized all docstrings to NumPy format
+- Unified code style and markdown formatting across examples and notebooks
+- Improved trace test diagnostics
+
+### Removed
+- Entire `examples/conjugate_test/` directory
+- 12 obsolete Jupyter notebooks
+- Legacy example scripts and analysis outputs
+
 ## [1.0.13] - 2025-01-07
 
 ### Added

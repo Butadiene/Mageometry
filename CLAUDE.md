@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Vectorized extension of the Python geopack library for Tsyganenko magnetospheric magnetic field models (T89, T96, T01, T04) and IGRF. Provides a dual API: original scalar functions and high-performance NumPy vectorized versions (20-150x speedup). Published on PyPI as `geopack-vectorized`.
+Vectorized extension of the Python geopack library for Tsyganenko magnetospheric magnetic field models (T89, T96, T01, T04) and IGRF. Provides a dual API: original scalar functions and high-performance NumPy vectorized versions (20-150x speedup). Published on PyPI as `geopack-vectorize`.
 
 **Important:** This codebase was largely AI-generated and is being gradually human-reviewed. Treat existing code with appropriate caution.
 
@@ -27,7 +27,7 @@ GEOPACK_FIELD_RTOL=1e-8 GEOPACK_FIELD_ATOL=1e-5 python -m unittest tests/test_ve
 python setup.py sdist
 
 # Tag a release
-git tag -a v1.1.4 -m "Release version 1.1.4"
+git tag -a v2.0.0 -m "Release version 2.0.0"
 ```
 
 Version must be updated in three places: `setup.py`, `pyproject.toml`, and `geopack/__init__.py`.
