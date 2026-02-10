@@ -3,6 +3,7 @@ import sys
 import unittest
 import datetime
 import importlib
+import math
 import numpy as np
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -76,6 +77,52 @@ def max_ulp_diff(actual, desired):
     return maxdiff, flat_idx
 
 
+def _fmt(x: float) -> str:
+    """Human-friendly float formatting (keeps sign, scientific for tiny/huge)."""
+    try:
+        return f"{float(x): .17e}"
+    except Exception:
+        return repr(x)
+
+
+def _warn_details(
+    name: str,
+    where: str,
+    md: int,
+    fi: int,
+    a: np.ndarray,
+    b: np.ndarray,
+    absdiff: np.ndarray,
+    tol: np.ndarray,
+    scale: np.ndarray,
+) -> None:
+    """Print detailed diagnostics for WARN-only cases."""
+    idx = np.unravel_index(fi, a.shape)  # multi-d index
+    aa = a.reshape(-1)[fi]
+    bb = b.reshape(-1)[fi]
+    dd = absdiff.reshape(-1)[fi]
+    tt = tol.reshape(-1)[fi]
+    ss = scale.reshape(-1)[fi]
+
+    # spacing(): distance to the next representable float (ULP size around x)
+    spa = float(np.spacing(aa))
+    spb = float(np.spacing(bb))
+
+    ratio = float(dd / tt) if tt != 0.0 else math.inf
+    near_zero = (abs(float(aa)) < 1e-300) or (abs(float(bb)) < 1e-300)
+
+    header = f"[WARN] {name}{(' '+where) if where else ''}: max ulp diff={md} (> {WARNULP})"
+    print(header)
+    print(f"       max-ulp location: flat_idx={fi}, idx={idx}, shape={a.shape}")
+    print(f"       actual ={_fmt(aa)}")
+    print(f"       desired={_fmt(bb)}")
+    print(f"       absdiff={dd:.3e}  tol={tt:.3e}  absdiff/tol={ratio:.3e}")
+    print(
+        f"       scale={ss:.3e}  spacing(actual)={spa:.3e}  spacing(desired)={spb:.3e}"
+        + ("  (near zero)" if near_zero else "")
+    )
+
+
 def assert_close_ulps(actual, desired, *, maxulp: int, name: str, where: str = ""):
     """
     Pass/fail check using eps-scaled (relative + absolute) tolerance.
@@ -99,12 +146,12 @@ def assert_close_ulps(actual, desired, *, maxulp: int, name: str, where: str = "
     # Scale: use max(1, |a|, |b|) to avoid being too strict near zero
     scale = np.maximum(1.0, np.maximum(np.abs(a), np.abs(b)))
     tol = (maxulp * eps) * scale
-    diff = np.abs(a - b)
+    absdiff = np.abs(a - b)
 
-    if np.any(diff > tol):
+    if np.any(absdiff > tol):
         aa = a.reshape(-1)
         bb = b.reshape(-1)
-        dd = diff.reshape(-1)
+        dd = absdiff.reshape(-1)
         tt = tol.reshape(-1)
         # Info when eps-scaled check fails (ULP difference included)
         raise AssertionError(
@@ -116,8 +163,9 @@ def assert_close_ulps(actual, desired, *, maxulp: int, name: str, where: str = "
 
     # ---- WARN: display only when ULP difference is large ----
     if md > WARNULP:
-        print(f"[WARN] {name}{(' '+where) if where else ''}: max ulp diff={md} (> {WARNULP})")
-
+        # More useful diagnostics for investigating large ULP gaps that still pass eps-scaled check.
+        # This does not change pass/fail; it only prints details.
+        _warn_details(name, where, md, fi, a, b, absdiff, tol, scale)
 
 
 class TestTraceEquivalence(unittest.TestCase):
@@ -137,7 +185,9 @@ class TestTraceEquivalence(unittest.TestCase):
         def external_scalar(exname: str, parmod, ps: float, x, y, z, **kwargs):
             if is_scalar_like(x):
                 return gp.call_external_model(exname, parmod, ps, float(x), float(y), float(z))
-            x = np.asarray(x); y = np.asarray(y); z = np.asarray(z)
+            x = np.asarray(x)
+            y = np.asarray(y)
+            z = np.asarray(z)
             bx = np.empty_like(x, dtype=np.float64)
             by = np.empty_like(y, dtype=np.float64)
             bz = np.empty_like(z, dtype=np.float64)
@@ -150,14 +200,14 @@ class TestTraceEquivalence(unittest.TestCase):
         def internal_scalar(inname: str, x, y, z, **kwargs):
             if is_scalar_like(x):
                 return gp.call_internal_model(inname, float(x), float(y), float(z))
-            x = np.asarray(x); y = np.asarray(y); z = np.asarray(z)
+            x = np.asarray(x)
+            y = np.asarray(y)
+            z = np.asarray(z)
             bx = np.empty_like(x, dtype=np.float64)
             by = np.empty_like(y, dtype=np.float64)
             bz = np.empty_like(z, dtype=np.float64)
             for i in range(len(x)):
-                bx[i], by[i], bz[i] = gp.call_internal_model(
-                    inname, float(x[i]), float(y[i]), float(z[i])
-                )
+                bx[i], by[i], bz[i] = gp.call_internal_model(inname, float(x[i]), float(y[i]), float(z[i]))
             return bx, by, bz
 
         tv.call_external_model_vectorized = external_scalar
@@ -169,11 +219,16 @@ class TestTraceEquivalence(unittest.TestCase):
     def run_scalar_one(self, xi, yi, zi, dir, rlim, r0, parmod, exname, inname, maxloop):
         gp = self.gp
         xf, yf, zf, xx, yy, zz = gp.trace(
-            xi, yi, zi, dir,
-            rlim=rlim, r0=r0,
+            xi,
+            yi,
+            zi,
+            dir,
+            rlim=rlim,
+            r0=r0,
             parmod=parmod,
-            exname=exname, inname=inname,
-            maxloop=maxloop
+            exname=exname,
+            inname=inname,
+            maxloop=maxloop,
         )
         steps = len(xx) - 1
         status = infer_scalar_status(xf, yf, zf, r0=r0, rlim=rlim, steps=steps, maxloop=maxloop)
@@ -182,12 +237,17 @@ class TestTraceEquivalence(unittest.TestCase):
     def run_vectorized_batch(self, xi, yi, zi, dir, rlim, r0, parmod, exname, inname, maxloop):
         tv = self.tv
         xf, yf, zf, xx, yy, zz, status = tv.trace(
-            xi, yi, zi,
-            dir=dir, rlim=rlim, r0=r0,
+            xi,
+            yi,
+            zi,
+            dir=dir,
+            rlim=rlim,
+            r0=r0,
             parmod=parmod,
-            exname=exname, inname=inname,
+            exname=exname,
+            inname=inname,
             maxloop=maxloop,
-            return_full_path=True
+            return_full_path=True,
         )
         return (xf, yf, zf), (xx, yy, zz), status
 
@@ -198,14 +258,17 @@ class TestTraceEquivalence(unittest.TestCase):
         exname = "t89"
         parmod = 2
 
-        points = np.array([
-            [2.0,  0.1,  0.0],
-            [3.0,  1.0,  0.5],
-            [4.5, -1.2,  0.8],
-            [6.0,  0.5, -0.3],
-            [8.0, -0.2,  0.1],
-            [-2.5, 0.4,  0.2],
-        ], dtype=np.float64)
+        points = np.array(
+            [
+                [2.0, 0.1, 0.0],
+                [3.0, 1.0, 0.5],
+                [4.5, -1.2, 0.8],
+                [6.0, 0.5, -0.3],
+                [8.0, -0.2, 0.1],
+                [-2.5, 0.4, 0.2],
+            ],
+            dtype=np.float64,
+        )
 
         for inname in ("dipole", "igrf"):
             for dir in (+1.0, -1.0):
@@ -214,20 +277,32 @@ class TestTraceEquivalence(unittest.TestCase):
                 zi = points[:, 2]
 
                 (vxf, vyf, vzf), (vxx_m, vyy_m, vzz_m), vstatus = self.run_vectorized_batch(
-                    xi, yi, zi,
-                    dir=dir, rlim=rlim, r0=r0,
-                    parmod=parmod, exname=exname, inname=inname,
-                    maxloop=maxloop
+                    xi,
+                    yi,
+                    zi,
+                    dir=dir,
+                    rlim=rlim,
+                    r0=r0,
+                    parmod=parmod,
+                    exname=exname,
+                    inname=inname,
+                    maxloop=maxloop,
                 )
 
                 for i in range(points.shape[0]):
                     where = f"(inname={inname}, dir={dir}, i={i}, p={points[i].tolist()})"
                     with self.subTest(where=where):
                         (sxf, syf, szf), (sxx, syy, szz), ssteps, sstat = self.run_scalar_one(
-                            float(xi[i]), float(yi[i]), float(zi[i]),
-                            dir=dir, rlim=rlim, r0=r0,
-                            parmod=parmod, exname=exname, inname=inname,
-                            maxloop=maxloop
+                            float(xi[i]),
+                            float(yi[i]),
+                            float(zi[i]),
+                            dir=dir,
+                            rlim=rlim,
+                            r0=r0,
+                            parmod=parmod,
+                            exname=exname,
+                            inname=inname,
+                            maxloop=maxloop,
                         )
 
                         vxx = extract_vectorized_path(vxx_m, i)
@@ -240,8 +315,13 @@ class TestTraceEquivalence(unittest.TestCase):
                         self.assertEqual(int(vstatus[i]), int(sstat), f"Status mismatch {where}")
 
                         # Coordinates: allow ULP tolerance
-                        assert_close_ulps([vxf[i], vyf[i], vzf[i]], [sxf, syf, szf],
-                                          maxulp=MAXULP, name="endpoint", where=where)
+                        assert_close_ulps(
+                            [vxf[i], vyf[i], vzf[i]],
+                            [sxf, syf, szf],
+                            maxulp=MAXULP,
+                            name="endpoint",
+                            where=where,
+                        )
                         assert_close_ulps(vxx, sxx, maxulp=MAXULP, name="path_x", where=where)
                         assert_close_ulps(vyy, syy, maxulp=MAXULP, name="path_y", where=where)
                         assert_close_ulps(vzz, szz, maxulp=MAXULP, name="path_z", where=where)
