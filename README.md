@@ -71,7 +71,7 @@ pip install -e .
 ### Quick Test
 ```python
 import geopack
-from geopack.vectorized import t96_vectorized
+from geopack import t96_vectorized
 import numpy as np
 
 # Set up time
@@ -111,7 +111,7 @@ bx, by, bz = t96(parmod, ps, x, y, z)
 
 ### Using the New Vectorized Functions
 ```python
-from geopack.vectorized import t89_vectorized, t96_vectorized
+from geopack import t89_vectorized, t96_vectorized
 import numpy as np
 
 # OPTION 1: Single point (works just like scalar version)
@@ -167,7 +167,7 @@ print(f"Results match: {np.allclose(bx_scalar, bx_vec)}")  # True
 
 ### Field Line Tracing - Vectorized
 ```python
-from geopack.trace_field_lines_vectorized import trace_vectorized
+from geopack import trace_vectorized
 
 # Trace a single field line (backward compatible)
 x0, y0, z0 = 5.0, 0.0, 0.0
@@ -181,7 +181,7 @@ xf_array, yf_array, zf_array, status_array = trace_vectorized(
     x0_array, y0_array, z0_array, dir=1, rlim=30
 )
 print(f"Traced {len(x0_array)} field lines simultaneously")
-print(f"Status codes: {status_array}")  # 1 = reached boundary, 0 = max steps
+print(f"Status codes: {status_array}")  # 0 = hit inner boundary, 1 = hit outer boundary
 ```
 
 ### Large-Scale Field Mapping with Vectorization
@@ -218,8 +218,9 @@ Bz = bz.reshape(Z.shape)
 - `t04_vectorized(parmod, ps, x, y, z)` - T04 storm-time model
 
 ### Field Line Tracing
-- `trace_vectorized(x0, y0, z0, dir, rlim, ...)` - Production implementation with boundary interpolation
+- `trace_vectorized(xi, yi, zi, dir, rlim, r0, parmod, exname, inname, ...)` - Vectorized field line tracing with boundary interpolation
 - Field line geometry calculations (curvature, torsion, Frenet-Serret frame)
+- Directional derivatives along field lines
 
 ### Coordinate Transformations
 All major coordinate systems are supported with vectorized transforms:
@@ -259,22 +260,20 @@ bx, by, bz = t96_vectorized(parmod, ps, x, y, z)
 
 ## Documentation and Examples
 
-Comprehensive documentation and example notebooks are available in the repository:
+Example notebooks are available in `examples/notebooks/`. Install matplotlib and pandas to run them.
 
-### Tutorial Notebooks (`examples/notebooks/`)
-You should install matplotlib and pandas for using tutorial notebooks.
-- Coordinate transformation guide
-- Field model demonstrations
-- Performance benchmarks
-- Accuracy validation
-- Field line tracing tutorials
-- Advanced applications
+### Tutorial Notebooks
+- `01_coordinate_transformations_guide` — Coordinate system transforms
+- `02_magnetic_field_models_guide` — Field model usage (T89, T96, T01, T04)
+- `03_performance_comparison` — Scalar vs vectorized benchmarks
+- `04_accuracy_validation` — Numerical accuracy verification
+- `05_field_line_tracing_guide` — Field line tracing tutorial
+- `06_field_line_tracing_validation` — Tracing accuracy validation
+- `07_fieldline_geometry_and_derivatives` — Frenet-Serret frame and directional derivatives
 
-### Technical Documentation (`docs/`)
-- Vectorization principles and guidelines
-- Accuracy reports for all models
-- Implementation details
-- Development guides
+### Advanced Examples (`examples/notebooks/directional_derivatives_maps/`)
+- `dipole_field_directional_derivatives` — Dipole field directional derivative maps
+- `t96_field_directional_derivatives` — T96 model directional derivative and FAC maps
 
 ## Technical Details
 
