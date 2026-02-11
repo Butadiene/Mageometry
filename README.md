@@ -2,15 +2,11 @@
 
 A vectorized implementation extending the excellent Python [geopack](https://github.com/tsssss/geopack) library by Sheng Tian, adding high-performance NumPy-based versions of Tsyganenko magnetospheric field models and field line tracing algorithms.
 
-## Attention
-
-**This code was generated using a lot of AI (Claude code etc). There are some parts that have not been fully checked. (Humans are gradually checking them.)**
-
 ## Overview
 
 This project builds upon the solid foundation of the Python geopack library, which provides faithful implementations of the Tsyganenko magnetospheric field models (T89, T96, T01, T04) and the IGRF geomagnetic field model, originally developed in Fortran by N.A. Tsyganenko. 
 
-GEOPACK-VECTORIZE extends the original geopack by adding vectorized implementations that leverage NumPy for parallel computation, achieving 20-150x performance improvements while maintaining machine-precision accuracy and full backward compatibility with the original scalar functions.
+geopack-vectorize extends the original geopack by adding vectorized implementations that leverage NumPy for parallel computation, achieving 20-150x performance improvements while maintaining machine-precision accuracy and full backward compatibility with the original scalar functions.
 
 ### What This Project Adds
 
@@ -22,14 +18,27 @@ GEOPACK-VECTORIZE extends the original geopack by adding vectorized implementati
 
 ## Performance Benchmarks
 
-| Component | Scalar Time (1000 points) [s] | Vectorized Time [s] | Speedup |
-|-----------|-------------------------------:|---------------------:|--------:|
-| T89 Model | 0.048 | 0.000 | **112x** |
-| T96 Model | 1.244 | 0.035 | **35.1x** |
-| T01 Model | 1.894 | 0.041 | **46.3x** |
-| T04 Model | 1.952 | 0.041 | **47.2x** |
-| IGRF (GSW) | 0.060 | 0.006 | **9.4x** |
-| Coordinate Transforms (subset) | 0.003 | 0.000 | **64.5x** |
+Regenerate this table with [`benchmark/readme_benchmarks.py`](benchmark/readme_benchmarks.py) (`--plain` for plain text output).
+
+| Component | Scalar (100 pts) [s] | Vectorized [s] | Speedup |
+|-----------|--------------------:|---------------------:|--------:|
+| Coordinate Transforms (subset) | 0.000 | 0.000 | **6.3x** |
+| IGRF (GSW) | 0.006 | 0.002 | **3.2x** |
+| T89 Model | 0.005 | 0.000 | **22.1x** |
+| T96 Model | 0.127 | 0.023 | **5.6x** |
+| T01 Model | 0.205 | 0.027 | **7.5x** |
+| T04 Model | 0.200 | 0.025 | **7.9x** |
+| Field Line Tracing (vectorized field models) [scalar extrap from 50] | 2.343 | 2.225 | **1.1x** |
+
+| Component | Scalar (1000 pts) [s] | Vectorized [s] | Speedup |
+|-----------|---------------------:|---------------------:|--------:|
+| Coordinate Transforms (subset) | 0.004 | 0.000 | **48.9x** |
+| IGRF (GSW) | 0.068 | 0.006 | **11.3x** |
+| T89 Model | 0.045 | 0.000 | **116x** |
+| T96 Model | 1.046 | 0.036 | **29.2x** |
+| T01 Model | 1.815 | 0.039 | **46.0x** |
+| T04 Model | 1.820 | 0.042 | **43.5x** |
+| Field Line Tracing (vectorized field models) [scalar extrap from 50] | 21.607 | 3.050 | **7.1x** |
 
 ## Upgrading to v2.0.0
 
