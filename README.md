@@ -290,17 +290,13 @@ The original Fortran GEOPACK code and Tsyganenko models were developed by N.A. T
 
 We are grateful to both Sheng Tian for the Python implementation and N.A. Tsyganenko for the original models that have been fundamental to magnetospheric physics research for decades.
 
-
-## How to cite
-DOI: https://doi.org/10.5281/zenodo.15110786
-
-Tian, S., Frissell, N., w2ruf, Lewis, J. & Lei Cai, Ph. D. tsssss/geopack: v1.0.12. Zenodo https://doi.org/10.5281/zenodo.15110787 (2025).
-
 ## License
 
 This project maintains the MIT License from the original geopack implementation.
 
 ## References
+
+- Tian, S., Frissell, N., w2ruf, Lewis, J. & Lei Cai, Ph. D. tsssss/geopack: v1.0.12. Zenodo https://doi.org/10.5281/zenodo.15110787 (2025).
 
 - Tsyganenko, N. A. (1995), "Modeling the Earth's magnetospheric magnetic field", J. Geophys. Res.
 - Tsyganenko, N. A. (2002), "A model of the near magnetosphere with a dawn-dusk asymmetry", J. Geophys. Res.
