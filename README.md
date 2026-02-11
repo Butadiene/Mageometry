@@ -45,7 +45,7 @@ Other notable changes from v1.1.4 to v2.0.0:
 - All comments and docstrings translated to English
 - Docstrings standardized to NumPy format
 - Example notebooks cleaned up and reorganized
-- See [RELEASE_NOTES_v2.0.0.md](RELEASE_NOTES_v2.0.0.md) for the full list of changes
+- See [RELEASE_NOTES_v2.0.0.md](docs/releases/RELEASE_NOTES_v2.0.0.md) for the full list of changes
 
 **Top-level imports are unchanged** — existing code using `from geopack import t96_vectorized` etc. will continue to work without modification.
 
