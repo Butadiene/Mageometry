@@ -58,3 +58,5 @@ docs/_templates/
 # Local configuration
 config.local
 settings.local
+
+examples/notebooks/directional_derivatives_maps/png_outputs
