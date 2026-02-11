@@ -14,7 +14,7 @@ geopack-vectorize extends the original geopack by adding vectorized implementati
 - **Vectorized Field Line Tracing**: Parallel tracing of multiple field lines with improved boundary interpolation
 - **Vectorized Coordinate Transforms**: Array-based transformations between all coordinate systems
 - **Full Backward Compatibility**: All original geopack functions remain unchanged and available
-- **Comprehensive Validation**: Extensive test suite ensuring < 1e-8 relative error vs original implementations
+- **Comprehensive Validation**: Extensive test suite ensuring < 10⁻¹¹ relative error vs original implementations
 
 ## Upgrading to v2.0.0
 
@@ -307,6 +307,32 @@ Regenerate this table with [`benchmark/readme_benchmarks.py`](benchmark/readme_b
 | T04 Model | 1.820 | 0.042 | **43.5x** |
 | Field Line Tracing (vectorized field models) [scalar extrap from 50] | 21.607 | 3.050 | **7.1x** |
 
+## Accuracy Validation
+
+The vectorized implementations are validated against the original scalar functions across a 100 × 100 grid in the X-Z meridian plane (Y = 0, X: 2 to −10 Re, Z: 6 to −6 Re) using the combined IGRF + T96 total field. Relative error is defined as (B_scalar − B_vector) / |B_scalar|.
+
+Regenerate these figures with [`benchmark/readme_validation.py`](benchmark/readme_validation.py).
+
+| Metric | Value |
+|--------|------:|
+| Points evaluated | 9,792 |
+| Max \|relative error\| | 9.56 × 10⁻¹² |
+| Mean \|relative error\| | 6.72 × 10⁻¹⁴ |
+| Median \|relative error\| | 2.54 × 10⁻¹⁶ |
+| Scalar computation | 23.72 s |
+| Vectorized computation | 0.21 s |
+| Speedup | **116x** |
+
+The median error is near double-precision machine epsilon (~1.1 × 10⁻¹⁶), confirming that the vectorized path reproduces the scalar results to floating-point precision.
+
+**Error distribution** — Most points cluster below 10⁻¹⁵; the tail extends to ~10⁻¹¹.
+
+![Relative error histogram](benchmark/readme_validation_histogram.png)
+
+**Spatial error map** — The largest errors concentrate near the magnetopause/cusp boundary where T96 current-sheet gradients are steepest, but remain negligible everywhere.
+
+![Relative error colormap](benchmark/readme_validation_colormap.png)
+
 ## Technical Details
 
 ### Vectorization Approach
@@ -317,9 +343,10 @@ Regenerate this table with [`benchmark/readme_benchmarks.py`](benchmark/readme_b
 - Memory-efficient implementations
 
 ### Accuracy Guarantees
-- Maximum relative error < 1e-8 vs scalar implementations
-- Validated against original Fortran code
-- Comprehensive test coverage
+- Maximum relative error < 10⁻¹¹ vs scalar implementations (IGRF + T96 total field)
+- Median relative error at machine epsilon (~10⁻¹⁶)
+- Validated across 9,792 grid points in the X-Z meridian plane
+- Comprehensive test suite with configurable tolerances
 - Proper handling of boundary conditions
 
 ### Performance Optimization
