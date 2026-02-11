@@ -96,7 +96,7 @@ print(f"\nAnalyzing point: ({x}, {y}, {z}) Re")
 
 # Calculate all derivatives (TOTAL field)
 derivatives = field_line_directional_derivatives_vectorized(
-    b_igrf_plus_t96_vectorized, parmod, ps, x, y, z
+    b_igrf_plus_t96_vectorized, parmod, ps, x, y, z, delta=1e-3
 )
 
 # Display the 9 key formulas
@@ -136,7 +136,7 @@ z_line = np.zeros_like(x_line)
 
 # Calculate derivatives along line (TOTAL field)
 derivatives_line = field_line_directional_derivatives_vectorized(
-    b_igrf_plus_t96_vectorized, parmod, ps, x_line, y_line, z_line
+    b_igrf_plus_t96_vectorized, parmod, ps, x_line, y_line, z_line, delta=1e-3
 )
 
 # Extract curvature and torsion

@@ -92,7 +92,7 @@ print("Model: IGRF(internal) + T96(external)")
 
 # Get Frenet frame (TOTAL field)
 tx, ty, tz, nx, ny, nz, bx, by, bz, curv = field_line_frenet_frame_vectorized(
-    b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
+    b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr, delta=1e-3
 )
 
 # Verify unit vectors
@@ -117,7 +117,7 @@ print(f"b - T×n max error: {max_error:.2e}")
 
 # Calculate directional derivatives (TOTAL field)
 derivatives = field_line_directional_derivatives_vectorized(
-    b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
+    b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr, delta=1e-3
 )
 
 print("\n\n4. Implications for Directional Derivatives:")

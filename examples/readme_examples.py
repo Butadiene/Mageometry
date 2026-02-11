@@ -90,14 +90,16 @@ x = np.array([5.0, 6.0, 7.0, 8.0])
 y = np.zeros(4)
 z = np.zeros(4)
 
-kappa = field_line_curvature_vectorized(dip_plus_t96, parmod, ps, x, y, z)
+kappa = field_line_curvature_vectorized(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
+# kappa: field line curvature [1/Re]
 print("\n=== Field Line Curvature (dipole + T96) ===")
 for i in range(len(x)):
     print(f"  r = {x[i]} Re -> curvature = {kappa[i]:.6f} 1/Re")
 
 # Full Frenet-Serret frame (tangent, normal, binormal) + curvature
 tx, ty, tz, nx, ny, nz, bnx, bny, bnz, curvature = \
-    field_line_frenet_frame_vectorized(dip_plus_t96, parmod, ps, x, y, z)
+    field_line_frenet_frame_vectorized(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
+# curvature [1/Re]; tangent, normal, binormal are unit vectors (dimensionless)
 print("\n=== Frenet-Serret Frame (dipole + T96) ===")
 for i in range(len(x)):
     print(f"  r = {x[i]} Re -> T=({tx[i]:.4f}, {ty[i]:.4f}, {tz[i]:.4f})  "
@@ -106,8 +108,9 @@ for i in range(len(x)):
 
 # --- 6. Field Line Directional Derivatives ---
 derivs = field_line_directional_derivatives_vectorized(
-    dip_plus_t96, parmod, ps, x, y, z
+    dip_plus_t96, parmod, ps, x, y, z, delta=1e-3
 )
+# All derivative values are in units of [1/Re]
 print("\n=== Field Line Directional Derivatives ===")
 
 # All 9 components, grouped by derivative direction

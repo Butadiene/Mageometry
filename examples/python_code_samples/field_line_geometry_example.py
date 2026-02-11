@@ -166,7 +166,7 @@ def main():
     curvature_flat = np.full_like(x_flat, np.nan, dtype=float)
     curvature_flat[valid] = field_line_curvature_vectorized(
         b_igrf_plus_t96_vectorized, parmod, ps,
-        x_flat[valid], y_flat[valid], z_flat[valid]
+        x_flat[valid], y_flat[valid], z_flat[valid], delta=1e-3
     )
 
     curvature_grid = curvature_flat.reshape(X.shape)
@@ -224,7 +224,7 @@ def main():
     for i in range(steps):
         # Get geometry at current position
         tx, ty, tz, _, _, _, _, _, _, curv, tors = field_line_geometry_complete_vectorized(
-            b_igrf_plus_t96_vectorized, parmod, ps, path_x[i], path_y[i], path_z[i]
+            b_igrf_plus_t96_vectorized, parmod, ps, path_x[i], path_y[i], path_z[i], delta=1e-3
         )
 
         path_curvature[i] = curv

@@ -87,7 +87,7 @@ print("=" * 60)
 
 # Calculate derivatives (TOTAL field)
 derivatives = field_line_directional_derivatives_vectorized(
-    b_igrf_plus_t96_vectorized, parmod, ps, x, y, z
+    b_igrf_plus_t96_vectorized, parmod, ps, x, y, z, delta=1e-3
 )
 
 # Display the 9 formulas
@@ -124,7 +124,7 @@ y_arr = np.zeros(4)
 z_arr = np.zeros(4)
 
 derivatives_arr = field_line_directional_derivatives_vectorized(
-    b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
+    b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr, delta=1e-3
 )
 
 print("Curvature values:")

@@ -101,7 +101,7 @@ z_geo = np.array([0.0, 0.0, 0.0])
 x_gsm, y_gsm, z_gsm = geogsm_vectorized(x_geo, y_geo, z_geo, j=1)
 ```
 
-### IGRF Internal Field
+### Internal Field (IGRF and Dipole)
 ```python
 from geopack import igrf_gsm_vectorized
 
@@ -160,12 +160,13 @@ x = np.array([5.0, 6.0, 7.0, 8.0])
 y = np.zeros(4)
 z = np.zeros(4)
 
-kappa = field_line_curvature_vectorized(dip_plus_t96, parmod, ps, x, y, z)
-# kappa: field line curvature in 1/Re
+kappa = field_line_curvature_vectorized(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
+# kappa: field line curvature [1/Re]
 
 # Full Frenet-Serret frame (tangent, normal, binormal) + curvature
 tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = \
-    field_line_frenet_frame_vectorized(dip_plus_t96, parmod, ps, x, y, z)
+    field_line_frenet_frame_vectorized(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
+# curvature [1/Re]; tangent, normal, binormal are unit vectors (dimensionless)
 ```
 
 ### Field Line Directional Derivatives
@@ -174,8 +175,9 @@ from geopack import field_line_directional_derivatives_vectorized
 
 # All 9 directional derivatives (using combined dipole + T96 model)
 derivs = field_line_directional_derivatives_vectorized(
-    dip_plus_t96, parmod, ps, x, y, z
+    dip_plus_t96, parmod, ps, x, y, z, delta=1e-3
 )
+# All derivative values are in units of [1/Re]
 
 # Tangential derivatives (∂/∂T)
 # derivs['dT_dT_n']  (∂T/∂T)·n = κ (curvature)
@@ -207,7 +209,7 @@ derivs = field_line_directional_derivatives_vectorized(
 - Directional derivatives along field lines
 
 ### Coordinate Transformations
-All major coordinate systems are supported with vectorized transforms:
+All major coordinate systems are supported with vectorized transforms (see [SPENVIS Coordinate Transformations](https://www.spenvis.oma.be/help/background/coortran/coortran.html) for definitions):
 - GEO (Geographic)
 - GEI (Geocentric Equatorial Inertial)
 - MAG (Geomagnetic)
@@ -241,6 +243,8 @@ bx, by, bz = t96_vectorized(parmod, ps, x, y, z)
 
 ### T04
 10-element array: `[Pdyn, Dst, ByIMF, BzIMF, W1, W2, W3, W4, W5, W6]`
+
+For detailed parameter descriptions, see the [upstream geopack README](https://github.com/tsssss/geopack).
 
 ## Documentation and Examples
 
