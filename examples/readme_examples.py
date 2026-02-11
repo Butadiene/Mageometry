@@ -54,14 +54,24 @@ for i in range(len(x)):
 # T96 parameters: [Pdyn, Dst, ByIMF, BzIMF, 0, 0, 0, 0, 0, 0]
 parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
 
-x = np.array([5.0, 6.0, 7.0, 8.0, 9.0])
+x = np.array([5.0, 6.0, 7.0, 8.0, 9.0])  # GSM coordinates (Re)
 y = np.zeros(5)
 z = np.zeros(5)
 
-bx, by, bz = t96_vectorized(parmod, ps, x, y, z)  # returns nT in GSM
+bx, by, bz = t96_vectorized(parmod, ps, x, y, z)  # GSM components (nT)
 print("\n=== T96 External Field (GSM) ===")
 for i in range(len(x)):
     print(f"  r = {x[i]} Re -> B = ({bx[i]:.2f}, {by[i]:.2f}, {bz[i]:.2f}) nT")
+
+# Tsyganenko models give only the external (magnetospheric) field.
+# Add an internal field to get the total magnetic field:
+bx_int, by_int, bz_int = geopack.dip(x, y, z)
+bx_total = bx + bx_int
+by_total = by + by_int
+bz_total = bz + bz_int
+print("\n=== Total Field: dipole (internal) + T96 (external) ===")
+for i in range(len(x)):
+    print(f"  r = {x[i]} Re -> B = ({bx_total[i]:.2f}, {by_total[i]:.2f}, {bz_total[i]:.2f}) nT")
 
 # --- 4. Field Line Tracing ---
 # Trace using dipole (internal) + T96 (external)

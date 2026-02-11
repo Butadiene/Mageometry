@@ -16,30 +16,6 @@ geopack-vectorize extends the original geopack by adding vectorized implementati
 - **Full Backward Compatibility**: All original geopack functions remain unchanged and available
 - **Comprehensive Validation**: Extensive test suite ensuring < 1e-8 relative error vs original implementations
 
-## Performance Benchmarks
-
-Regenerate this table with [`benchmark/readme_benchmarks.py`](benchmark/readme_benchmarks.py) (`--plain` for plain text output).
-
-| Component | Scalar (100 pts) [s] | Vectorized [s] | Speedup |
-|-----------|--------------------:|---------------------:|--------:|
-| Coordinate Transforms (subset) | 0.000 | 0.000 | **6.3x** |
-| IGRF (GSW) | 0.006 | 0.002 | **3.2x** |
-| T89 Model | 0.005 | 0.000 | **22.1x** |
-| T96 Model | 0.127 | 0.023 | **5.6x** |
-| T01 Model | 0.205 | 0.027 | **7.5x** |
-| T04 Model | 0.200 | 0.025 | **7.9x** |
-| Field Line Tracing (vectorized field models) [scalar extrap from 50] | 2.343 | 2.225 | **1.1x** |
-
-| Component | Scalar (1000 pts) [s] | Vectorized [s] | Speedup |
-|-----------|---------------------:|---------------------:|--------:|
-| Coordinate Transforms (subset) | 0.004 | 0.000 | **48.9x** |
-| IGRF (GSW) | 0.068 | 0.006 | **11.3x** |
-| T89 Model | 0.045 | 0.000 | **116x** |
-| T96 Model | 1.046 | 0.036 | **29.2x** |
-| T01 Model | 1.815 | 0.039 | **46.0x** |
-| T04 Model | 1.820 | 0.042 | **43.5x** |
-| Field Line Tracing (vectorized field models) [scalar extrap from 50] | 21.607 | 3.050 | **7.1x** |
-
 ## Upgrading to v2.0.0
 
 As of v2.0.0, the PyPI package name has changed from `geopack-vectorized` to `geopack-vectorize`. The old `geopack-vectorized` package will remain available for a transitional period but will eventually be removed. Please update your installation:
@@ -123,11 +99,18 @@ from geopack import t96_vectorized
 # T96 parameters: [Pdyn, Dst, ByIMF, BzIMF, 0, 0, 0, 0, 0, 0]
 parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
 
-x = np.array([5.0, 6.0, 7.0, 8.0, 9.0])
+x = np.array([5.0, 6.0, 7.0, 8.0, 9.0])  # GSM coordinates (Re)
 y = np.zeros(5)
 z = np.zeros(5)
 
-bx, by, bz = t96_vectorized(parmod, ps, x, y, z)  # returns nT in GSM
+bx, by, bz = t96_vectorized(parmod, ps, x, y, z)  # GSM components (nT)
+
+# Tsyganenko models give only the external (magnetospheric) field.
+# Add an internal field to get the total magnetic field:
+bx_int, by_int, bz_int = geopack.dip(x, y, z)
+bx_total = bx + bx_int
+by_total = by + by_int
+bz_total = bz + bz_int
 ```
 
 ### Field Line Tracing
@@ -197,54 +180,91 @@ derivs = field_line_directional_derivatives_vectorized(
 
 ## Vectorized Components
 
-### Field Models
-- `t89_vectorized(iopt, ps, x, y, z)` - T89 Kp-based model
-- `t96_vectorized(parmod, ps, x, y, z)` - T96 solar wind parameter model
-- `t01_vectorized(parmod, ps, x, y, z)` - T01 storm-time model
-- `t04_vectorized(parmod, ps, x, y, z)` - T04 storm-time model
-
-### Field Line Tracing
-- `trace_vectorized(xi, yi, zi, dir, rlim, r0, parmod, exname, inname, ...)` - Vectorized field line tracing with boundary interpolation
-- Field line geometry calculations (curvature, torsion, Frenet-Serret frame)
-- Directional derivatives along field lines
-
 ### Coordinate Transformations
-All major coordinate systems are supported with vectorized transforms (see [SPENVIS Coordinate Transformations](https://www.spenvis.oma.be/help/background/coortran/coortran.html) for definitions):
-- GEO (Geographic)
-- GEI (Geocentric Equatorial Inertial)
-- MAG (Geomagnetic)
-- GSM (Geocentric Solar Magnetospheric)
-- GSE (Geocentric Solar Ecliptic)
-- SM (Solar Magnetic)
-- GSW (Geocentric Solar Wind)
 
-### IGRF Implementation
-- `igrf_geo_vectorized(r, theta, phi)` - Vectorized IGRF field calculation
-- Support for years 1900-2025 with extrapolation beyond
+All vectorized transforms accept scalar or NumPy array inputs. Each pairwise transform uses a direction flag `j`: `j=1` for the forward direction, `j=-1` for the inverse. All coordinate values are in Earth radii (Re); angles in radians. See [SPENVIS Coordinate Transformations](https://www.spenvis.oma.be/help/background/coortran/coortran.html) for coordinate system definitions.
 
-## Model Parameters
+| Function | Arguments | Forward (j=1) | Inverse (j=-1) |
+|----------|-----------|---------------|-----------------|
+| `geogsm_vectorized` | `(x, y, z, j)` | GEO → GSM | GSM → GEO |
+| `geomag_vectorized` | `(x, y, z, j)` | GEO → MAG | MAG → GEO |
+| `geigeo_vectorized` | `(x, y, z, j)` | GEI → GEO | GEO → GEI |
+| `gsmgse_vectorized` | `(x, y, z, j)` | GSM → GSE | GSE → GSM |
+| `smgsm_vectorized` | `(x, y, z, j)` | SM → GSM | GSM → SM |
+| `magsm_vectorized` | `(x, y, z, j)` | MAG → SM | SM → MAG |
+| `gswgsm_vectorized` | `(x, y, z, j)` | GSW → GSM | GSM → GSW |
 
-### T89
-Single parameter: Kp index (1-7)
-```python
-kp = 3  # Kp index
-bx, by, bz = t89_vectorized(kp, ps, x, y, z)
-```
+Spherical/Cartesian and field-vector transforms:
+- `sphcar_vectorized(r, theta, phi, j)` — Spherical ↔ Cartesian (j=1: Sph→Cart, j=-1: Cart→Sph)
+- `bspcar_vectorized(theta, phi, br, btheta, bphi)` — B-field components: Spherical → Cartesian
+- `bcarsp_vectorized(x, y, z, bx, by, bz)` — B-field components: Cartesian → Spherical
 
-### T96
-10-element parameter array: `[Pdyn, Dst, ByIMF, BzIMF, 0, 0, 0, 0, 0, 0]`
-```python
-parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
-bx, by, bz = t96_vectorized(parmod, ps, x, y, z)
-```
+### Internal Field (IGRF and Dipole)
 
-### T01
-10-element array: `[Pdyn, Dst, ByIMF, BzIMF, G1, G2, 0, 0, 0, 0]`
+Vectorized IGRF and dipole field functions. All return magnetic field components in nanotesla (nT). IGRF covers years 1900–2025 with extrapolation beyond.
 
-### T04
-10-element array: `[Pdyn, Dst, ByIMF, BzIMF, W1, W2, W3, W4, W5, W6]`
+- `igrf_geo_vectorized(r, theta, phi)` — IGRF in spherical GEO coordinates (r in Re, angles in radians); returns `(br, btheta, bphi)`
+- `igrf_gsm_vectorized(x, y, z)` — IGRF in GSM Cartesian coordinates (Re); returns `(bx, by, bz)`
+- `igrf_gsw_vectorized(x, y, z)` — IGRF in GSW Cartesian coordinates (Re); returns `(bx, by, bz)`
+- `dip(x, y, z)` — Dipole field in GSM coordinates (Re); natively array-compatible via NumPy operations
+
+### External Field Models (Tsyganenko)
+
+Tsyganenko magnetospheric field models. All take positions in **GSM coordinates** (Re) and return `(bx, by, bz)` in nanotesla (nT, GSM). `ps` is the dipole tilt angle (radians) returned by `recalc()`.
+
+- `t89_vectorized(iopt, ps, x, y, z)` — T89 model; `iopt` is the Kp index (1–7)
+- `t96_vectorized(parmod, ps, x, y, z)` — T96 model; `parmod = [Pdyn, Dst, ByIMF, BzIMF, 0, 0, 0, 0, 0, 0]`
+- `t01_vectorized(parmod, ps, x, y, z)` — T01 model; `parmod = [Pdyn, Dst, ByIMF, BzIMF, G1, G2, 0, 0, 0, 0]`
+- `t04_vectorized(parmod, ps, x, y, z)` — T04 model; `parmod = [Pdyn, Dst, ByIMF, BzIMF, W1, W2, W3, W4, W5, W6]`
 
 For detailed parameter descriptions, see the [upstream geopack README](https://github.com/tsssss/geopack).
+
+**Note:** Tsyganenko models provide only the *external* (magnetospheric) contribution. To obtain the total magnetic field, add an internal field (IGRF or dipole):
+
+```python
+# Total field = internal (dipole) + external (T96)
+bx_int, by_int, bz_int = geopack.dip(x, y, z)
+bx_ext, by_ext, bz_ext = t96_vectorized(parmod, ps, x, y, z)
+
+bx_total = bx_int + bx_ext
+by_total = by_int + by_ext
+bz_total = bz_int + bz_ext
+```
+
+### Field Line Tracing
+
+`trace_vectorized` traces magnetic field lines from given starting points to inner or outer boundaries.
+
+```python
+trace_vectorized(xi, yi, zi, dir, rlim, r0, parmod, exname, inname, ...)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `xi, yi, zi` | float or array | *(required)* | Starting positions in GSM coordinates (Re) |
+| `dir` | float | `1.0` | Tracing direction: `+1` antiparallel to **B**, `-1` parallel to **B** |
+| `rlim` | float | `10.0` | Outer boundary radius (Re); tracing stops when r >= rlim |
+| `r0` | float | `1.0` | Inner boundary sphere radius (Re); tracing stops when r <= r0 |
+| `parmod` | array | `2` | Model parameters (scalar Kp for T89; 10-element array for T96/T01/T04) |
+| `exname` | str | `"t89"` | External field model: `"t89"`, `"t96"`, `"t01"`, or `"t04"` |
+| `inname` | str | `"igrf"` | Internal field model: `"igrf"` or `"dip"` |
+| `maxloop` | int | `1000` | Maximum number of integration steps per trace |
+| `return_full_path` | bool | `False` | If `True`, returns full field line trajectories as masked arrays |
+| `strict_scalar_models` | bool | `True` | If `True`, evaluates field models point-by-point for bitwise match with scalar `trace()` |
+| `return_nsteps` | bool | `False` | If `True`, also returns the number of integration steps per trace |
+
+**Returns:** `(xf, yf, zf, status)` — final positions (Re, GSM) and integer status codes:
+- `0` — reached inner boundary (r <= r0)
+- `1` — reached outer boundary (r >= rlim)
+- `2` — exceeded maximum integration steps
+
+Optional returns (appended when the corresponding flag is `True`):
+- `xx, yy, zz` — full path arrays (`return_full_path`)
+- `nsteps` — per-trace step counts (`return_nsteps`)
+
+Related functions for field line analysis:
+- Field line geometry (curvature, torsion, Frenet-Serret frame) — see [Usage Examples](#field-line-geometry-frenet-serret-frame)
+- Directional derivatives along field lines — see [Usage Examples](#field-line-directional-derivatives)
 
 ## Documentation and Examples
 
@@ -262,6 +282,30 @@ Example notebooks are available in `examples/notebooks/`. Install matplotlib and
 ### Advanced Examples (`examples/notebooks/directional_derivatives_maps/`)
 - `dipole_field_directional_derivatives` — Dipole field directional derivative maps
 - `t96_field_directional_derivatives` — T96 model directional derivative and FAC maps
+
+## Performance Benchmarks
+
+Regenerate this table with [`benchmark/readme_benchmarks.py`](benchmark/readme_benchmarks.py) (`--plain` for plain text output).
+
+| Component | Scalar (100 pts) [s] | Vectorized [s] | Speedup |
+|-----------|--------------------:|---------------------:|--------:|
+| Coordinate Transforms (subset) | 0.000 | 0.000 | **6.3x** |
+| IGRF (GSW) | 0.006 | 0.002 | **3.2x** |
+| T89 Model | 0.005 | 0.000 | **22.1x** |
+| T96 Model | 0.127 | 0.023 | **5.6x** |
+| T01 Model | 0.205 | 0.027 | **7.5x** |
+| T04 Model | 0.200 | 0.025 | **7.9x** |
+| Field Line Tracing (vectorized field models) [scalar extrap from 50] | 2.343 | 2.225 | **1.1x** |
+
+| Component | Scalar (1000 pts) [s] | Vectorized [s] | Speedup |
+|-----------|---------------------:|---------------------:|--------:|
+| Coordinate Transforms (subset) | 0.004 | 0.000 | **48.9x** |
+| IGRF (GSW) | 0.068 | 0.006 | **11.3x** |
+| T89 Model | 0.045 | 0.000 | **116x** |
+| T96 Model | 1.046 | 0.036 | **29.2x** |
+| T01 Model | 1.815 | 0.039 | **46.0x** |
+| T04 Model | 1.820 | 0.042 | **43.5x** |
+| Field Line Tracing (vectorized field models) [scalar extrap from 50] | 21.607 | 3.050 | **7.1x** |
 
 ## Technical Details
 
