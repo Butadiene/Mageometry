@@ -12,56 +12,20 @@ same progression as the README examples:
   7. Performance comparison
 """
 
+import sys
+import os
 import numpy as np
 import datetime
 import time
 import geopack
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _helpers import _loop_vectorize_xyz, igrf_internal_gsm
+
 
 # ----------------------------
-# Helpers: robust vectorization
+# Local helpers (5-tuple return specific to this script's display needs)
 # ----------------------------
-def _loop_vectorize_xyz(func, x, y, z, *args):
-    """
-    Fallback vectorizer for funcs returning (bx,by,bz) given (x,y,z).
-    Supports scalar or array inputs.
-    """
-    x = np.asarray(x)
-    y = np.asarray(y)
-    z = np.asarray(z)
-
-    # Scalar
-    if x.shape == () and y.shape == () and z.shape == ():
-        return func(*args, float(x), float(y), float(z))
-
-    # Array (broadcast allowed)
-    x, y, z = np.broadcast_arrays(x, y, z)
-
-    bx = np.empty_like(x, dtype=float)
-    by = np.empty_like(x, dtype=float)
-    bz = np.empty_like(x, dtype=float)
-
-    it = np.nditer(x, flags=["multi_index"])
-    while not it.finished:
-        idx = it.multi_index
-        bx[idx], by[idx], bz[idx] = func(*args, float(x[idx]), float(y[idx]), float(z[idx]))
-        it.iternext()
-
-    return bx, by, bz
-
-
-def igrf_internal_gsm(x, y, z):
-    """
-    Internal field (IGRF) in GSM Cartesian [nT].
-    Uses vectorized API if available; otherwise loops.
-    """
-    if hasattr(geopack, "igrf_gsm_vectorized"):
-        return geopack.igrf_gsm_vectorized(x, y, z)
-    if hasattr(geopack, "igrf_gsm"):
-        return _loop_vectorize_xyz(geopack.igrf_gsm, x, y, z)
-    raise AttributeError("geopack has no igrf_gsm / igrf_gsm_vectorized.")
-
-
 def t96_external_gsm(parmod, ps, x, y, z):
     """
     External field (T96) in GSM Cartesian [nT].
@@ -78,6 +42,7 @@ def total_field_igrf_plus_t96(parmod, ps, x, y, z):
     """
     Total field in GSM Cartesian [nT]:
         B_total = B_IGRF + B_T96
+    Returns (btx, bty, btz, (bix, biy, biz), (bex, bey, bez)).
     """
     bix, biy, biz = igrf_internal_gsm(x, y, z)
     bex, bey, bez = t96_external_gsm(parmod, ps, x, y, z)

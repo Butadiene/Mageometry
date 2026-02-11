@@ -9,72 +9,21 @@ Magnetic field model used here:
 in GSM coordinates.
 """
 
+import sys
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import geopack
 from geopack import (
-    t96_vectorized,
     field_line_tangent_vectorized,
     field_line_curvature_vectorized,
-    field_line_geometry_complete_vectorized
+    field_line_geometry_complete_vectorized,
+    field_line_frenet_frame_vectorized,
+    verify_unit_vectors
 )
 
-
-# ----------------------------
-# Helpers: robust vectorization
-# ----------------------------
-def _loop_vectorize_xyz(func, x, y, z, *args):
-    """
-    Fallback vectorizer for funcs returning (bx,by,bz) given (x,y,z).
-    Supports scalar or array inputs.
-    """
-    x = np.asarray(x)
-    y = np.asarray(y)
-    z = np.asarray(z)
-
-    # Scalar
-    if x.shape == () and y.shape == () and z.shape == ():
-        return func(*args, float(x), float(y), float(z))
-
-    # Array (broadcast allowed)
-    x, y, z = np.broadcast_arrays(x, y, z)
-
-    bx = np.empty_like(x, dtype=float)
-    by = np.empty_like(x, dtype=float)
-    bz = np.empty_like(x, dtype=float)
-
-    it = np.nditer(x, flags=["multi_index"])
-    while not it.finished:
-        idx = it.multi_index
-        bx[idx], by[idx], bz[idx] = func(*args, float(x[idx]), float(y[idx]), float(z[idx]))
-        it.iternext()
-
-    return bx, by, bz
-
-
-def igrf_internal_gsm(x, y, z):
-    """
-    Internal field (IGRF) in GSM Cartesian [nT].
-    Uses vectorized API if available; otherwise loops.
-    """
-    if hasattr(geopack, "igrf_gsm_vectorized"):
-        return geopack.igrf_gsm_vectorized(x, y, z)
-    if hasattr(geopack, "igrf_gsm"):
-        return _loop_vectorize_xyz(geopack.igrf_gsm, x, y, z)
-    raise AttributeError("geopack has no igrf_gsm / igrf_gsm_vectorized.")
-
-
-def b_igrf_plus_t96_vectorized(parmod, ps, x, y, z):
-    """
-    Total magnetic field in GSM Cartesian [nT]:
-        B_total = B_IGRF (internal) + B_T96 (external)
-
-    Signature matches Tsyganenko model funcs used by the geometry utilities:
-        func(parmod, ps, x, y, z) -> (bx, by, bz)
-    """
-    bix, biy, biz = igrf_internal_gsm(x, y, z)  # internal
-    bex, bey, bez = t96_vectorized(parmod, ps, x, y, z)  # external
-    return bix + bex, biy + bey, biz + bez
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _helpers import b_igrf_plus_t96_vectorized, default_params
 
 
 def main():
@@ -141,8 +90,39 @@ def main():
     for i in range(len(r)):
         print(f"{r[i]:6.1f}   {curvature[i]:9.4f}  {torsion[i]:9.4f}  {b_mag[i]:9.1f}")
 
-        # Example 3: 2D visualization of curvature
-    print("\nExample 3: Curvature Map in Equatorial Plane")
+    # Example 3: Unit-vector verification of the Frenet-Serret frame
+    print("\nExample 3: Frenet-Serret Frame Verification")
+    print("-" * 40)
+
+    # Use a variety of off-axis test points
+    _, ps_def, parmod_def = default_params()
+    x_test = np.array([-5.0, -6.0, -7.0, -8.0])
+    y_test = np.array([0.0, 1.0, 0.0, -1.0])
+    z_test = np.array([0.0, 0.0, 1.0, 0.0])
+
+    # Get Frenet frame (returns flat 10-tuple)
+    ftx, fty, ftz, fnx, fny, fnz, fbx, fby, fbz, curv = (
+        field_line_frenet_frame_vectorized(
+            b_igrf_plus_t96_vectorized, parmod_def, ps_def,
+            x_test, y_test, z_test, delta=1e-3
+        )
+    )
+
+    errors = verify_unit_vectors(ftx, fty, ftz, fnx, fny, fnz, fbx, fby, fbz)
+
+    print("Unit length:")
+    for key in ['|T| - 1', '|n| - 1', '|b| - 1']:
+        print(f"  {key:8} max error: {np.max(np.abs(errors[key])):.2e}")
+
+    print("Orthogonality:")
+    for key in ['T·n', 'T·b', 'n·b']:
+        print(f"  {key:8} max error: {np.max(np.abs(errors[key])):.2e}")
+
+    print("Cross-product  b = T x n:")
+    print(f"  b - T×n max error: {np.max(np.abs(errors['b - T×n'])):.2e}")
+
+    # Example 4: 2D visualization of curvature
+    print("\nExample 4: Curvature Map in Equatorial Plane")
     print("-" * 40)
 
     # Create grid
@@ -199,8 +179,8 @@ def main():
     # plt.savefig('field_line_curvature_map.png', dpi=300, bbox_inches='tight')
     # print("Curvature map saved as 'field_line_curvature_map.png'")
 
-    # Example 4: Field line properties along a trace
-    print("\nExample 4: Properties Along a Field Line")
+    # Example 5: Field line properties along a trace
+    print("\nExample 5: Properties Along a Field Line")
     print("-" * 40)
 
     # Trace along field line starting from (5, 0, 0)
