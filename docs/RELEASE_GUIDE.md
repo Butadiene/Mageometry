@@ -1,12 +1,11 @@
-# Release Guide for geopack-vectorized
+# Release Guide for geopack-vectorize
 
-This guide outlines the steps to release a new version of the geopack-vectorized package.
+This guide outlines the steps to release a new version of the geopack-vectorize package.
 
 ## Pre-Release Checklist
 
 ### 1. Code Preparation
 - [ ] Ensure all tests pass: `python -m unittest discover tests/`
-- [ ] Run benchmarks to verify performance: `python tests/benchmark_models.py`
 - [ ] Check all notebooks execute without errors
 - [ ] Remove any temporary or debug files
 - [ ] Ensure no sensitive information in code
@@ -16,10 +15,10 @@ Update version numbers in these files:
 - [ ] `setup.py` - version field
 - [ ] `pyproject.toml` - version field
 - [ ] `geopack/__init__.py` - __version__ variable
-- [ ] `README.md` - version badges and download links
 
 ### 3. Documentation Updates
-- [ ] Update `RELEASE_NOTES_vX.X.X.md` with changes
+- [ ] Update `docs/releases/RELEASE_NOTES_vX.X.X.md` with changes
+- [ ] Update `CHANGELOG.md` with changes
 - [ ] Update `README.md` with new features
 - [ ] Update `CLAUDE.md` if project structure changed
 - [ ] Check all import examples are current
@@ -30,9 +29,8 @@ Update version numbers in these files:
 # Clean install test
 python -m venv test_env
 source test_env/bin/activate  # Windows: test_env\Scripts\activate
-python setup.py develop
-python tests/test_geopack1.py
-python tests/test_vectorized_models.py
+pip install -e .
+python -m unittest discover tests/
 deactivate
 rm -rf test_env
 ```
@@ -41,15 +39,15 @@ rm -rf test_env
 
 ### 1. Git Tasks
 ```bash
-# Ensure you're on master/main branch
+# Ensure you're on master branch
 git checkout master
 
 # Ensure branch is up to date
 git pull origin master
 
 # Create and push version tag
-git tag -a v1.1.0 -m "Release version 1.1.0"
-git push origin v1.1.0
+git tag -a v2.0.0 -m "Release version 2.0.0"
+git push origin v2.0.0
 
 # Push all commits
 git push origin master
@@ -66,15 +64,15 @@ python setup.py sdist
 # Check the built package
 ls -la dist/
 # Should see:
-# - geopack_vectorized-1.1.0.tar.gz
+# - geopack_vectorize-2.0.0.tar.gz
 ```
 
 ### 3. Test Distribution
 ```bash
 # Test installation from built package
-tar -xzf dist/geopack_vectorized-1.1.0.tar.gz
-cd geopack_vectorized-1.1.0
-python setup.py install
+tar -xzf dist/geopack_vectorize-2.0.0.tar.gz
+cd geopack_vectorize-2.0.0
+pip install .
 
 # Run basic import test
 python -c "import geopack; print(geopack.__version__)"
@@ -83,19 +81,16 @@ python -c "import geopack; print(geopack.__version__)"
 ### 4. GitHub Release
 1. Go to https://github.com/Butadiene/geopack-vectorize/releases
 2. Click "Create a new release"
-3. Choose the tag you created (v1.1.0)
-4. Title: "geopack-vectorized v1.1.0"
-5. Copy content from `RELEASE_NOTES_v1.1.0.md`
+3. Choose the tag you created (v2.0.0)
+4. Title: "geopack-vectorize v2.0.0"
+5. Copy content from `docs/releases/RELEASE_NOTES_v2.0.0.md`
 6. Attach the built files from `dist/`
 7. Click "Publish release"
 
 ### 5. Post-Release Verification
 ```bash
-# Download from GitHub release and test
-wget https://github.com/Butadiene/geopack-vectorize/releases/download/v1.1.0/geopack_vectorized-1.1.0.tar.gz
-tar -xzf geopack_vectorized-1.1.0.tar.gz
-cd geopack_vectorized-1.1.0
-python setup.py install
+# Install from PyPI and test
+pip install geopack-vectorize
 python -c "import geopack; print(geopack.__version__)"
 ```
 
@@ -103,13 +98,13 @@ python -c "import geopack; print(geopack.__version__)"
 
 Follow semantic versioning (https://semver.org/):
 - **Major** (X.0.0): Breaking API changes
-- **Minor** (1.X.0): New features, backwards compatible
-- **Patch** (1.1.X): Bug fixes, backwards compatible
+- **Minor** (2.X.0): New features, backwards compatible
+- **Patch** (2.0.X): Bug fixes, backwards compatible
 
 Examples:
-- 1.0.0 → 1.1.0: Added vectorized field line tracing (new feature)
-- 1.1.0 → 1.1.1: Fixed bug in T96 calculation
-- 1.1.0 → 2.0.0: Changed function signatures (breaking change)
+- 1.1.4 → 2.0.0: Package renamed, module structure reorganized (breaking change)
+- 2.0.0 → 2.1.0: Added new vectorized functions (new feature)
+- 2.0.0 → 2.0.1: Fixed bug in field calculation
 
 ## Troubleshooting
 
@@ -126,17 +121,17 @@ find . -type d -name __pycache__ -exec rm -rf {} +
 ### Installation Issues
 ```bash
 # If installation fails, try:
-python setup.py install --user
+pip install --user .
 
 # Or install dependencies first:
 python -m pip install numpy scipy
-python setup.py install
+pip install .
 ```
 
 ## Maintenance Tasks
 
 ### Regular Updates
-- Keep dependencies updated in setup.py
+- Keep dependencies updated in setup.py and pyproject.toml
 - Update Python version compatibility
 - Review and update documentation
 - Check for security vulnerabilities
@@ -150,19 +145,20 @@ python setup.py install
 ## Quick Release Command Summary
 
 ```bash
-# 1. Update version in all files
-# 2. Commit changes
+# 1. Update version in setup.py, pyproject.toml, geopack/__init__.py
+# 2. Update CHANGELOG.md and docs/releases/RELEASE_NOTES_vX.X.X.md
+# 3. Commit changes
 git add -A
-git commit -m "chore: Bump version to 1.1.0"
+git commit -m "chore: Bump version to 2.0.0"
 
-# 3. Tag and push
-git tag -a v1.1.0 -m "Release version 1.1.0"
+# 4. Tag and push
+git tag -a v2.0.0 -m "Release version 2.0.0"
 git push origin master --tags
 
-# 4. Build
+# 5. Build
 python setup.py sdist
 
-# 5. Create GitHub release and upload dist/*.tar.gz
+# 6. Create GitHub release and upload dist/*.tar.gz
 ```
 
 ## Contact

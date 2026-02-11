@@ -1,13 +1,15 @@
 """
 Basic usage examples for the Geopack library.
 
-This script demonstrates how to calculate the TOTAL magnetic field as:
-    B_total = B_IGRF (internal) + B_T96 (external)
-in GSM coordinates.
-
-Notes:
-- Call geopack.recalc(ut) whenever the time changes.
-- IGRF is computed as internal field; T96 as external field.
+Demonstrates how to use the scalar and vectorized APIs, following the
+same progression as the README examples:
+  1. Setup (time, dipole tilt)
+  2. Coordinate transformations
+  3. IGRF internal field
+  4. T96 external field
+  5. Total field (IGRF + T96)
+  6. Vectorized total field
+  7. Performance comparison
 """
 
 import numpy as np
@@ -83,7 +85,7 @@ def total_field_igrf_plus_t96(parmod, ps, x, y, z):
 
 
 # ----------------------------
-# Set up time and calculate dipole tilt
+# Setup: time and dipole tilt
 # ----------------------------
 dt = datetime.datetime(2023, 3, 15, 12, 0, 0)
 ut = dt.timestamp()
@@ -93,17 +95,38 @@ print(f"Dipole tilt angle: {np.degrees(ps):.2f} degrees")
 
 
 # ----------------------------
-# T96 parameters
+# 1. Coordinate Transformations
 # ----------------------------
-# Model parameters: [Pdyn, Dst, ByIMF, BzIMF, unused...]
+print("\n=== Coordinate Transformations ===")
+x_gsm, y_gsm, z_gsm = 5.0, 0.0, 0.0
+x_geo, y_geo, z_geo = geopack.geogsm(x_gsm, y_gsm, z_gsm, -1)  # GSM -> GEO
+print(f"GSM: ({x_gsm}, {y_gsm}, {z_gsm}) Re")
+print(f"GEO: ({x_geo:.3f}, {y_geo:.3f}, {z_geo:.3f}) Re")
+
+
+# ----------------------------
+# 2. IGRF Internal Field
+# ----------------------------
+print("\n=== IGRF (internal field) at GSM point ===")
+x_gsm, y_gsm, z_gsm = 2.0, 1.0, -0.5
+bix, biy, biz = igrf_internal_gsm(x_gsm, y_gsm, z_gsm)
+b_int_mag = np.sqrt(bix**2 + biy**2 + biz**2)
+print(f"Position (GSM): ({x_gsm}, {y_gsm}, {z_gsm}) Re")
+print(f"IGRF field:     ({bix:.2f}, {biy:.2f}, {biz:.2f}) nT, |B|={b_int_mag:.2f} nT")
+
+
+# ----------------------------
+# 3. T96 External Field
+# ----------------------------
+# T96 parameters: [Pdyn, Dst, ByIMF, BzIMF, unused...]
 parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
 
 
 # ----------------------------
-# Example 1: Scalar total field = IGRF + T96
+# 4. Total Field = IGRF + T96 (scalar)
 # ----------------------------
 print("\n=== TOTAL Field = IGRF(internal) + T96(external) (Scalar) ===")
-x, y, z = 5.0, 0.0, 0.0  # Position in GSM coordinates (Re)
+x, y, z = 5.0, 0.0, 0.0
 
 btx, bty, btz, (bix, biy, biz), (bex, bey, bez) = total_field_igrf_plus_t96(parmod, ps, x, y, z)
 
@@ -118,7 +141,7 @@ print(f"TOTAL (sum)    : ({btx:.2f}, {bty:.2f}, {btz:.2f}) nT   |B|={b_tot_mag:.
 
 
 # ----------------------------
-# Example 2: Vectorized total field along X (GSM)
+# 5. Total Field = IGRF + T96 (vectorized)
 # ----------------------------
 print("\n=== TOTAL Field = IGRF + T96 (Vectorized) ===")
 n_points = 1000
@@ -143,7 +166,7 @@ for i in indices:
 
 
 # ----------------------------
-# Example 3: Performance comparison for TOTAL field
+# 6. Performance Comparison
 # ----------------------------
 print("\n=== Performance Comparison (TOTAL = IGRF + T96) ===")
 
@@ -159,7 +182,7 @@ for i in range(n_sample):
     _ = total_field_igrf_plus_t96(parmod, ps, float(x_test[i]), float(y_test[i]), float(z_test[i]))[0:3]
 t_scalar = (time.time() - t0) * n_test / n_sample
 
-# Vectorized version (if IGRF vectorized not available, this will be slower due to loop fallback)
+# Vectorized version
 t0 = time.time()
 _ = total_field_igrf_plus_t96(parmod, ps, x_test, y_test, z_test)[0:3]
 t_vector = time.time() - t0
@@ -168,27 +191,3 @@ print(f"Scalar (estimated): {t_scalar:.3f} seconds for {n_test} points")
 print(f"Vectorized:         {t_vector:.3f} seconds for {n_test} points")
 print(f"Speedup:            {t_scalar/t_vector:.1f}x")
 print(f"Throughput:         {n_test/t_vector:.0f} points/second")
-
-if not hasattr(geopack, "igrf_gsm_vectorized"):
-    print("Note: igrf_gsm_vectorized not found -> internal IGRF part used loop fallback.")
-
-
-# ----------------------------
-# Example 4: Coordinate transformations (unchanged)
-# ----------------------------
-print("\n=== Coordinate Transformations ===")
-x_gsm, y_gsm, z_gsm = 5.0, 0.0, 0.0
-x_geo, y_geo, z_geo = geopack.geogsm(x_gsm, y_gsm, z_gsm, -1)  # GSM -> GEO
-print(f"GSM: ({x_gsm}, {y_gsm}, {z_gsm}) Re")
-print(f"GEO: ({x_geo:.3f}, {y_geo:.3f}, {z_geo:.3f}) Re")
-
-
-# ----------------------------
-# Example 5: Internal IGRF only (optional)
-# ----------------------------
-print("\n=== IGRF (internal only) at GSM point ===")
-x_gsm, y_gsm, z_gsm = 2.0, 1.0, -0.5
-bix, biy, biz = igrf_internal_gsm(x_gsm, y_gsm, z_gsm)
-b_int_mag = np.sqrt(bix**2 + biy**2 + biz**2)
-print(f"Position (GSM): ({x_gsm}, {y_gsm}, {z_gsm}) Re")
-print(f"IGRF field:     ({bix:.2f}, {biy:.2f}, {biz:.2f}) nT, |B|={b_int_mag:.2f} nT")
