@@ -130,7 +130,7 @@ xf, yf, zf, status = trace_vectorized(
 
 ### Field Line Geometry (Frenet-Serret Frame)
 ```python
-from geopack import field_line_curvature_vectorized, field_line_frenet_frame_vectorized
+from geopack import field_line_curvature, field_line_frenet_frame
 
 # Combined model: dipole (internal) + T96 (external)
 def dip_plus_t96(parmod, ps, x, y, z):
@@ -143,21 +143,21 @@ x = np.array([5.0, 6.0, 7.0, 8.0])
 y = np.zeros(4)
 z = np.zeros(4)
 
-kappa = field_line_curvature_vectorized(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
+kappa = field_line_curvature(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
 # kappa: field line curvature [1/Re]
 
 # Full Frenet-Serret frame (tangent, normal, binormal) + curvature
 tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = \
-    field_line_frenet_frame_vectorized(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
+    field_line_frenet_frame(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
 # curvature [1/Re]; tangent, normal, binormal are unit vectors (dimensionless)
 ```
 
 ### Field Line Directional Derivatives
 ```python
-from geopack import field_line_directional_derivatives_vectorized
+from geopack import field_line_directional_derivatives
 
 # All 9 directional derivatives (using combined dipole + T96 model)
-derivs = field_line_directional_derivatives_vectorized(
+derivs = field_line_directional_derivatives(
     dip_plus_t96, parmod, ps, x, y, z, delta=1e-3
 )
 # All derivative values are in units of [1/Re]

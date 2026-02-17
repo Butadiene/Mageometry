@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import geopack
 from geopack import recalc
 from geopack import (
-    field_line_directional_derivatives_vectorized,
+    field_line_directional_derivatives,
     verify_antisymmetry_relations,
     get_curvature_torsion_from_derivatives
 )
@@ -43,7 +43,7 @@ x, y, z = -5.0, 0.0, 0.0
 print(f"\nAnalyzing point: ({x}, {y}, {z}) Re")
 
 # Calculate all derivatives (TOTAL field)
-derivatives = field_line_directional_derivatives_vectorized(
+derivatives = field_line_directional_derivatives(
     b_igrf_plus_t96_vectorized, parmod, ps, x, y, z, delta=1e-3
 )
 
@@ -83,7 +83,7 @@ y_line = np.zeros_like(x_line)
 z_line = np.zeros_like(x_line)
 
 # Calculate derivatives along line (TOTAL field)
-derivatives_line = field_line_directional_derivatives_vectorized(
+derivatives_line = field_line_directional_derivatives(
     b_igrf_plus_t96_vectorized, parmod, ps, x_line, y_line, z_line, delta=1e-3
 )
 

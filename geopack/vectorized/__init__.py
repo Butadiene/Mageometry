@@ -8,12 +8,10 @@ imported directly from `geopack.vectorized`.
 
 # vectorized modules
 from . import (
-    field_line_geometry,
     models,
     coordinates,
     coordinates_complex,
     igrf,
-    field_line_directional_derivatives,
 )
 
 # Re-export external field model functions (vectorized)
@@ -47,25 +45,6 @@ from .coordinates_complex import (
 # Re-export extra exact implementations (vectorized utilities)
 from .condip1_exact import condip1_exact
 
-# Re-export field line geometry functions
-from .field_line_geometry import (
-    field_line_tangent,
-    field_line_curvature,
-    field_line_normal,
-    field_line_binormal,
-    field_line_torsion,
-    field_line_frenet_frame,
-    field_line_geometry_complete,
-)
-
-# Re-export directional derivatives utilities
-from .field_line_directional_derivatives import (
-    field_line_directional_derivatives,
-    verify_antisymmetry_relations,
-    get_curvature_torsion_from_derivatives,
-    verify_unit_vectors,
-)
-
 from .trace import trace
 
 # Core functions (kept here assuming shared global state is intended)
@@ -81,8 +60,6 @@ __all__ = [
     "coordinates",
     "coordinates_complex",
     "igrf",
-    "field_line_geometry",
-    "field_line_directional_derivatives",
 
     # vectorized models
     "t89",
@@ -111,21 +88,6 @@ __all__ = [
 
     # vectorized utilities
     "condip1_exact",
-
-    # field line geometry
-    "field_line_tangent",
-    "field_line_curvature",
-    "field_line_normal",
-    "field_line_binormal",
-    "field_line_torsion",
-    "field_line_frenet_frame",
-    "field_line_geometry_complete",
-
-    # field line directional derivatives + helpers
-    "field_line_directional_derivatives",
-    "verify_antisymmetry_relations",
-    "get_curvature_torsion_from_derivatives",
-    "verify_unit_vectors",
 
     # vectorized trace function
     "trace",

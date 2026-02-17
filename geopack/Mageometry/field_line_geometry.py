@@ -3,8 +3,6 @@ Vectorized magnetic field line geometry analysis.
 
 This module provides functions to calculate geometric properties of magnetic field lines
 including the Frenet-Serret frame (tangent, normal, binormal vectors), curvature, and torsion.
-
-Author: geopack-vectorize
 """
 
 import numpy as np

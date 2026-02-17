@@ -15,10 +15,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import geopack
 from geopack import (
-    field_line_tangent_vectorized,
-    field_line_curvature_vectorized,
-    field_line_geometry_complete_vectorized,
-    field_line_frenet_frame_vectorized,
+    field_line_tangent,
+    field_line_curvature,
+    field_line_geometry_complete,
+    field_line_frenet_frame,
     verify_unit_vectors
 )
 
@@ -50,14 +50,14 @@ def main():
     x, y, z = 5.0, 2.0, 1.0  # Position in Re
 
     # Get tangent vector (computed from TOTAL field)
-    tx, ty, tz = field_line_tangent_vectorized(
+    tx, ty, tz = field_line_tangent(
         b_igrf_plus_t96_vectorized, parmod, ps, x, y, z
     )
     print(f"Position: ({x}, {y}, {z}) Re")
     print(f"Tangent vector: T = ({tx:.4f}, {ty:.4f}, {tz:.4f})")
 
     # Get curvature (computed from TOTAL field)
-    curvature = field_line_curvature_vectorized(
+    curvature = field_line_curvature(
         b_igrf_plus_t96_vectorized, parmod, ps, x, y, z
     )
     print(f"Curvature: κ = {curvature:.4f} Re⁻¹")
@@ -74,7 +74,7 @@ def main():
     z_arr = np.zeros_like(r)
 
     # Calculate complete geometry from TOTAL field
-    result = field_line_geometry_complete_vectorized(
+    result = field_line_geometry_complete(
         b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
     )
     tx, ty, tz, nx, ny, nz, bnx, bny, bnz, curvature, torsion = result
@@ -102,7 +102,7 @@ def main():
 
     # Get Frenet frame (returns flat 10-tuple)
     ftx, fty, ftz, fnx, fny, fnz, fbx, fby, fbz, curv = (
-        field_line_frenet_frame_vectorized(
+        field_line_frenet_frame(
             b_igrf_plus_t96_vectorized, parmod_def, ps_def,
             x_test, y_test, z_test, delta=1e-3
         )
@@ -144,7 +144,7 @@ def main():
     valid = r_flat >= r_min
 
     curvature_flat = np.full_like(x_flat, np.nan, dtype=float)
-    curvature_flat[valid] = field_line_curvature_vectorized(
+    curvature_flat[valid] = field_line_curvature(
         b_igrf_plus_t96_vectorized, parmod, ps,
         x_flat[valid], y_flat[valid], z_flat[valid], delta=1e-3
     )
@@ -203,7 +203,7 @@ def main():
     # Trace field line using TOTAL field geometry
     for i in range(steps):
         # Get geometry at current position
-        tx, ty, tz, _, _, _, _, _, _, curv, tors = field_line_geometry_complete_vectorized(
+        tx, ty, tz, _, _, _, _, _, _, curv, tors = field_line_geometry_complete(
             b_igrf_plus_t96_vectorized, parmod, ps, path_x[i], path_y[i], path_z[i], delta=1e-3
         )
 

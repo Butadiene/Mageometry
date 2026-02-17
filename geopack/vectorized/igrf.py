@@ -5,8 +5,6 @@ This module provides vectorized versions of the IGRF field calculations that can
 multiple points simultaneously while maintaining exact numerical compatibility with the
 scalar implementations.
 
-Author: Claude (Anthropic)
-Date: 2025-01-07
 """
 
 import numpy as np
