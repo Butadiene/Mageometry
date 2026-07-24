@@ -307,6 +307,24 @@ Regenerate this table with [`benchmark/readme_benchmarks.py`](benchmark/readme_b
 | T04 Model | 1.820 | 0.042 | **43.5x** |
 | Field Line Tracing (vectorized field models) [scalar extrap from 50] | 21.607 | 3.050 | **7.1x** |
 
+### Where Does the Speedup Come From?
+
+The speedup is not simply a function-call-count effect. Modeling the time of one vectorized call on an n-element array as `t_vec(n) ≈ a + b·n` separates a fixed per-call overhead `a` from the marginal cost per point `b`:
+
+| Component | Overhead a [ms/call] | Marginal b [µs/point] | Scalar [µs/point] | Per-point ratio | Break-even n* |
+|-----------|---------------------:|----------------------:|------------------:|----------------:|--------------:|
+| T89 | 0.13 | 0.57 | 22.9 | **40x** | 6 |
+| T96 | 6.9 | 8.5 | 381 | **45x** | 30 |
+| T01 | 8.9 | 21.1 | 722 | **34x** | 13 |
+| T04 | 9.1 | 20.7 | 771 | **37x** | 12 |
+| IGRF (GSW) | 0.68 | 2.7 | 30.2 | **11x** | 43 |
+
+- **A vectorized call with n = 1 is slower than a scalar call** (the fixed overhead `a` is paid on every call), so the gain does not come from merely reducing the number of function calls. Below the break-even size n\* the scalar functions are faster.
+- **The overhead `a` scales with model complexity** (T89 ≪ T96/T01/T04): it is the accumulated per-array-operation cost (NumPy dispatch, temporaries, both branches of `np.where`), not a constant per-call cost.
+- **The per-point cost ratio far exceeds the SIMD width** for float64 (4 lanes AVX2 / 8 lanes AVX-512), so SIMD alone cannot explain it. The dominant mechanism is amortizing the Python interpreter's per-operation overhead across array elements in NumPy's compiled loops.
+
+Regenerate this table with [`benchmark/readme_overhead_decomposition.py`](benchmark/readme_overhead_decomposition.py) (`--plain` for plain text output). A step-by-step version with figures is in [`examples/notebooks/03_performance_comparison.ipynb`](examples/notebooks/03_performance_comparison.ipynb), Section 3c.
+
 ## Accuracy Validation
 
 The vectorized implementations are validated against the original scalar functions across a 100 × 100 grid in the X-Z meridian plane (Y = 0, X: 2 to −10 Re, Z: 6 to −6 Re) using the combined IGRF + T96 total field. Relative error is defined as (B_scalar − B_vector) / |B_scalar|.
