@@ -315,11 +315,11 @@ The speedup is not simply a function-call-count effect. Modeling the time of one
 
 | Component | Overhead a [ms/call] | Marginal b [µs/point] | Scalar [µs/point] | Per-point ratio | Break-even n* |
 |-----------|---------------------:|----------------------:|------------------:|----------------:|--------------:|
-| T89 | 0.13 | 0.57 | 22.9 | **40x** | 6 |
-| T96 | 6.9 | 8.5 | 381 | **45x** | 30 |
-| T01 | 8.9 | 21.1 | 722 | **34x** | 13 |
-| T04 | 9.1 | 20.7 | 771 | **37x** | 12 |
-| IGRF (GSW) | 0.68 | 2.7 | 30.2 | **11x** | 43 |
+| T89 | 0.26 | 0.57 | 46.9 | **82x** | 2 |
+| T96 | 11 | 8.9 | 1090 | **123x** | 14 |
+| T01 | 16 | 21.2 | 1828 | **86x** | 10 |
+| T04 | 15 | 29.1 | 1870 | **64x** | 8 |
+| IGRF (GSW) | 1.3 | 3.6 | 57.9 | **16x** | 42 |
 
 - **A vectorized call with n = 1 is slower than a scalar call** (the fixed overhead `a` is paid on every call), so the gain does not come from merely reducing the number of function calls. Below the break-even size n\* the scalar functions are faster.
 - **The overhead `a` scales with model complexity** (T89 ≪ T96/T01/T04): it is the accumulated per-array-operation cost (NumPy dispatch, temporaries, both branches of `np.where`), not a constant per-call cost.
