@@ -55,7 +55,7 @@ Repository = "https://github.com/Butadiene/geopack-vectorize"
 Issues = "https://github.com/Butadiene/geopack-vectorize/issues"
 
 [tool.setuptools]
-packages = ["geopack", "geopack.models", "geopack.vectorized"]
+packages = ["geopack", "geopack.models", "geopack.vectorized", "geopack.Mageometry"]
 include-package-data = true
 
 [tool.setuptools.package-data]
