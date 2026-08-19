@@ -158,6 +158,22 @@ derivs = field_line_directional_derivatives(
 # derivs['db_db_T']  (∂b/∂b)·T
 ```
 
+### Simulation Data (`mageometry.io`)
+
+Gridded magnetic fields from simulation output plug into the same geometry API. `GriddedField` holds a rectilinear grid plus the three field components and builds an interpolating `field(x, y, z)` callable; readers for specific file formats are thin adapters that construct a `GriddedField`. Currently provided: `load_xdmf` (XDMF-described uniform grids with HDF5 heavy data, as written by many MHD codes) and `load_hdf5` (plain HDF5 datasets with caller-supplied grid geometry). Both require the optional `h5py` dependency (`pip install h5py`).
+
+```python
+from mageometry import load_xdmf, field_line_curvature
+
+grid = load_xdmf("run000.xmf")        # uniform grid + BX/BY/BZ heavy data
+field = grid.field(method="linear")   # field(x, y, z) -> (bx, by, bz)
+
+dx = grid.x[1] - grid.x[0]
+kappa = field_line_curvature(field, x, y, z, delta=dx)  # [1/grid-unit]
+```
+
+Positions and results are in the simulation's own grid units (curvature in 1/grid-unit); rescale the axes or field arrays when constructing the `GriddedField` if you need physical units. For any other format, build the arrays yourself and call `GriddedField(x, y, z, bx, by, bz)` directly. A complete workflow (center detection, curvature profile vs. the dipole 3/r law, Frenet frame quality) is in [`examples/python_code_samples/mhd_gridded_field_example.py`](examples/python_code_samples/mhd_gridded_field_example.py).
+
 > **Note:** The field line geometry modules live in `mageometry.geometry`. Use the plain top-level names shown above (e.g. `field_line_curvature`); the legacy `*_vectorized` aliases for these functions (e.g. `field_line_curvature_vectorized`) and deep-path imports from the old location (e.g. `from geopack.vectorized.field_line_geometry import ...`) have been removed.
 
 ## Vectorized Components

@@ -34,6 +34,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_field_line_geometry.py`: first test coverage for the geometry
   API, including an analytic dipole check (equatorial curvature κ = 3/r),
   Frenet frame orthonormality, antisymmetry relations, and adapter behavior.
+- **`mageometry.io`: magnetic fields from simulation output files.**
+  `GriddedField` holds a rectilinear grid + B components and builds
+  interpolating ``field(x, y, z)`` callables for the geometry API; readers are
+  thin adapters constructing a `GriddedField`. Provided readers: `load_xdmf`
+  (XDMF-described uniform grids with HDF5 heavy data) and `load_hdf5` (plain
+  HDF5 datasets). Requires the new optional `h5py` dependency (`[io]` extra).
+  Validated end-to-end against a real magnetosphere MHD run (local data, not
+  part of this repository): the inner dipole region reproduces the analytic
+  equatorial curvature 3/r. See
+  `examples/python_code_samples/mhd_gridded_field_example.py` and
+  `tests/test_io_gridded_field.py`.
 - **Project forked** from `geopack-vectorize` as **Mageometry** (2026-08-19). The
   package is no longer published on PyPI; the distribution name changed to
   `mageometry` and carries the `Private :: Do Not Upload` classifier to block

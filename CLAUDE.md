@@ -42,7 +42,8 @@ There is no `setup.py`/`setup.cfg` — all packaging lives in `pyproject.toml`. 
 - **Field engine** (`mageometry.geopack`): The vectorized geopack fork, providing magnetic field models as one field source. Contains both APIs of the original project:
   - **Scalar API** (`mageometry.geopack.models.*`, `mageometry.geopack.geopack`): Original loop-based implementations, one point at a time. Kept mainly as the validation reference for the vectorized code.
   - **Vectorized API** (`mageometry.geopack.vectorized.*`): NumPy-broadcasting implementations that process arrays of points simultaneously (20-150x speedup). Vectorized functions use the `_vectorized` suffix when accessed from `mageometry.geopack` (e.g., `t96_vectorized`, `trace_vectorized`).
-- **Planned**: `mageometry.io` (magnetic fields from simulation output files) and `mageometry.viz` (visualization). Not yet implemented.
+- **Simulation data input** (`mageometry.io`): `GriddedField` wraps a rectilinear grid + B components and builds interpolating field callables (`.field(method=...)`, scipy `RegularGridInterpolator`). File-format readers are thin adapters whose only job is to construct a `GriddedField` — currently `load_xdmf` (XDMF/HDF5 uniform grids) and `load_hdf5`; add new formats the same way. HDF5 access needs the optional `h5py` dependency (lazy import). Units are the data's own grid units throughout.
+- **Planned**: `mageometry.viz` (visualization). Not yet implemented.
 
 There is no top-level `geopack` package anymore — this also avoids shadowing the upstream `geopack` PyPI package.
 
@@ -50,6 +51,8 @@ There is no top-level `geopack` package anymore — this also avoids shadowing t
 
 - `mageometry/__init__.py` — Version, geometry API re-exports, `geopack` subpackage
 - `mageometry/fields.py` — Field-source adapters (`geopack_field`)
+- `mageometry/io/gridded_field.py` — `GriddedField`: gridded data + interpolation
+- `mageometry/io/xdmf.py` — XDMF and HDF5 readers (`load_xdmf`, `load_hdf5`)
 - `mageometry/geometry/field_line_geometry.py` — Frenet-Serret frame calculations
 - `mageometry/geometry/field_line_directional_derivatives.py` — Directional derivatives along field lines
 - `mageometry/geopack/geopack.py` — Core scalar functions: coordinate transforms, IGRF, tracing, recalc
@@ -92,7 +95,8 @@ Tests validate vectorized implementations against scalar loop results using `np.
 ### Dependencies
 
 - **Required:** numpy >= 1.16, scipy >= 1.0
-- **Dev:** pytest, pytest-cov, matplotlib
+- **Optional (`[io]` extra):** h5py >= 3.0 — only needed for `load_xdmf`/`load_hdf5`
+- **Dev:** pytest, pytest-cov, matplotlib, h5py
 - **Examples:** matplotlib, jupyter, pandas, psutil
 
 ## Language Notes

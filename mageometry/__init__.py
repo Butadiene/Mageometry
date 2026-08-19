@@ -12,9 +12,10 @@ The geometry functions take the magnetic field as a callable
 - `mageometry.fields` — adapters building such callables (`geopack_field`)
 - `mageometry.geopack` — vectorized geopack (Tsyganenko models T89/T96/T01/T04,
   IGRF, dipole, coordinate transforms, field line tracing)
+- `mageometry.io` — gridded fields from simulation output files
+  (`GriddedField`, `load_xdmf`, `load_hdf5`)
 
-Planned subpackages: `mageometry.io` (simulation output readers) and
-`mageometry.viz` (visualization).
+Planned subpackage: `mageometry.viz` (visualization).
 """
 
 __version__ = '0.1.0.dev0'
@@ -22,7 +23,9 @@ __version__ = '0.1.0.dev0'
 # Field sources / engines
 from . import geopack
 from . import fields
+from . import io
 from .fields import geopack_field
+from .io import GriddedField, load_xdmf, load_hdf5
 
 # Geometry analysis (primary API)
 from . import geometry
@@ -47,9 +50,15 @@ __all__ = [
     "geometry",
     "geopack",
     "fields",
+    "io",
 
     # field source adapters
     "geopack_field",
+
+    # simulation data input
+    "GriddedField",
+    "load_xdmf",
+    "load_hdf5",
 
     # Frenet-Serret frame
     "field_line_tangent",

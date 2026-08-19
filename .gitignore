@@ -61,3 +61,11 @@ config.local
 settings.local
 
 examples/notebooks/directional_derivatives_maps/png_outputs
+# Large simulation data (local only, never commit)
+*.zip
+*.h5
+*.hdf5
+*.data
+*.data.[0-9]*
+*.xmf
+*.xmf.series*

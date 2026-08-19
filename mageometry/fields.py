@@ -5,8 +5,8 @@ Magnetic field sources for Mageometry.
 The geometry functions in `mageometry.geometry` accept any callable with
 signature ``field(x, y, z) -> (bx, by, bz)`` (positions in GSM coordinates in
 Re, field components in nT). This module provides adapters that wrap the
-geopack field models into that form; interpolated fields from simulation
-output files will be added here as well (planned `mageometry.io`).
+geopack field models into that form; for interpolated fields from simulation
+output files, see `mageometry.io` (`GriddedField.field()`).
 """
 
 from .geopack import (

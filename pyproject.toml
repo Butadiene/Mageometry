@@ -29,10 +29,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+io = [
+    "h5py>=3.0"
+]
 dev = [
     "pytest>=6.0",
     "pytest-cov>=2.0",
-    "matplotlib>=3.0"
+    "matplotlib>=3.0",
+    "h5py>=3.0"
 ]
 examples = [
     "matplotlib>=3.0",
