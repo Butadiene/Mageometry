@@ -19,7 +19,7 @@ import time
 import numpy as np
 import pandas as pd
 
-import geopack
+from mageometry import geopack
 
 # ---------------------------------------------------------------------------
 # Constants

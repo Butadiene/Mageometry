@@ -13,9 +13,9 @@ import sys
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import geopack
-from geopack import recalc
-from geopack import (
+from mageometry import geopack
+from mageometry.geopack import recalc
+from mageometry import (
     field_line_directional_derivatives,
     verify_antisymmetry_relations,
     get_curvature_torsion_from_derivatives

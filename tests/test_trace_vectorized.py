@@ -171,8 +171,8 @@ def assert_close_ulps(actual, desired, *, maxulp: int, name: str, where: str = "
 class TestTraceEquivalence(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import geopack.geopack as gp
-        tv = importlib.import_module("geopack.vectorized.trace")
+        import mageometry.geopack.geopack as gp
+        tv = importlib.import_module("mageometry.geopack.vectorized.trace")
 
         cls.gp = gp
         cls.tv = tv
@@ -214,7 +214,7 @@ class TestTraceEquivalence(unittest.TestCase):
         tv.call_internal_model_vectorized = internal_scalar
 
         if not hasattr(tv, "trace"):
-            raise AttributeError("geopack.vectorized.trace does not have a trace function.")
+            raise AttributeError("mageometry.geopack.vectorized.trace does not have a trace function.")
 
     def run_scalar_one(self, xi, yi, zi, dir, rlim, r0, parmod, exname, inname, maxloop):
         gp = self.gp

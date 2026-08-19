@@ -48,26 +48,26 @@ def parmod_for(exname: str):
 class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import geopack.geopack as gp
+        import mageometry.geopack.geopack as gp
         cls.gp = gp
 
-        cls.tv = importlib.import_module("geopack.vectorized.trace")
+        cls.tv = importlib.import_module("mageometry.geopack.vectorized.trace")
 
         ut = ut_seconds(datetime.datetime(2020, 3, 20, 0, 0, 0))
         gp.recalc(ut)
 
         # Ensure vectorized external models are available
         try:
-            from geopack.vectorized import models as vmodels
+            from mageometry.geopack.vectorized import models as vmodels
         except Exception as e:
-            cls.skip_reason = f"geopack.vectorized.models not available: {e}"
+            cls.skip_reason = f"mageometry.mageometry.geopack.vectorized.models not available: {e}"
             cls.vmodels = None
         else:
             cls.skip_reason = None
             cls.vmodels = vmodels
 
         if not hasattr(cls.tv, "trace"):
-            raise AttributeError("geopack.vectorized.trace does not have a trace function.")
+            raise AttributeError("mageometry.geopack.vectorized.trace does not have a trace function.")
 
         # IMPORTANT: Replace the "tXX_vectorized" variables referenced by trace_vectorized.py
         if cls.vmodels is not None:
@@ -112,12 +112,12 @@ class TestTraceVectorizedWithVectorizedModels(unittest.TestCase):
             self.skipTest(self.skip_reason)
 
         if self.vmodels is None or not hasattr(self.vmodels, exname.lower()):
-            self.skipTest(f"{exname} vectorized not available in geopack.vectorized.models")
+            self.skipTest(f"{exname} vectorized not available in mageometry.geopack.vectorized.models")
 
         # For igrf, verify that vectorized internal model is available
         if inname.lower() == "igrf":
             try:
-                from geopack.vectorized.igrf import igrf_gsm as igrf_gsm_vectorized  # noqa: F401
+                from mageometry.geopack.vectorized.igrf import igrf_gsm as igrf_gsm_vectorized  # noqa: F401
             except Exception as e:
                 self.skipTest(f"igrf_gsm_vectorized not available: {e}")
 

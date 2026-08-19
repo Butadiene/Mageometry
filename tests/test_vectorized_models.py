@@ -45,16 +45,16 @@ def eval_scalar_loop(fn, parmod, ps, x, y, z):
 class TestVectorizedExternalModels(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import geopack.geopack as gp
+        import mageometry.geopack.geopack as gp
         cls.gp = gp
 
         ut = ut_seconds(datetime.datetime(2020, 3, 20, 0, 0, 0))
         gp.recalc(ut)
         cls.ps = gp.psi
 
-        # Assumes vectorized models are in geopack.vectorized.models
+        # Assumes vectorized models are in mageometry.geopack.vectorized.models
         try:
-            from geopack.vectorized import models as vmodels
+            from mageometry.geopack.vectorized import models as vmodels
         except Exception as e:
             vmodels = None
         cls.vmodels = vmodels
@@ -70,37 +70,37 @@ class TestVectorizedExternalModels(unittest.TestCase):
         np.testing.assert_allclose(bz_v, bz_s, rtol=FIELD_RTOL, atol=FIELD_ATOL, err_msg=f"{name}: bz mismatch")
 
     def test_t89_vectorized(self):
-        from geopack.models import t89
+        from mageometry.geopack.models import t89
 
         if self.vmodels is None or not hasattr(self.vmodels, "t89"):
-            self.skipTest("t89 vectorized not available in geopack.vectorized.models")
+            self.skipTest("t89 vectorized not available in mageometry.geopack.vectorized.models")
 
         parmod = 2
         self._assert_vec_model_close("t89", t89, self.vmodels.t89, parmod)
 
     def test_t96_vectorized(self):
-        from geopack.models import t96
+        from mageometry.geopack.models import t96
 
         if self.vmodels is None or not hasattr(self.vmodels, "t96"):
-            self.skipTest("t96 vectorized not available in geopack.vectorized.models")
+            self.skipTest("t96 vectorized not available in mageometry.geopack.vectorized.models")
 
         parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0], dtype=np.float64)
         self._assert_vec_model_close("t96", t96, self.vmodels.t96, parmod)
 
     def test_t01_vectorized(self):
-        from geopack.models import t01
+        from mageometry.geopack.models import t01
 
         if self.vmodels is None or not hasattr(self.vmodels, "t01"):
-            self.skipTest("t01 vectorized not available in geopack.vectorized.models")
+            self.skipTest("t01 vectorized not available in mageometry.geopack.vectorized.models")
 
         parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0], dtype=np.float64)
         self._assert_vec_model_close("t01", t01, self.vmodels.t01, parmod)
 
     def test_t04_vectorized(self):
-        from geopack.models import t04
+        from mageometry.geopack.models import t04
 
         if self.vmodels is None or not hasattr(self.vmodels, "t04"):
-            self.skipTest("t04 vectorized not available in geopack.vectorized.models")
+            self.skipTest("t04 vectorized not available in mageometry.geopack.vectorized.models")
 
         parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0], dtype=np.float64)
         self._assert_vec_model_close("t04", t04, self.vmodels.t04, parmod)
@@ -109,14 +109,14 @@ class TestVectorizedExternalModels(unittest.TestCase):
 class TestVectorizedInternalModel(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import geopack.geopack as gp
+        import mageometry.geopack.geopack as gp
         cls.gp = gp
         ut = ut_seconds(datetime.datetime(2020, 3, 20, 0, 0, 0))
         gp.recalc(ut)
 
     def test_igrf_gsm_vectorized(self):
         try:
-            from geopack.vectorized.igrf import igrf_gsm as igrf_gsm_vectorized
+            from mageometry.geopack.vectorized.igrf import igrf_gsm as igrf_gsm_vectorized
         except Exception as e:
             self.skipTest(f"igrf_gsm_vectorized not available: {e}")
 

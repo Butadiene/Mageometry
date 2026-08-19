@@ -36,7 +36,7 @@ from datetime import datetime
 
 import numpy as np
 
-import geopack
+from mageometry import geopack
 
 # ---------------------------------------------------------------------------
 # Constants

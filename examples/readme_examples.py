@@ -10,11 +10,13 @@ Demonstrates the six core vectorized capabilities:
   6. Field line directional derivatives
 """
 
-import geopack
-from geopack import (
-    geogsm_vectorized, igrf_gsm_vectorized, t96_vectorized, trace_vectorized,
+from mageometry import geopack
+from mageometry import (
     field_line_curvature, field_line_frenet_frame,
     field_line_directional_derivatives,
+)
+from mageometry.geopack import (
+    geogsm_vectorized, igrf_gsm_vectorized, t96_vectorized, trace_vectorized,
 )
 import numpy as np
 

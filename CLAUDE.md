@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Mageometry** is a magnetic field line geometry toolkit built on a vectorized implementation of the Python geopack library (Tsyganenko models T89/T96/T01/T04, IGRF, field line tracing). The main focus of ongoing development is the `geopack.Mageometry` package: Frenet-Serret frames, curvature, torsion, and directional derivatives along field lines.
+**Mageometry** is a magnetic field line geometry analysis library: Frenet-Serret frames, curvature, torsion, and directional derivatives along field lines. The analysis toolkit (`mageometry.geometry`) is the primary product; the vectorized geopack implementation (`mageometry.geopack`, Tsyganenko models T89/T96/T01/T04, IGRF, field line tracing) serves as one magnetic field source. Planned additions: reading magnetic fields from simulation output files (`mageometry.io`) and visualization (`mageometry.viz`).
 
 **Project status — read this first:**
 
@@ -31,30 +31,33 @@ GEOPACK_FIELD_RTOL=1e-8 GEOPACK_FIELD_ATOL=1e-5 python -m unittest tests/test_ve
 python -m build
 ```
 
-There is no `setup.py`/`setup.cfg` — all packaging lives in `pyproject.toml`. The version must be kept in sync in two places: `pyproject.toml` and `geopack/__init__.py` (`__version__`). Current line: `0.1.0.dev0`.
+There is no `setup.py`/`setup.cfg` — all packaging lives in `pyproject.toml`. The version must be kept in sync in two places: `pyproject.toml` and `mageometry/__init__.py` (`__version__`). Current line: `0.1.0.dev0`.
 
 ## Architecture
 
-### Dual API Design
+### API Design
 
-- **Scalar API** (`geopack.models.*`, `geopack.geopack`): Original loop-based implementations, one point at a time.
-- **Vectorized API** (`geopack.vectorized.*`): NumPy-broadcasting implementations that process arrays of points simultaneously (20-150x speedup).
-- **Geometry API** (`geopack.Mageometry`): Field line geometry built on the vectorized layer — the part of the codebase under active development.
+- **Geometry API** (`mageometry.geometry`, re-exported at top level): Field line geometry analysis — the primary product and the part of the codebase under active development. `from mageometry import field_line_curvature` etc.
+- **Field engine** (`mageometry.geopack`): The vectorized geopack fork, providing magnetic field models as one field source. Contains both APIs of the original project:
+  - **Scalar API** (`mageometry.geopack.models.*`, `mageometry.geopack.geopack`): Original loop-based implementations, one point at a time. Kept mainly as the validation reference for the vectorized code.
+  - **Vectorized API** (`mageometry.geopack.vectorized.*`): NumPy-broadcasting implementations that process arrays of points simultaneously (20-150x speedup). Vectorized functions use the `_vectorized` suffix when accessed from `mageometry.geopack` (e.g., `t96_vectorized`, `trace_vectorized`).
+- **Planned**: `mageometry.io` (magnetic fields from simulation output files) and `mageometry.viz` (visualization). Not yet implemented.
 
-All are re-exported from `geopack/__init__.py`. Vectorized functions use the `_vectorized` suffix when accessed from the top-level package (e.g., `t96_vectorized`, `trace_vectorized`).
+There is no top-level `geopack` package anymore — this also avoids shadowing the upstream `geopack` PyPI package.
 
 ### Package Layout
 
-- `geopack/geopack.py` — Core scalar functions: coordinate transforms, IGRF, tracing, recalc
-- `geopack/core.py` — Currently an empty placeholder (reserved for restructuring)
-- `geopack/models/` — Scalar field models (t89, t96, t01, t04)
-- `geopack/vectorized/models/` — Vectorized field models (same four)
-- `geopack/vectorized/coordinates.py`, `coordinates_complex.py` — Vectorized coordinate transforms
-- `geopack/vectorized/igrf.py` — Vectorized IGRF internal field
-- `geopack/vectorized/trace.py` — Vectorized field line tracing
-- `geopack/Mageometry/field_line_geometry.py` — Frenet-Serret frame calculations
-- `geopack/Mageometry/field_line_directional_derivatives.py` — Directional derivatives along field lines
-- `geopack/igrf_coeffs/` — IGRF coefficient data files (.txt)
+- `mageometry/__init__.py` — Version, geometry API re-exports, `geopack` subpackage
+- `mageometry/geometry/field_line_geometry.py` — Frenet-Serret frame calculations
+- `mageometry/geometry/field_line_directional_derivatives.py` — Directional derivatives along field lines
+- `mageometry/geopack/geopack.py` — Core scalar functions: coordinate transforms, IGRF, tracing, recalc
+- `mageometry/geopack/core.py` — Currently an empty placeholder (reserved for restructuring)
+- `mageometry/geopack/models/` — Scalar field models (t89, t96, t01, t04)
+- `mageometry/geopack/vectorized/models/` — Vectorized field models (same four)
+- `mageometry/geopack/vectorized/coordinates.py`, `coordinates_complex.py` — Vectorized coordinate transforms
+- `mageometry/geopack/vectorized/igrf.py` — Vectorized IGRF internal field
+- `mageometry/geopack/vectorized/trace.py` — Vectorized field line tracing
+- `mageometry/geopack/igrf_coeffs/` — IGRF coefficient data files (.txt)
 - `tests/` — unittest-based test suite (no pytest config)
 - `benchmark/` — Scripts that regenerate the README performance/validation tables
 - `examples/notebooks/` — Jupyter tutorial notebooks

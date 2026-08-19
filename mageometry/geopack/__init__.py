@@ -1,12 +1,14 @@
-# geopack/__init__.py
+# mageometry/geopack/__init__.py
 """
-geopack package initializer.
+Vectorized geopack: magnetic field models and coordinate transforms.
 
-This module re-exports all public functions defined in geopack/geopack.py,
-so that they can be imported directly from `geopack`.
+This subpackage provides the field engine used by Mageometry: scalar and
+NumPy-vectorized implementations of the Tsyganenko magnetospheric field
+models (T89, T96, T01, T04), IGRF, dipole, coordinate transforms, and
+field line tracing. It re-exports all public functions defined in
+`geopack.py` so that they can be imported directly from
+`mageometry.geopack`.
 """
-
-__version__ = '0.1.0.dev0'
 
 from .geopack import (
     update_igrf,
@@ -46,7 +48,7 @@ from .models import t89, t96, t01, t04
 # vectorized (re-export)
 # -----------------------------
 
-# Import the vectorized subpackage (enables: from geopack import vectorized)
+# Import the vectorized subpackage (enables: from mageometry.geopack import vectorized)
 from . import vectorized
 
 # Vectorized modules (aliased to avoid name collisions with scalar counterparts)
@@ -95,33 +97,6 @@ from .vectorized.models import (
 
 # trace functions
 from .vectorized.trace import trace as trace_vectorized
-
-
-# -----------------------------
-# Mageometry (re-export)
-# Magnetic field line geometry: Frenet-Serret frame and directional derivatives
-# -----------------------------
-
-# Frenet-Serret frame: tangent, curvature, normal, binormal, torsion
-from .Mageometry import field_line_geometry
-from .Mageometry.field_line_geometry import (
-    field_line_tangent,
-    field_line_curvature,
-    field_line_normal,
-    field_line_binormal,
-    field_line_torsion,
-    field_line_frenet_frame,
-    field_line_geometry_complete,
-)
-
-# Directional derivatives of the Frenet-Serret frame and verification utilities
-from .Mageometry import field_line_directional_derivatives
-
-from .Mageometry.field_line_directional_derivatives import (
-    verify_antisymmetry_relations,
-    get_curvature_torsion_from_derivatives,
-    verify_unit_vectors,
-)
 
 __all__ = [
     # geopack.py functions
@@ -194,22 +169,6 @@ __all__ = [
 
     # vectorized utilities
     "condip1_exact",
-
-    # Mageometry: Frenet-Serret frame
-    "field_line_geometry",
-    "field_line_tangent",
-    "field_line_curvature",
-    "field_line_normal",
-    "field_line_binormal",
-    "field_line_torsion",
-    "field_line_frenet_frame",
-    "field_line_geometry_complete",
-
-    # Mageometry: directional derivatives and verification utilities
-    "field_line_directional_derivatives",
-    "verify_antisymmetry_relations",
-    "get_curvature_torsion_from_derivatives",
-    "verify_unit_vectors",
 
     # vectorized trace function
     "trace_vectorized",

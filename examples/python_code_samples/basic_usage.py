@@ -17,7 +17,7 @@ import os
 import numpy as np
 import datetime
 import time
-import geopack
+from mageometry import geopack
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _helpers import _loop_vectorize_xyz, igrf_internal_gsm

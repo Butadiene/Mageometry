@@ -1,6 +1,6 @@
 # Mageometry Notebooks Index
 
-Tutorial notebooks demonstrating the vectorized geopack library. Install matplotlib and jupyter to run them.
+Tutorial notebooks demonstrating Mageometry and its vectorized geopack field engine. Install matplotlib and jupyter to run them.
 
 ## Tutorial Notebooks
 

@@ -1,6 +1,6 @@
-# geopack/Mageometry/__init__.py
+# mageometry/geometry/__init__.py
 """
-Magnetic field line geometry analysis (Mageometry).
+Magnetic field line geometry analysis.
 
 Provides Frenet-Serret frame calculations (tangent, normal, binormal,
 curvature, torsion) and directional derivative analysis for magnetic
@@ -45,7 +45,6 @@ __all__ = [
     "field_line_geometry_complete",
 
     # field line directional derivatives + helpers
-    "field_line_directional_derivatives",
     "verify_antisymmetry_relations",
     "get_curvature_torsion_from_derivatives",
     "verify_unit_vectors",

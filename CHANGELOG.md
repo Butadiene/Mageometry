@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Breaking
+- **Package inverted: the analysis library is now the top-level package.** The
+  import root changed from `geopack` to `mageometry`:
+  - Field line geometry (formerly `geopack.Mageometry`) now lives in
+    `mageometry.geometry` and is re-exported at the top level
+    (`from mageometry import field_line_curvature`).
+  - The vectorized geopack fork moved to `mageometry.geopack`
+    (`from mageometry import geopack; geopack.recalc(ut)`), acting as one
+    magnetic field source for the analysis library. There is no top-level
+    `geopack` package anymore, so the upstream `geopack` PyPI package is no
+    longer shadowed.
+  - Planned subpackages: `mageometry.io` (simulation output readers) and
+    `mageometry.viz` (visualization).
 - **Project forked** from `geopack-vectorize` as **Mageometry** (2026-08-19). The
   package is no longer published on PyPI; the distribution name changed to
   `mageometry` and carries the `Private :: Do Not Upload` classifier to block

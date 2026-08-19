@@ -8,8 +8,8 @@ import pandas as pd
 from datetime import datetime
 
 # Import geopack modules
-import geopack
-from geopack import t96, t96_vectorized
+from mageometry import geopack
+from mageometry.geopack import t96, t96_vectorized
 
 # Set up time and recalculate parameters
 ut = datetime(2015, 3, 17, 12, 0, 0).timestamp()

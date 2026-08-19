@@ -13,8 +13,8 @@ import sys
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import geopack
-from geopack import (
+from mageometry import geopack
+from mageometry import (
     field_line_tangent,
     field_line_curvature,
     field_line_geometry_complete,

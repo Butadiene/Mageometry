@@ -7,8 +7,8 @@ vectorized API is unavailable.
 """
 
 import numpy as np
-import geopack
-from geopack import t96_vectorized
+from mageometry import geopack
+from mageometry.geopack import t96_vectorized
 
 
 def _loop_vectorize_xyz(func, x, y, z, *args):
@@ -74,7 +74,7 @@ def default_params():
     ut : float
         Unix timestamp (1970-01-01 00:00:00).
     ps : float
-        Dipole tilt angle [rad] from geopack.recalc(ut).
+        Dipole tilt angle [rad] from mageometry.geopack.recalc(ut).
     parmod : list
         T96 parameters [Pdyn, Dst, ByIMF, BzIMF, 0, ...].
     """

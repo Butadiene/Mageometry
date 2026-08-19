@@ -13,7 +13,7 @@ On top of that foundation it provides:
 - **Vectorized Field Models**: NumPy-based implementations of all Tsyganenko models (T89, T96, T01, T04) that process arrays of points simultaneously (20-150x speedup)
 - **Vectorized Field Line Tracing**: Parallel tracing of multiple field lines with improved boundary interpolation
 - **Vectorized Coordinate Transforms**: Array-based transformations between all coordinate systems
-- **Field Line Geometry (`geopack.Mageometry`)**: Frenet-Serret frames, curvature, torsion, and directional derivatives along field lines — the main focus of ongoing development
+- **Field Line Geometry (`mageometry.geometry`)**: Frenet-Serret frames, curvature, torsion, and directional derivatives along field lines — the main focus of ongoing development
 - **Comprehensive Validation**: Extensive test suite ensuring < 10⁻¹¹ relative error vs original implementations
 
 ## Installation
@@ -38,7 +38,7 @@ pip install -e .
 All vectorized functions accept both scalars and NumPy arrays. Call `geopack.recalc(ut)` once before using any model or transform. See [`examples/readme_examples.py`](examples/readme_examples.py) for a runnable version of the code below. For detailed function descriptions, please also refer to the [upstream geopack README](https://github.com/tsssss/geopack).
 
 ```python
-import geopack
+from mageometry import geopack
 import numpy as np
 
 ut = 100  # Unix timestamp (seconds since 1970-01-01)
@@ -47,7 +47,7 @@ ps = geopack.recalc(ut)
 
 ### Coordinate Transformations
 ```python
-from geopack import geogsm_vectorized
+from mageometry.geopack import geogsm_vectorized
 
 # Convert multiple GEO points to GSM (j=1: GEO→GSM, j=-1: GSM→GEO)
 x_geo = np.array([1.0, 2.0, 3.0])
@@ -59,7 +59,7 @@ x_gsm, y_gsm, z_gsm = geogsm_vectorized(x_geo, y_geo, z_geo, j=1)
 
 ### Internal Field (IGRF and Dipole)
 ```python
-from geopack import igrf_gsm_vectorized
+from mageometry.geopack import igrf_gsm_vectorized
 
 # IGRF magnetic field at multiple GSM positions (Earth radii)
 x = np.array([2.0, 3.0, 4.0, 5.0])
@@ -74,7 +74,7 @@ dx, dy, dz = geopack.dip(x, y, z)
 
 ### Tsyganenko External Field Models
 ```python
-from geopack import t96_vectorized
+from mageometry.geopack import t96_vectorized
 
 # T96 parameters: [Pdyn, Dst, ByIMF, BzIMF, 0, 0, 0, 0, 0, 0]
 parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0])
@@ -95,7 +95,7 @@ bz_total = bz + bz_int
 
 ### Field Line Tracing
 ```python
-from geopack import trace_vectorized
+from mageometry.geopack import trace_vectorized
 
 # Trace using dipole (internal) + T96 (external)
 x0 = np.array([5.0, 6.0, 7.0, 8.0])
@@ -110,7 +110,7 @@ xf, yf, zf, status = trace_vectorized(
 
 ### Field Line Geometry (Frenet-Serret Frame)
 ```python
-from geopack import field_line_curvature, field_line_frenet_frame
+from mageometry import field_line_curvature, field_line_frenet_frame
 
 # Combined model: dipole (internal) + T96 (external)
 def dip_plus_t96(parmod, ps, x, y, z):
@@ -134,7 +134,7 @@ tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = \
 
 ### Field Line Directional Derivatives
 ```python
-from geopack import field_line_directional_derivatives
+from mageometry import field_line_directional_derivatives
 
 # All 9 directional derivatives (using combined dipole + T96 model)
 derivs = field_line_directional_derivatives(
@@ -158,7 +158,7 @@ derivs = field_line_directional_derivatives(
 # derivs['db_db_T']  (∂b/∂b)·T
 ```
 
-> **Note:** The field line geometry modules live in `geopack.Mageometry`. Use the plain top-level names shown above (e.g. `field_line_curvature`); the legacy `*_vectorized` aliases for these functions (e.g. `field_line_curvature_vectorized`) and deep-path imports from the old location (e.g. `from geopack.vectorized.field_line_geometry import ...`) have been removed.
+> **Note:** The field line geometry modules live in `mageometry.geometry`. Use the plain top-level names shown above (e.g. `field_line_curvature`); the legacy `*_vectorized` aliases for these functions (e.g. `field_line_curvature_vectorized`) and deep-path imports from the old location (e.g. `from geopack.vectorized.field_line_geometry import ...`) have been removed.
 
 ## Vectorized Components
 
