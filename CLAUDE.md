@@ -66,6 +66,7 @@ There is no top-level `geopack` package anymore — this also avoids shadowing t
 - `tests/` — unittest-based test suite (no pytest config)
 - `benchmark/` — Scripts that regenerate the README performance/validation tables
 - `examples/notebooks/` — Jupyter tutorial notebooks
+- `docs/simulation_data_formats.md` — Accepted `mageometry.io` data formats and how to write compatible files (keep in sync with reader changes)
 - `docs/releases/` — Historical release notes from the geopack-vectorize era (kept as record only)
 
 ### Vectorization Conventions
