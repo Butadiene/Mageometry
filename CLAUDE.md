@@ -37,7 +37,8 @@ There is no `setup.py`/`setup.cfg` — all packaging lives in `pyproject.toml`. 
 
 ### API Design
 
-- **Geometry API** (`mageometry.geometry`, re-exported at top level): Field line geometry analysis — the primary product and the part of the codebase under active development. `from mageometry import field_line_curvature` etc.
+- **Geometry API** (`mageometry.geometry`, re-exported at top level): Field line geometry analysis — the primary product and the part of the codebase under active development. `from mageometry import field_line_curvature` etc. All geometry functions take the magnetic field as a generic callable ``field(x, y, z) -> (bx, by, bz)`` (GSM Re in, nT out) — they have no knowledge of geopack signatures.
+- **Field adapters** (`mageometry.fields`, re-exported at top level): Builders that produce such callables. `geopack_field(external, internal, parmod, ps)` wraps the geopack models (external: t89/t96/t01/t04 or None, internal: dip/igrf or None) with parameters bound at construction. Future simulation-data fields plug in here.
 - **Field engine** (`mageometry.geopack`): The vectorized geopack fork, providing magnetic field models as one field source. Contains both APIs of the original project:
   - **Scalar API** (`mageometry.geopack.models.*`, `mageometry.geopack.geopack`): Original loop-based implementations, one point at a time. Kept mainly as the validation reference for the vectorized code.
   - **Vectorized API** (`mageometry.geopack.vectorized.*`): NumPy-broadcasting implementations that process arrays of points simultaneously (20-150x speedup). Vectorized functions use the `_vectorized` suffix when accessed from `mageometry.geopack` (e.g., `t96_vectorized`, `trace_vectorized`).
@@ -48,6 +49,7 @@ There is no top-level `geopack` package anymore — this also avoids shadowing t
 ### Package Layout
 
 - `mageometry/__init__.py` — Version, geometry API re-exports, `geopack` subpackage
+- `mageometry/fields.py` — Field-source adapters (`geopack_field`)
 - `mageometry/geometry/field_line_geometry.py` — Frenet-Serret frame calculations
 - `mageometry/geometry/field_line_directional_derivatives.py` — Directional derivatives along field lines
 - `mageometry/geopack/geopack.py` — Core scalar functions: coordinate transforms, IGRF, tracing, recalc

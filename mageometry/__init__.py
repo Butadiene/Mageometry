@@ -6,8 +6,10 @@ The primary API is the field line geometry toolkit (Frenet-Serret frames,
 curvature, torsion, and directional derivatives), re-exported here from
 `mageometry.geometry`.
 
-Magnetic field sources live in subpackages:
+The geometry functions take the magnetic field as a callable
+``field(x, y, z) -> (bx, by, bz)``. Field sources:
 
+- `mageometry.fields` — adapters building such callables (`geopack_field`)
 - `mageometry.geopack` — vectorized geopack (Tsyganenko models T89/T96/T01/T04,
   IGRF, dipole, coordinate transforms, field line tracing)
 
@@ -19,6 +21,8 @@ __version__ = '0.1.0.dev0'
 
 # Field sources / engines
 from . import geopack
+from . import fields
+from .fields import geopack_field
 
 # Geometry analysis (primary API)
 from . import geometry
@@ -42,6 +46,10 @@ __all__ = [
     # subpackages
     "geometry",
     "geopack",
+    "fields",
+
+    # field source adapters
+    "geopack_field",
 
     # Frenet-Serret frame
     "field_line_tangent",

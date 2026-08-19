@@ -15,6 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mageometry import geopack
 from mageometry import (
+    geopack_field,
     field_line_tangent,
     field_line_curvature,
     field_line_geometry_complete,
@@ -23,7 +24,7 @@ from mageometry import (
 )
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _helpers import b_igrf_plus_t96_vectorized, default_params
+from _helpers import default_params
 
 
 def main():
@@ -36,6 +37,9 @@ def main():
     # Set up T96 model parameters
     # [Pdyn, Dst, ByIMF, BzIMF, ...]
     parmod = [2.0, -20.0, 0.5, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # Total field as a callable: field(x, y, z) -> (bx, by, bz)
+    field = geopack_field(external='t96', internal='igrf', parmod=parmod, ps=ps)
 
     print("Magnetic Field Line Geometry Analysis")
     print("=" * 40)
@@ -51,14 +55,14 @@ def main():
 
     # Get tangent vector (computed from TOTAL field)
     tx, ty, tz = field_line_tangent(
-        b_igrf_plus_t96_vectorized, parmod, ps, x, y, z
+        field, x, y, z
     )
     print(f"Position: ({x}, {y}, {z}) Re")
     print(f"Tangent vector: T = ({tx:.4f}, {ty:.4f}, {tz:.4f})")
 
     # Get curvature (computed from TOTAL field)
     curvature = field_line_curvature(
-        b_igrf_plus_t96_vectorized, parmod, ps, x, y, z
+        field, x, y, z
     )
     print(f"Curvature: κ = {curvature:.4f} Re⁻¹")
     print(f"Radius of curvature: R = {1/curvature:.2f} Re")
@@ -75,12 +79,12 @@ def main():
 
     # Calculate complete geometry from TOTAL field
     result = field_line_geometry_complete(
-        b_igrf_plus_t96_vectorized, parmod, ps, x_arr, y_arr, z_arr
+        field, x_arr, y_arr, z_arr
     )
     tx, ty, tz, nx, ny, nz, bnx, bny, bnz, curvature, torsion = result
 
     # Field strength |B| of TOTAL field (do it vectorized, once)
-    bx_field, by_field, bz_field = b_igrf_plus_t96_vectorized(parmod, ps, x_arr, y_arr, z_arr)
+    bx_field, by_field, bz_field = field(x_arr, y_arr, z_arr)
     b_mag = np.sqrt(bx_field**2 + by_field**2 + bz_field**2)
 
     print("Distance  Curvature   Torsion    |B_total|")
@@ -96,6 +100,7 @@ def main():
 
     # Use a variety of off-axis test points
     _, ps_def, parmod_def = default_params()
+    field_def = geopack_field(external='t96', internal='igrf', parmod=parmod_def, ps=ps_def)
     x_test = np.array([-5.0, -6.0, -7.0, -8.0])
     y_test = np.array([0.0, 1.0, 0.0, -1.0])
     z_test = np.array([0.0, 0.0, 1.0, 0.0])
@@ -103,7 +108,7 @@ def main():
     # Get Frenet frame (returns flat 10-tuple)
     ftx, fty, ftz, fnx, fny, fnz, fbx, fby, fbz, curv = (
         field_line_frenet_frame(
-            b_igrf_plus_t96_vectorized, parmod_def, ps_def,
+            field_def,
             x_test, y_test, z_test, delta=1e-3
         )
     )
@@ -145,7 +150,7 @@ def main():
 
     curvature_flat = np.full_like(x_flat, np.nan, dtype=float)
     curvature_flat[valid] = field_line_curvature(
-        b_igrf_plus_t96_vectorized, parmod, ps,
+        field,
         x_flat[valid], y_flat[valid], z_flat[valid], delta=1e-3
     )
 
@@ -204,7 +209,7 @@ def main():
     for i in range(steps):
         # Get geometry at current position
         tx, ty, tz, _, _, _, _, _, _, curv, tors = field_line_geometry_complete(
-            b_igrf_plus_t96_vectorized, parmod, ps, path_x[i], path_y[i], path_z[i], delta=1e-3
+            field, path_x[i], path_y[i], path_z[i], delta=1e-3
         )
 
         path_curvature[i] = curv

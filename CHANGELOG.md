@@ -20,6 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     longer shadowed.
   - Planned subpackages: `mageometry.io` (simulation output readers) and
     `mageometry.viz` (visualization).
+- **Geometry functions now take a generic field callable.** The signature
+  changed from `func(model_func, parmod, ps, x, y, z, ...)` to
+  `func(field, x, y, z, ...)`, where ``field(x, y, z) -> (bx, by, bz)`` is any
+  callable (GSM Re in, nT out). This decouples the analysis library from
+  geopack-specific parameters and lets simulation-data fields plug in directly.
+
+### Added
+- `mageometry.fields.geopack_field(external, internal, parmod, ps)` (also
+  exported at top level): builds a ``field(x, y, z)`` callable from the geopack
+  models — external 't89'/'t96'/'t01'/'t04' or None, internal 'dip'/'igrf' or
+  None — with model parameters bound at construction time.
+- `tests/test_field_line_geometry.py`: first test coverage for the geometry
+  API, including an analytic dipole check (equatorial curvature κ = 3/r),
+  Frenet frame orthonormality, antisymmetry relations, and adapter behavior.
 - **Project forked** from `geopack-vectorize` as **Mageometry** (2026-08-19). The
   package is no longer published on PyPI; the distribution name changed to
   `mageometry` and carries the `Private :: Do Not Upload` classifier to block

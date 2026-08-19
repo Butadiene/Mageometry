@@ -109,26 +109,26 @@ xf, yf, zf, status = trace_vectorized(
 ```
 
 ### Field Line Geometry (Frenet-Serret Frame)
-```python
-from mageometry import field_line_curvature, field_line_frenet_frame
 
-# Combined model: dipole (internal) + T96 (external)
-def dip_plus_t96(parmod, ps, x, y, z):
-    bx_d, by_d, bz_d = geopack.dip(x, y, z)
-    bx_t, by_t, bz_t = t96_vectorized(parmod, ps, x, y, z)
-    return bx_d + bx_t, by_d + by_t, bz_d + bz_t
+The geometry functions take the magnetic field as a callable `field(x, y, z) -> (bx, by, bz)`. `geopack_field` wraps the geopack models into that form; any custom callable (e.g. interpolated simulation output) works the same way.
+
+```python
+from mageometry import geopack_field, field_line_curvature, field_line_frenet_frame
+
+# Total field: dipole (internal) + T96 (external)
+field = geopack_field(external='t96', internal='dip', parmod=parmod, ps=ps)
 
 # Curvature at several points along the noon meridian
 x = np.array([5.0, 6.0, 7.0, 8.0])
 y = np.zeros(4)
 z = np.zeros(4)
 
-kappa = field_line_curvature(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
+kappa = field_line_curvature(field, x, y, z, delta=1e-3)
 # kappa: field line curvature [1/Re]
 
 # Full Frenet-Serret frame (tangent, normal, binormal) + curvature
 tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = \
-    field_line_frenet_frame(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
+    field_line_frenet_frame(field, x, y, z, delta=1e-3)
 # curvature [1/Re]; tangent, normal, binormal are unit vectors (dimensionless)
 ```
 
@@ -136,9 +136,9 @@ tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = \
 ```python
 from mageometry import field_line_directional_derivatives
 
-# All 9 directional derivatives (using combined dipole + T96 model)
+# All 9 directional derivatives (same field callable as above)
 derivs = field_line_directional_derivatives(
-    dip_plus_t96, parmod, ps, x, y, z, delta=1e-3
+    field, x, y, z, delta=1e-3
 )
 # All derivative values are in units of [1/Re]
 

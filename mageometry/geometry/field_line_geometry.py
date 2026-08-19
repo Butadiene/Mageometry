@@ -3,12 +3,18 @@ Vectorized magnetic field line geometry analysis.
 
 This module provides functions to calculate geometric properties of magnetic field lines
 including the Frenet-Serret frame (tangent, normal, binormal vectors), curvature, and torsion.
+
+All functions take the magnetic field as a callable with signature
+``field(x, y, z) -> (bx, by, bz)`` (positions in GSM Re, field in nT), so any
+field source can be analyzed: geopack models wrapped via
+`mageometry.fields.geopack_field`, or custom callables such as interpolated
+simulation output.
 """
 
 import numpy as np
 
 
-def field_line_tangent(model_func, parmod, ps, x, y, z):
+def field_line_tangent(field, x, y, z):
     """
     Calculate unit tangent vectors along magnetic field lines.
     
@@ -16,12 +22,12 @@ def field_line_tangent(model_func, parmod, ps, x, y, z):
     
     Parameters
     ----------
-    model_func : callable
-        Magnetic field model function (e.g., t89_vectorized, t96_vectorized)
-    parmod : array_like
-        Model parameters specific to the chosen model
-    ps : float
-        Dipole tilt angle in radians
+    field : callable
+        Magnetic field function with signature ``field(x, y, z) -> (bx, by, bz)``,
+        taking positions in GSM coordinates (Re) and returning field components
+        in nT. Use `mageometry.fields.geopack_field` to wrap the geopack
+        (Tsyganenko/IGRF/dipole) models, or pass any custom callable
+        (e.g. interpolated simulation output).
     x, y, z : float or array_like
         Position coordinates in GSM system (Re)
         
@@ -38,7 +44,7 @@ def field_line_tangent(model_func, parmod, ps, x, y, z):
     z = np.atleast_1d(z)
     
     # Get magnetic field
-    bx, by, bz = model_func(parmod, ps, x, y, z)
+    bx, by, bz = field(x, y, z)
     
     # Calculate magnitude
     b_mag = np.sqrt(bx**2 + by**2 + bz**2)
@@ -62,7 +68,7 @@ def field_line_tangent(model_func, parmod, ps, x, y, z):
         return tx, ty, tz
 
 
-def field_line_curvature(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_curvature(field, x, y, z, delta=0.01):
     """
     Calculate field line curvature using finite differences.
     
@@ -70,12 +76,12 @@ def field_line_curvature(model_func, parmod, ps, x, y, z, delta=0.01):
     
     Parameters
     ----------
-    model_func : callable
-        Magnetic field model function
-    parmod : array_like
-        Model parameters
-    ps : float
-        Dipole tilt angle in radians
+    field : callable
+        Magnetic field function with signature ``field(x, y, z) -> (bx, by, bz)``,
+        taking positions in GSM coordinates (Re) and returning field components
+        in nT. Use `mageometry.fields.geopack_field` to wrap the geopack
+        (Tsyganenko/IGRF/dipole) models, or pass any custom callable
+        (e.g. interpolated simulation output).
     x, y, z : float or array_like
         Position coordinates in GSM system (Re)
     delta : float, optional
@@ -92,7 +98,7 @@ def field_line_curvature(model_func, parmod, ps, x, y, z, delta=0.01):
     z = np.atleast_1d(z)
     
     # Get tangent at current point
-    tx0, ty0, tz0 = field_line_tangent(model_func, parmod, ps, x, y, z)
+    tx0, ty0, tz0 = field_line_tangent(field, x, y, z)
     
     # Step forward along field line
     x_plus = x + delta * tx0
@@ -106,10 +112,10 @@ def field_line_curvature(model_func, parmod, ps, x, y, z, delta=0.01):
     
     # Get tangents at stepped positions
     tx_plus, ty_plus, tz_plus = field_line_tangent(
-        model_func, parmod, ps, x_plus, y_plus, z_plus
+        field, x_plus, y_plus, z_plus
     )
     tx_minus, ty_minus, tz_minus = field_line_tangent(
-        model_func, parmod, ps, x_minus, y_minus, z_minus
+        field, x_minus, y_minus, z_minus
     )
     
     # Central difference for dT/ds
@@ -126,7 +132,7 @@ def field_line_curvature(model_func, parmod, ps, x, y, z, delta=0.01):
         return curvature
 
 
-def field_line_normal(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_normal(field, x, y, z, delta=0.01):
     """
     Calculate normal vectors of magnetic field lines.
     
@@ -134,12 +140,12 @@ def field_line_normal(model_func, parmod, ps, x, y, z, delta=0.01):
     
     Parameters
     ----------
-    model_func : callable
-        Magnetic field model function
-    parmod : array_like
-        Model parameters
-    ps : float
-        Dipole tilt angle in radians
+    field : callable
+        Magnetic field function with signature ``field(x, y, z) -> (bx, by, bz)``,
+        taking positions in GSM coordinates (Re) and returning field components
+        in nT. Use `mageometry.fields.geopack_field` to wrap the geopack
+        (Tsyganenko/IGRF/dipole) models, or pass any custom callable
+        (e.g. interpolated simulation output).
     x, y, z : float or array_like
         Position coordinates in GSM system (Re)
     delta : float, optional
@@ -156,7 +162,7 @@ def field_line_normal(model_func, parmod, ps, x, y, z, delta=0.01):
     z = np.atleast_1d(z)
     
     # Get tangent at current point
-    tx0, ty0, tz0 = field_line_tangent(model_func, parmod, ps, x, y, z)
+    tx0, ty0, tz0 = field_line_tangent(field, x, y, z)
     
     # Step forward and backward along field line
     x_plus = x + delta * tx0
@@ -169,10 +175,10 @@ def field_line_normal(model_func, parmod, ps, x, y, z, delta=0.01):
     
     # Get tangents at stepped positions
     tx_plus, ty_plus, tz_plus = field_line_tangent(
-        model_func, parmod, ps, x_plus, y_plus, z_plus
+        field, x_plus, y_plus, z_plus
     )
     tx_minus, ty_minus, tz_minus = field_line_tangent(
-        model_func, parmod, ps, x_minus, y_minus, z_minus
+        field, x_minus, y_minus, z_minus
     )
     
     # Central difference for dT/ds
@@ -214,7 +220,7 @@ def field_line_normal(model_func, parmod, ps, x, y, z, delta=0.01):
         return nx, ny, nz
 
 
-def field_line_binormal(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_binormal(field, x, y, z, delta=0.01):
     """
     Calculate binormal vectors of magnetic field lines.
     
@@ -222,12 +228,12 @@ def field_line_binormal(model_func, parmod, ps, x, y, z, delta=0.01):
     
     Parameters
     ----------
-    model_func : callable
-        Magnetic field model function
-    parmod : array_like
-        Model parameters
-    ps : float
-        Dipole tilt angle in radians
+    field : callable
+        Magnetic field function with signature ``field(x, y, z) -> (bx, by, bz)``,
+        taking positions in GSM coordinates (Re) and returning field components
+        in nT. Use `mageometry.fields.geopack_field` to wrap the geopack
+        (Tsyganenko/IGRF/dipole) models, or pass any custom callable
+        (e.g. interpolated simulation output).
     x, y, z : float or array_like
         Position coordinates in GSM system (Re)
     delta : float, optional
@@ -241,8 +247,8 @@ def field_line_binormal(model_func, parmod, ps, x, y, z, delta=0.01):
     scalar_input = np.isscalar(x)
     
     # Get tangent and normal vectors
-    tx, ty, tz = field_line_tangent(model_func, parmod, ps, x, y, z)
-    nx, ny, nz = field_line_normal(model_func, parmod, ps, x, y, z, delta)
+    tx, ty, tz = field_line_tangent(field, x, y, z)
+    nx, ny, nz = field_line_normal(field, x, y, z, delta)
     
     # Cross product T × N
     bx = ty * nz - tz * ny
@@ -255,7 +261,7 @@ def field_line_binormal(model_func, parmod, ps, x, y, z, delta=0.01):
         return bx, by, bz
 
 
-def field_line_torsion(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_torsion(field, x, y, z, delta=0.01):
     """
     Calculate field line torsion using finite differences.
     
@@ -263,12 +269,12 @@ def field_line_torsion(model_func, parmod, ps, x, y, z, delta=0.01):
     
     Parameters
     ----------
-    model_func : callable
-        Magnetic field model function
-    parmod : array_like
-        Model parameters
-    ps : float
-        Dipole tilt angle in radians
+    field : callable
+        Magnetic field function with signature ``field(x, y, z) -> (bx, by, bz)``,
+        taking positions in GSM coordinates (Re) and returning field components
+        in nT. Use `mageometry.fields.geopack_field` to wrap the geopack
+        (Tsyganenko/IGRF/dipole) models, or pass any custom callable
+        (e.g. interpolated simulation output).
     x, y, z : float or array_like
         Position coordinates in GSM system (Re)
     delta : float, optional
@@ -285,11 +291,11 @@ def field_line_torsion(model_func, parmod, ps, x, y, z, delta=0.01):
     z = np.atleast_1d(z)
     
     # Get tangent vector at current point
-    tx0, ty0, tz0 = field_line_tangent(model_func, parmod, ps, x, y, z)
+    tx0, ty0, tz0 = field_line_tangent(field, x, y, z)
     
     # Get normal and binormal at current point
-    nx0, ny0, nz0 = field_line_normal(model_func, parmod, ps, x, y, z, delta)
-    bx0, by0, bz0 = field_line_binormal(model_func, parmod, ps, x, y, z, delta)
+    nx0, ny0, nz0 = field_line_normal(field, x, y, z, delta)
+    bx0, by0, bz0 = field_line_binormal(field, x, y, z, delta)
     
     # Step forward and backward along field line
     x_plus = x + delta * tx0
@@ -302,10 +308,10 @@ def field_line_torsion(model_func, parmod, ps, x, y, z, delta=0.01):
     
     # Get binormal at stepped positions
     bx_plus, by_plus, bz_plus = field_line_binormal(
-        model_func, parmod, ps, x_plus, y_plus, z_plus, delta
+        field, x_plus, y_plus, z_plus, delta
     )
     bx_minus, by_minus, bz_minus = field_line_binormal(
-        model_func, parmod, ps, x_minus, y_minus, z_minus, delta
+        field, x_minus, y_minus, z_minus, delta
     )
     
     # Central difference for dB/ds
@@ -322,18 +328,18 @@ def field_line_torsion(model_func, parmod, ps, x, y, z, delta=0.01):
         return torsion
 
 
-def field_line_frenet_frame(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_frenet_frame(field, x, y, z, delta=0.01):
     """
     Calculate complete Frenet-Serret frame and curvature for field lines.
     
     Parameters
     ----------
-    model_func : callable
-        Magnetic field model function
-    parmod : array_like
-        Model parameters
-    ps : float
-        Dipole tilt angle in radians
+    field : callable
+        Magnetic field function with signature ``field(x, y, z) -> (bx, by, bz)``,
+        taking positions in GSM coordinates (Re) and returning field components
+        in nT. Use `mageometry.fields.geopack_field` to wrap the geopack
+        (Tsyganenko/IGRF/dipole) models, or pass any custom callable
+        (e.g. interpolated simulation output).
     x, y, z : float or array_like
         Position coordinates in GSM system (Re)
     delta : float, optional
@@ -351,26 +357,26 @@ def field_line_frenet_frame(model_func, parmod, ps, x, y, z, delta=0.01):
         Field line curvature (1/Re)
     """
     # Get all components
-    tx, ty, tz = field_line_tangent(model_func, parmod, ps, x, y, z)
-    nx, ny, nz = field_line_normal(model_func, parmod, ps, x, y, z, delta)
-    bx, by, bz = field_line_binormal(model_func, parmod, ps, x, y, z, delta)
-    curvature = field_line_curvature(model_func, parmod, ps, x, y, z, delta)
+    tx, ty, tz = field_line_tangent(field, x, y, z)
+    nx, ny, nz = field_line_normal(field, x, y, z, delta)
+    bx, by, bz = field_line_binormal(field, x, y, z, delta)
+    curvature = field_line_curvature(field, x, y, z, delta)
     
     return tx, ty, tz, nx, ny, nz, bx, by, bz, curvature
 
 
-def field_line_geometry_complete(model_func, parmod, ps, x, y, z, delta=0.01):
+def field_line_geometry_complete(field, x, y, z, delta=0.01):
     """
     Calculate complete field line geometry including Frenet frame, curvature, and torsion.
     
     Parameters
     ----------
-    model_func : callable
-        Magnetic field model function (e.g., t89_vectorized, t96_vectorized)
-    parmod : array_like
-        Model parameters specific to the chosen model
-    ps : float
-        Dipole tilt angle in radians
+    field : callable
+        Magnetic field function with signature ``field(x, y, z) -> (bx, by, bz)``,
+        taking positions in GSM coordinates (Re) and returning field components
+        in nT. Use `mageometry.fields.geopack_field` to wrap the geopack
+        (Tsyganenko/IGRF/dipole) models, or pass any custom callable
+        (e.g. interpolated simulation output).
     x, y, z : float or array_like
         Position coordinates in GSM system (Re)
     delta : float, optional
@@ -391,20 +397,12 @@ def field_line_geometry_complete(model_func, parmod, ps, x, y, z, delta=0.01):
     """
     # Get Frenet frame and curvature
     tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = field_line_frenet_frame(
-        model_func, parmod, ps, x, y, z, delta
+        field, x, y, z, delta
     )
     
     # Get torsion
-    torsion = field_line_torsion(model_func, parmod, ps, x, y, z, delta)
+    torsion = field_line_torsion(field, x, y, z, delta)
     
     return tx, ty, tz, nx, ny, nz, bx, by, bz, curvature, torsion
-
-
-# Note: The directional derivative functions have been moved to field_line_directional_derivatives_new.py
-# which implements the correct 9 formulas with proper antisymmetry relations
-
-
-
-
 
 

@@ -12,6 +12,7 @@ Demonstrates the six core vectorized capabilities:
 
 from mageometry import geopack
 from mageometry import (
+    geopack_field,
     field_line_curvature, field_line_frenet_frame,
     field_line_directional_derivatives,
 )
@@ -91,18 +92,16 @@ for i in range(len(x0)):
     print(f"  start ({x0[i]}, {y0[i]}, {z0[i]}) -> end ({xf[i]:.4f}, {yf[i]:.4f}, {zf[i]:.4f})  status: {status_labels.get(int(status[i]), '?')}")
 
 # --- 5. Field Line Geometry (Frenet-Serret Frame) ---
-# Combined model: dipole (internal) + T96 (external)
-def dip_plus_t96(parmod, ps, x, y, z):
-    bx_d, by_d, bz_d = geopack.dip(x, y, z)
-    bx_t, by_t, bz_t = t96_vectorized(parmod, ps, x, y, z)
-    return bx_d + bx_t, by_d + by_t, bz_d + bz_t
+# Geometry functions take any callable field(x, y, z) -> (bx, by, bz);
+# geopack_field wraps the geopack models into that form.
+field = geopack_field(external='t96', internal='dip', parmod=parmod, ps=ps)
 
 # Curvature at several points along the noon meridian
 x = np.array([5.0, 6.0, 7.0, 8.0])
 y = np.zeros(4)
 z = np.zeros(4)
 
-kappa = field_line_curvature(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
+kappa = field_line_curvature(field, x, y, z, delta=1e-3)
 # kappa: field line curvature [1/Re]
 print("\n=== Field Line Curvature (dipole + T96) ===")
 for i in range(len(x)):
@@ -110,7 +109,7 @@ for i in range(len(x)):
 
 # Full Frenet-Serret frame (tangent, normal, binormal) + curvature
 tx, ty, tz, nx, ny, nz, bnx, bny, bnz, curvature = \
-    field_line_frenet_frame(dip_plus_t96, parmod, ps, x, y, z, delta=1e-3)
+    field_line_frenet_frame(field, x, y, z, delta=1e-3)
 # curvature [1/Re]; tangent, normal, binormal are unit vectors (dimensionless)
 print("\n=== Frenet-Serret Frame (dipole + T96) ===")
 for i in range(len(x)):
@@ -120,7 +119,7 @@ for i in range(len(x)):
 
 # --- 6. Field Line Directional Derivatives ---
 derivs = field_line_directional_derivatives(
-    dip_plus_t96, parmod, ps, x, y, z, delta=1e-3
+    field, x, y, z, delta=1e-3
 )
 # All derivative values are in units of [1/Re]
 print("\n=== Field Line Directional Derivatives ===")

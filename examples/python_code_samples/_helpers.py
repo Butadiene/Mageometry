@@ -8,7 +8,6 @@ vectorized API is unavailable.
 
 import numpy as np
 from mageometry import geopack
-from mageometry.geopack import t96_vectorized
 
 
 def _loop_vectorize_xyz(func, x, y, z, *args):
@@ -50,19 +49,6 @@ def igrf_internal_gsm(x, y, z):
     if hasattr(geopack, "igrf_gsm"):
         return _loop_vectorize_xyz(geopack.igrf_gsm, x, y, z)
     raise AttributeError("geopack has no igrf_gsm / igrf_gsm_vectorized.")
-
-
-def b_igrf_plus_t96_vectorized(parmod, ps, x, y, z):
-    """
-    Total magnetic field in GSM Cartesian [nT]:
-        B_total = B_IGRF (internal) + B_T96 (external)
-
-    Signature matches Tsyganenko model funcs used by the geometry utilities:
-        func(parmod, ps, x, y, z) -> (bx, by, bz)
-    """
-    bix, biy, biz = igrf_internal_gsm(x, y, z)  # internal
-    bex, bey, bez = t96_vectorized(parmod, ps, x, y, z)  # external
-    return bix + bex, biy + bey, biz + bez
 
 
 def default_params():

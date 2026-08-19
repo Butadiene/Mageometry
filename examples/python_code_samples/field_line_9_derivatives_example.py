@@ -9,21 +9,16 @@ Magnetic field model used here:
 in GSM coordinates.
 """
 
-import sys
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 from mageometry import geopack
 from mageometry.geopack import recalc
 from mageometry import (
+    geopack_field,
     field_line_directional_derivatives,
     verify_antisymmetry_relations,
     get_curvature_torsion_from_derivatives
 )
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _helpers import b_igrf_plus_t96_vectorized
-
 
 # ----------------------------
 # Set up time and model parameters
@@ -33,6 +28,9 @@ ps = recalc(ut)
 
 # T96 model parameters: [Pdyn, Dst, ByIMF, BzIMF, ...]
 parmod = [2.0, -18.0, 2.0, -5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+# Total field as a callable: field(x, y, z) -> (bx, by, bz)
+field = geopack_field(external='t96', internal='igrf', parmod=parmod, ps=ps)
 
 print("Field Line Directional Derivatives - 9 Key Formulas")
 print("=" * 60)
@@ -44,7 +42,7 @@ print(f"\nAnalyzing point: ({x}, {y}, {z}) Re")
 
 # Calculate all derivatives (TOTAL field)
 derivatives = field_line_directional_derivatives(
-    b_igrf_plus_t96_vectorized, parmod, ps, x, y, z, delta=1e-3
+    field, x, y, z, delta=1e-3
 )
 
 # Display the 9 key formulas
@@ -84,7 +82,7 @@ z_line = np.zeros_like(x_line)
 
 # Calculate derivatives along line (TOTAL field)
 derivatives_line = field_line_directional_derivatives(
-    b_igrf_plus_t96_vectorized, parmod, ps, x_line, y_line, z_line, delta=1e-3
+    field, x_line, y_line, z_line, delta=1e-3
 )
 
 # Extract curvature and torsion
