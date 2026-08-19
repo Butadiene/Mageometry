@@ -1,38 +1,20 @@
-# GEOPACK-VECTORIZE
+# Mageometry
 
-A vectorized implementation extending the excellent Python [geopack](https://github.com/tsssss/geopack) library by Sheng Tian, adding high-performance NumPy-based versions of Tsyganenko magnetospheric field models and field line tracing algorithms.
+A magnetic field line geometry toolkit built on a vectorized implementation of the Python [geopack](https://github.com/tsssss/geopack) library, covering the Tsyganenko magnetospheric field models (T89, T96, T01, T04), IGRF, field line tracing, and Frenet-Serret geometry of field lines.
+
+> **⚠️ Project status:** Mageometry is a hard fork of [geopack-vectorize](https://github.com/Butadiene/geopack-vectorize) under heavy development. It is **not published on PyPI**, breaking changes land without deprecation cycles, and no backward compatibility with geopack-vectorize is guaranteed. If you need a stable package, use [geopack-vectorize](https://pypi.org/project/geopack-vectorize/) instead.
 
 ## Overview
 
-This project builds upon the solid foundation of the Python geopack library, which provides faithful implementations of the Tsyganenko magnetospheric field models (T89, T96, T01, T04) and the IGRF geomagnetic field model, originally developed in Fortran by N.A. Tsyganenko. 
+This project builds upon the Python geopack library, which provides faithful implementations of the Tsyganenko magnetospheric field models (T89, T96, T01, T04) and the IGRF geomagnetic field model, originally developed in Fortran by N.A. Tsyganenko.
 
-geopack-vectorize extends the original geopack by adding vectorized implementations that leverage NumPy for parallel computation, achieving 20-150x performance improvements while maintaining machine-precision accuracy and full backward compatibility with the original scalar functions.
+On top of that foundation it provides:
 
-### What This Project Adds
-
-- **Vectorized Field Models**: NumPy-based implementations of all Tsyganenko models (T89, T96, T01, T04) that process arrays of points simultaneously
+- **Vectorized Field Models**: NumPy-based implementations of all Tsyganenko models (T89, T96, T01, T04) that process arrays of points simultaneously (20-150x speedup)
 - **Vectorized Field Line Tracing**: Parallel tracing of multiple field lines with improved boundary interpolation
 - **Vectorized Coordinate Transforms**: Array-based transformations between all coordinate systems
-- **Full Backward Compatibility**: All original geopack functions remain unchanged and available
+- **Field Line Geometry (`geopack.Mageometry`)**: Frenet-Serret frames, curvature, torsion, and directional derivatives along field lines — the main focus of ongoing development
 - **Comprehensive Validation**: Extensive test suite ensuring < 10⁻¹¹ relative error vs original implementations
-
-## Upgrading to v2.0.0
-
-As of v2.0.0, the PyPI package name has changed from `geopack-vectorized` to `geopack-vectorize`. The old `geopack-vectorized` package will remain available for a transitional period but will eventually be removed. Please update your installation:
-
-```bash
-pip uninstall geopack-vectorized
-pip install geopack-vectorize
-```
-
-Other notable changes from v1.1.4 to v2.0.0:
-- Internal module structure reorganized (all vectorized code now under `geopack/vectorized/`)
-- All comments and docstrings translated to English
-- Docstrings standardized to NumPy format
-- Example notebooks cleaned up and reorganized
-- See [RELEASE_NOTES_v2.0.0.md](docs/releases/RELEASE_NOTES_v2.0.0.md) for the full list of changes
-
-**Top-level imports are unchanged** — existing code using `from geopack import t96_vectorized` etc. will continue to work without modification.
 
 ## Installation
 
@@ -41,15 +23,13 @@ Other notable changes from v1.1.4 to v2.0.0:
 - NumPy
 - SciPy
 
-### Install from PyPI
-```bash
-pip install geopack-vectorize
-```
-
 ### Install from Source
+
+Mageometry is not distributed on PyPI. Install it directly from this repository:
+
 ```bash
-git clone https://github.com/Butadiene/geopack-vectorize.git
-cd geopack-vectorize
+git clone https://github.com/Butadiene/Mageometry.git
+cd Mageometry
 pip install -e .
 ```
 

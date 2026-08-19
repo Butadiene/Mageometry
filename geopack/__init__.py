@@ -6,7 +6,7 @@ This module re-exports all public functions defined in geopack/geopack.py,
 so that they can be imported directly from `geopack`.
 """
 
-__version__ = '2.0.0'
+__version__ = '0.1.0.dev0'
 
 from .geopack import (
     update_igrf,

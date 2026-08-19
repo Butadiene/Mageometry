@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking
+- **Project forked** from `geopack-vectorize` as **Mageometry** (2026-08-19). The
+  package is no longer published on PyPI; the distribution name changed to
+  `mageometry` and carries the `Private :: Do Not Upload` classifier to block
+  accidental uploads. Install from source only.
+- Version reset to `0.1.0.dev0`. Breaking changes may land without deprecation
+  cycles; no backward compatibility with geopack-vectorize releases is guaranteed.
+- Removed `setup.py` / `setup.cfg` (packaging consolidated into `pyproject.toml`),
+  `CITATION.cff`, and the PyPI release guides under `docs/`.
+
 ## [2.0.0] - 2026-02-11
 
 ### Breaking

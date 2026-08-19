@@ -1,4 +1,4 @@
-# Geopack-Vectorize Notebooks Index
+# Mageometry Notebooks Index
 
 Tutorial notebooks demonstrating the vectorized geopack library. Install matplotlib and jupyter to run them.
 
