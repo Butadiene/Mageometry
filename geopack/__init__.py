@@ -123,21 +123,6 @@ from .Mageometry.field_line_directional_derivatives import (
     verify_unit_vectors,
 )
 
-# Backward-compatible aliases: top-level names with the _vectorized suffix,
-# as published before the move to geopack.Mageometry
-from .Mageometry.field_line_geometry import (
-    field_line_tangent as field_line_tangent_vectorized,
-    field_line_curvature as field_line_curvature_vectorized,
-    field_line_normal as field_line_normal_vectorized,
-    field_line_binormal as field_line_binormal_vectorized,
-    field_line_torsion as field_line_torsion_vectorized,
-    field_line_frenet_frame as field_line_frenet_frame_vectorized,
-    field_line_geometry_complete as field_line_geometry_complete_vectorized,
-)
-from .Mageometry.field_line_directional_derivatives import (
-    field_line_directional_derivatives as field_line_directional_derivatives_vectorized,
-)
-
 __all__ = [
     # geopack.py functions
     "update_igrf",
@@ -225,16 +210,6 @@ __all__ = [
     "verify_antisymmetry_relations",
     "get_curvature_torsion_from_derivatives",
     "verify_unit_vectors",
-
-    # Mageometry: backward-compatible _vectorized aliases
-    "field_line_tangent_vectorized",
-    "field_line_curvature_vectorized",
-    "field_line_normal_vectorized",
-    "field_line_binormal_vectorized",
-    "field_line_torsion_vectorized",
-    "field_line_frenet_frame_vectorized",
-    "field_line_geometry_complete_vectorized",
-    "field_line_directional_derivatives_vectorized",
 
     # vectorized trace function
     "trace_vectorized",

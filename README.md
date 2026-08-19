@@ -158,7 +158,7 @@ derivs = field_line_directional_derivatives(
 # derivs['db_db_T']  (∂b/∂b)·T
 ```
 
-> **Note:** The field line geometry modules now live in `geopack.Mageometry`. Top-level imports (including the legacy `*_vectorized` aliases such as `field_line_curvature_vectorized`) keep working, but deep-path imports from the old location (e.g. `from geopack.vectorized.field_line_geometry import ...`) are no longer supported.
+> **Note:** The field line geometry modules live in `geopack.Mageometry`. Use the plain top-level names shown above (e.g. `field_line_curvature`); the legacy `*_vectorized` aliases for these functions (e.g. `field_line_curvature_vectorized`) and deep-path imports from the old location (e.g. `from geopack.vectorized.field_line_geometry import ...`) have been removed.
 
 ## Vectorized Components
 

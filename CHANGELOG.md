@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cycles; no backward compatibility with geopack-vectorize releases is guaranteed.
 - Removed `setup.py` / `setup.cfg` (packaging consolidated into `pyproject.toml`),
   `CITATION.cff`, and the PyPI release guides under `docs/`.
+- Removed the legacy top-level `*_vectorized` aliases for the field line geometry
+  functions (`field_line_tangent_vectorized`, `field_line_curvature_vectorized`,
+  `field_line_normal_vectorized`, `field_line_binormal_vectorized`,
+  `field_line_torsion_vectorized`, `field_line_frenet_frame_vectorized`,
+  `field_line_geometry_complete_vectorized`,
+  `field_line_directional_derivatives_vectorized`). Use the plain names
+  (e.g. `geopack.field_line_curvature`) or import from `geopack.Mageometry`.
 
 ## [2.0.0] - 2026-02-11
 
