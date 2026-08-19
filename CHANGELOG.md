@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   equatorial curvature 3/r. See
   `examples/python_code_samples/mhd_gridded_field_example.py` and
   `tests/test_io_gridded_field.py`.
+- Tsyganenko file round-trip test (`TestTsyganenkoFileRoundtrip`): a
+  T96+dipole field is sampled on a grid, written as an XDMF/HDF5 pair in the
+  MHD on-disk convention, loaded back, and compared against direct model
+  evaluation — field values (<1e-2 rel), curvature through the file (2e-2
+  linear / 5e-3 cubic), and Frenet frames including the validity mask. This
+  pins the whole file pipeline to an exactly reproducible reference.
 - **Project forked** from `geopack-vectorize` as **Mageometry** (2026-08-19). The
   package is no longer published on PyPI; the distribution name changed to
   `mageometry` and carries the `Private :: Do Not Upload` classifier to block

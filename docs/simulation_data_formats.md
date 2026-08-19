@@ -170,6 +170,13 @@ with open("myrun.xmf", "w") as f:
 Round-trip check: `load_xdmf("myrun.xmf")` must return a `GriddedField`
 whose `.bx` etc. equal your original `(nx, ny, nz)` arrays.
 
+The test suite validates this pipeline against an exactly reproducible
+reference: `TestTsyganenkoFileRoundtrip` in `tests/test_io_gridded_field.py`
+samples a T96+dipole model field onto a grid, writes it with exactly the
+recipe above, loads it back, and checks interpolated field values, curvature,
+and Frenet frames against direct model evaluation. Use it as a template for
+verifying your own writer.
+
 ## Interpolation guidance for geometry analysis
 
 - The geometry functions differentiate the field by finite differences with
