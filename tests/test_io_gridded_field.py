@@ -279,8 +279,8 @@ class TestTsyganenkoFileRoundtrip(unittest.TestCase):
 
     def test_frenet_frame_through_file(self):
         """The file-based field must reproduce the direct-model frame,
-        including the geometry module's validity masking (the normal is set
-        to zero where it cannot be defined reliably — that masking applies
+        including the geometry module's validity masking (the normal is NaN
+        where it cannot be defined reliably — that masking applies
         identically to both field sources and is not an io property)."""
         from mageometry import field_line_frenet_frame, verify_unit_vectors
         field = self.grid.field(method='cubic')
@@ -290,10 +290,10 @@ class TestTsyganenkoFileRoundtrip(unittest.TestCase):
         frame_d = field_line_frenet_frame(self.direct, x, y, z, delta=self.DELTA)
         frame_f = field_line_frenet_frame(field, x, y, z, delta=self.DELTA)
 
-        valid_d = frame_d[3]**2 + frame_d[4]**2 + frame_d[5]**2 > 0.5
-        valid_f = frame_f[3]**2 + frame_f[4]**2 + frame_f[5]**2 > 0.5
+        valid_d = np.isfinite(frame_d[3])
+        valid_f = np.isfinite(frame_f[3])
         np.testing.assert_array_equal(valid_f, valid_d)
-        self.assertTrue(np.any(valid_d), "no valid test points left")
+        self.assertTrue(np.all(valid_d), "all test points should be valid at delta=0.25")
 
         # tangent is defined everywhere; normal/binormal where valid
         for label, i, mask in [('T', 0, slice(None)), ('n', 3, valid_d),
@@ -301,12 +301,11 @@ class TestTsyganenkoFileRoundtrip(unittest.TestCase):
             dot = sum(frame_d[i + k][mask] * frame_f[i + k][mask] for k in range(3))
             np.testing.assert_allclose(dot, 1.0, atol=1e-3, err_msg=label)
 
-        # field_line_normal itself accepts frames up to cos_theta < 1e-3
-        # non-orthogonality; with delta=0.25 and float32 file data the frame
-        # quality is bounded by that design threshold, not machine precision.
+        # The frame is orthonormal by construction (the normal is the
+        # projection of dT/ds perpendicular to T), independent of the data.
         errors = verify_unit_vectors(*(comp[valid_f] for comp in frame_f[:9]))
         for name, err in errors.items():
-            self.assertLess(np.max(np.abs(err)), 2e-3, msg=name)
+            self.assertLess(np.max(np.abs(err)), 1e-12, msg=name)
 
 
 if __name__ == '__main__':

@@ -26,7 +26,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   callable (GSM Re in, nT out). This decouples the analysis library from
   geopack-specific parameters and lets simulation-data fields plug in directly.
 
+- **Geometry validity conventions reworked.** Undefined or unreliable
+  quantities are now **NaN** instead of zero: the tangent where |B| is zero or
+  non-finite (magnetic nulls, points outside an interpolated grid), the normal
+  and binormal where curvature vanishes or the finite difference is
+  unresolved, and every directional derivative at points whose stencil is
+  invalid. Mask results with `np.isfinite`. The unit-dependent absolute cutoff
+  `|B| > 1e-10` is gone (only zero/non-finite fields are undefined), and the
+  hard-coded orthogonality cutoff `cos_theta < 1e-3` became the keyword
+  `orthogonality_tol` (default 0.1) on `field_line_normal`, `_binormal`,
+  `_torsion`, `_frenet_frame`, `_geometry_complete`, and
+  `field_line_directional_derivatives` (which also gained `normal_flip_tol`,
+  default 0.9, for the previously hidden n(+δ)·n(−δ) check). The old 1e-3
+  cutoff scaled as δ², so at δ = 0.25 (a typical grid cell) it silently zeroed
+  the normal at 40–60 % of points. `verify_unit_vectors` lost its unused `tol`
+  argument.
+- **Principal normal is now the component of dT/ds perpendicular to T**
+  (Gram–Schmidt projection) rather than the raw finite difference. The frame
+  is orthonormal to round-off by construction at any `delta`; curvature is
+  |(dT/ds)_⊥| (differs from the raw magnitude by O(cos_theta²), below the
+  truncation error). Antisymmetry residuals of the tangential and normal
+  relations drop from ~1e-5 to ~1e-14; other values change by ≤1e-5.
+- Geometry internals restructured around a single `_frame` pass (three field
+  evaluations): `field_line_torsion` now costs 9 field evaluations instead of
+  16 and `field_line_directional_derivatives` 21 instead of 77.
+
 ### Added
+- `field_line_frame_quality(field, x, y, z, delta)`: the finite-difference
+  consistency diagnostic `cos_theta = |T·dT/ds| / |dT/ds|` (~δ²|κ'|/3κ), for
+  choosing `delta` and `orthogonality_tol`. `DEFAULT_ORTHOGONALITY_TOL` and
+  `DEFAULT_NORMAL_FLIP_TOL` are exported from `mageometry.geometry`.
+- `tests/test_geometry_validity.py`: NaN conventions, orthonormality by
+  construction, tolerance behaviour, δ² scaling of the quality diagnostic,
+  interpolated-domain edges.
 - `mageometry.fields.geopack_field(external, internal, parmod, ps)` (also
   exported at top level): builds a ``field(x, y, z)`` callable from the geopack
   models — external 't89'/'t96'/'t01'/'t04' or None, internal 'dip'/'igrf' or

@@ -45,6 +45,7 @@ from .geometry import (
     field_line_torsion,
     field_line_frenet_frame,
     field_line_geometry_complete,
+    field_line_frame_quality,
     # Directional derivatives and verification utilities
     field_line_directional_derivatives,
     verify_antisymmetry_relations,
@@ -80,6 +81,7 @@ __all__ = [
     "field_line_torsion",
     "field_line_frenet_frame",
     "field_line_geometry_complete",
+    "field_line_frame_quality",
 
     # directional derivatives and verification utilities
     "field_line_directional_derivatives",

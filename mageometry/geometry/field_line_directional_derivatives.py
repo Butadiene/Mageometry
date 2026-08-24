@@ -1,323 +1,194 @@
 """
-Vectorized field line directional derivatives implementation.
+Directional derivatives of the Frenet-Serret frame along T, n, and b.
 
-This module implements the 9 directional derivative formulas for the Frenet-Serret frame,
-where T, n, and b are orthonormal unit vectors (|T| = |n| = |b| = 1).
+For the orthonormal frame (T, n, b) of a field line, this module computes
+the nine independent projections of the directional derivatives
+(∂v/∂u)·w with u, v ∈ {T, n, b}, w ⊥ v. Because the frame vectors are unit
+vectors, (∂v/∂u)·v = 0 identically, and orthonormality implies the
+antisymmetry (∂v/∂u)·w = -(∂w/∂u)·v, which `verify_antisymmetry_relations`
+checks numerically.
 
-The 9 formulas are:
-- (∂T/∂T)·n = κ (curvature)
-- (∂T/∂T)·b = 0
-- (∂n/∂T)·b = τ (torsion)
-- And 6 other related formulas with antisymmetry relations
+The Frenet-Serret formulas appear as special cases of the tangential
+derivatives: (∂T/∂T)·n = κ (curvature) and (∂n/∂T)·b = τ (torsion).
 
-Important: Since T, n, and b are unit vectors, their derivatives are perpendicular
-to themselves: (∂T/∂T)·T = 0, (∂n/∂n)·n = 0, (∂b/∂b)·b = 0.
+Derivatives are central finite differences of the frame at r ± δu. A point
+is reported as NaN when the frame is undefined there or at any of the six
+stencil points, or when the principal normal flips between the two sides
+of a stencil (n(+δu)·n(-δu) below ``normal_flip_tol``), which happens
+across inflection points where the difference quotient is meaningless.
 """
 
 import numpy as np
+
 from .field_line_geometry import (
-    field_line_tangent,
-    field_line_normal,
-    field_line_binormal,
-    field_line_frenet_frame
+    _as_arrays,
+    _finish,
+    _frame,
+    DEFAULT_ORTHOGONALITY_TOL,
 )
 
+DEFAULT_NORMAL_FLIP_TOL = 0.9
+"""Default ``normal_flip_tol``: smallest accepted ``n(+δu) . n(-δu)`` across a
+finite-difference stencil (0.9 ≈ 26° of rotation)."""
 
-def field_line_directional_derivatives(field, x, y, z, delta=0.01):
+# (key, differentiated vector index, projected-onto vector index) for each
+# stencil direction; vector indices: 0 = T, 1 = n, 2 = b.
+_PROJECTIONS = {
+    'T': [('dT_dT_n', 0, 1), ('dT_dT_b', 0, 2), ('dn_dT_b', 1, 2),
+          ('dn_dT_T', 1, 0), ('db_dT_T', 2, 0), ('db_dT_n', 2, 1)],
+    'n': [('dT_dn_n', 0, 1), ('dT_dn_b', 0, 2), ('dn_dn_b', 1, 2),
+          ('dn_dn_T', 1, 0), ('db_dn_T', 2, 0), ('db_dn_n', 2, 1)],
+    'b': [('dn_db_b', 1, 2), ('dn_db_T', 1, 0), ('db_db_T', 2, 0),
+          ('db_db_n', 2, 1), ('dT_db_n', 0, 1), ('dT_db_b', 0, 2)],
+}
+
+
+def field_line_directional_derivatives(field, x, y, z, delta=0.01,
+                                       orthogonality_tol=DEFAULT_ORTHOGONALITY_TOL,
+                                       normal_flip_tol=DEFAULT_NORMAL_FLIP_TOL):
     """
-    Calculate all 9 directional derivative formulas for field line geometry.
+    All directional derivative projections of the Frenet-Serret frame.
 
-    The Frenet-Serret frame consists of orthonormal unit vectors:
-    - T: unit tangent vector (along field line)
-    - n: unit normal vector (principal normal)
-    - b: unit binormal vector (b = T × n)
-    
-    Since these are unit vectors, their derivatives are perpendicular to themselves.
-    
     Parameters
     ----------
     field : callable
-        Magnetic field function with signature ``field(x, y, z) -> (bx, by, bz)``,
-        taking positions in GSM coordinates (Re) and returning field components
-        in nT. Use `mageometry.fields.geopack_field` to wrap the geopack
-        (Tsyganenko/IGRF/dipole) models, or pass any custom callable
-        (e.g. interpolated simulation output).
+        Magnetic field function ``field(x, y, z) -> (bx, by, bz)`` accepting
+        NumPy arrays (see `mageometry.geometry.field_line_geometry`).
     x, y, z : float or array_like
-        Position coordinates in GSM system (Re)
+        Position coordinates (field's length unit).
     delta : float, optional
-        Step size for finite differences (Re), default 0.01
-        
+        Finite-difference step (field's length unit), used both for the
+        frame itself and for the directional stencils. Default 0.01.
+    orthogonality_tol : float, optional
+        Frame validity threshold, see `field_line_normal`. Default 0.1.
+    normal_flip_tol : float, optional
+        Smallest accepted ``n(+δu) . n(-δu)`` across each stencil; points
+        below it are NaN. Default 0.9.
+
     Returns
     -------
-    derivatives : dict
-        Dictionary containing all 9 directional derivative values:
-        - 'dT_dT_n': (∂T/∂T)·n = κ (curvature)
-        - 'dT_dT_b': (∂T/∂T)·b = 0
-        - 'dn_dT_b': (∂n/∂T)·b = τ (torsion)
-        - 'dT_dn_n': (∂T/∂n)·n
-        - 'dT_dn_b': (∂T/∂n)·b
-        - 'dn_dn_b': (∂n/∂n)·b
-        - 'dn_db_b': (∂n/∂b)·b
-        - 'dn_db_T': (∂n/∂b)·T
-        - 'db_db_T': (∂b/∂b)·T
-        
-        Note: Self-components (∂T/∂T)·T, (∂n/∂n)·n, (∂b/∂b)·b are always zero
-        for unit vectors and are not included.
+    derivatives : dict of float or ndarray
+        The nine independent projections:
+
+        - ``'dT_dT_n'``: (∂T/∂T)·n = κ (curvature)
+        - ``'dT_dT_b'``: (∂T/∂T)·b = 0
+        - ``'dn_dT_b'``: (∂n/∂T)·b = τ (torsion)
+        - ``'dT_dn_n'``, ``'dT_dn_b'``, ``'dn_dn_b'``: derivatives along n
+        - ``'dn_db_b'``, ``'dn_db_T'``, ``'db_db_T'``: derivatives along b
+
+        plus their antisymmetric partners (``'dn_dT_T'`` = -κ, ``'db_dT_n'``
+        = -τ, ``'db_dT_T'``, ``'dn_dn_T'``, ``'db_dn_T'``, ``'db_dn_n'``,
+        ``'db_db_n'``, ``'dT_db_n'``, ``'dT_db_b'``) for validation with
+        `verify_antisymmetry_relations`. Values are NaN where the frame is
+        undefined or the stencil is invalid.
     """
+    scalar_input, x, y, z = _as_arrays(x, y, z)
 
-    allow_normal_flipping_val = 0.9
+    frame0 = _frame(field, x, y, z, delta, orthogonality_tol)
+    vec0 = (frame0[0:3], frame0[3:6], frame0[6:9])  # T, n, b at the base point
 
-    # ---- Wrapper: returns only the Frenet frame (no longer returns zero_mask) ----
-    def _frenet(field, x, y, z, delta):
-        return field_line_frenet_frame(field, x, y, z, delta)
-
-    scalar_input = np.isscalar(x)
-    x = np.atleast_1d(x)
-    y = np.atleast_1d(y)
-    z = np.atleast_1d(z)
-
-    # Frenet frame at the base point
-    tx0, ty0, tz0, nx0, ny0, nz0, bx0, by0, bz0, _ = _frenet(
-        field, x, y, z, delta
-    )
-
-    # Initial invalid_mask:
-    # At this stage n_plus/n_minus are not yet available, so check whether n0 is a zero vector
-    invalid_mask = (nx0 == 0) & (ny0 == 0) & (nz0 == 0)
-
+    invalid = ~np.isfinite(frame0[3])  # normal undefined at the base point
     results = {}
+    inv2d = 0.5 / delta
 
-    # === Tangential derivatives (∂/∂T) ===
-    x_t_plus = x + delta * tx0
-    y_t_plus = y + delta * ty0
-    z_t_plus = z + delta * tz0
+    for direction, (ux, uy, uz) in zip(('T', 'n', 'b'), vec0):
+        fp = _frame(field, x + delta * ux, y + delta * uy, z + delta * uz,
+                    delta, orthogonality_tol)
+        fm = _frame(field, x - delta * ux, y - delta * uy, z - delta * uz,
+                    delta, orthogonality_tol)
+        with np.errstate(invalid='ignore'):
+            dot_n = fp[3] * fm[3] + fp[4] * fm[4] + fp[5] * fm[5]
+            invalid |= ~(dot_n > normal_flip_tol)  # NaN -> invalid
 
-    x_t_minus = x - delta * tx0
-    y_t_minus = y - delta * ty0
-    z_t_minus = z - delta * tz0
-    
-    # Get vectors at stepped positions
-    tx_t_plus, ty_t_plus, tz_t_plus, nx_t_plus, ny_t_plus, nz_t_plus, bx_t_plus, by_t_plus, bz_t_plus, _ = \
-        field_line_frenet_frame(field, x_t_plus, y_t_plus, z_t_plus, delta)
-    
-    tx_t_minus, ty_t_minus, tz_t_minus, nx_t_minus, ny_t_minus, nz_t_minus, bx_t_minus, by_t_minus, bz_t_minus, _ = \
-        field_line_frenet_frame(field, x_t_minus, y_t_minus, z_t_minus, delta)
-    
-    dot_n_t = nx_t_plus * nx_t_minus + ny_t_plus * ny_t_minus + nz_t_plus * nz_t_minus
-    invalid_mask |= (dot_n_t <= allow_normal_flipping_val)
-    
-    # Central differences for ∂T/∂T, ∂n/∂T, ∂b/∂T
-    dT_dT_x = (tx_t_plus - tx_t_minus) / (2 * delta)
-    dT_dT_y = (ty_t_plus - ty_t_minus) / (2 * delta)
-    dT_dT_z = (tz_t_plus - tz_t_minus) / (2 * delta)
-    
-    dn_dT_x = (nx_t_plus - nx_t_minus) / (2 * delta)
-    dn_dT_y = (ny_t_plus - ny_t_minus) / (2 * delta)
-    dn_dT_z = (nz_t_plus - nz_t_minus) / (2 * delta)
+        vp = (fp[0:3], fp[3:6], fp[6:9])
+        vm = (fm[0:3], fm[3:6], fm[6:9])
+        for key, iv, iw in _PROJECTIONS[direction]:
+            dv = [(vp[iv][k] - vm[iv][k]) * inv2d for k in range(3)]
+            w = vec0[iw]
+            results[key] = dv[0] * w[0] + dv[1] * w[1] + dv[2] * w[2]
 
-    db_dT_x = (bx_t_plus - bx_t_minus) / (2 * delta)
-    db_dT_y = (by_t_plus - by_t_minus) / (2 * delta)
-    db_dT_z = (bz_t_plus - bz_t_minus) / (2 * delta)
-    
-    # Key formulas
-    results['dT_dT_n'] = dT_dT_x * nx0 + dT_dT_y * ny0 + dT_dT_z * nz0  # = κ
-    results['dT_dT_b'] = dT_dT_x * bx0 + dT_dT_y * by0 + dT_dT_z * bz0  # = 0
-    results['dn_dT_b'] = dn_dT_x * bx0 + dn_dT_y * by0 + dn_dT_z * bz0  # = τ
-    
-    # === Normal derivatives (∂/∂n) ===
-    x_n_plus = x + delta * nx0
-    y_n_plus = y + delta * ny0
-    z_n_plus = z + delta * nz0
-
-    x_n_minus = x - delta * nx0
-    y_n_minus = y - delta * ny0
-    z_n_minus = z - delta * nz0
-
-    tx_n_plus, ty_n_plus, tz_n_plus, nx_n_plus, ny_n_plus, nz_n_plus, bx_n_plus, by_n_plus, bz_n_plus, _ = \
-        _frenet(field, x_n_plus, y_n_plus, z_n_plus, delta)
-
-    tx_n_minus, ty_n_minus, tz_n_minus, nx_n_minus, ny_n_minus, nz_n_minus, bx_n_minus, by_n_minus, bz_n_minus, _ = \
-        _frenet(field, x_n_minus, y_n_minus, z_n_minus, delta)
-
-    # Mask points where n_n_plus . n_n_minus <= threshold (normal vector flipped)
-    dot_n_n = nx_n_plus * nx_n_minus + ny_n_plus * ny_n_minus + nz_n_plus * nz_n_minus
-    invalid_mask |= (dot_n_n <= allow_normal_flipping_val)
-
-    dT_dn_x = (tx_n_plus - tx_n_minus) / (2 * delta)
-    dT_dn_y = (ty_n_plus - ty_n_minus) / (2 * delta)
-    dT_dn_z = (tz_n_plus - tz_n_minus) / (2 * delta)
-
-    dn_dn_x = (nx_n_plus - nx_n_minus) / (2 * delta)
-    dn_dn_y = (ny_n_plus - ny_n_minus) / (2 * delta)
-    dn_dn_z = (nz_n_plus - nz_n_minus) / (2 * delta)
-
-    db_dn_x = (bx_n_plus - bx_n_minus) / (2 * delta)
-    db_dn_y = (by_n_plus - by_n_minus) / (2 * delta)
-    db_dn_z = (bz_n_plus - bz_n_minus) / (2 * delta)
-
-    results['dT_dn_n'] = dT_dn_x * nx0 + dT_dn_y * ny0 + dT_dn_z * nz0
-    results['dT_dn_b'] = dT_dn_x * bx0 + dT_dn_y * by0 + dT_dn_z * bz0
-    results['dn_dn_b'] = dn_dn_x * bx0 + dn_dn_y * by0 + dn_dn_z * bz0
-
-    # === Binormal derivatives (∂/∂b) ===
-    x_b_plus = x + delta * bx0
-    y_b_plus = y + delta * by0
-    z_b_plus = z + delta * bz0
-
-    x_b_minus = x - delta * bx0
-    y_b_minus = y - delta * by0
-    z_b_minus = z - delta * bz0
-
-    tx_b_plus, ty_b_plus, tz_b_plus, nx_b_plus, ny_b_plus, nz_b_plus, bx_b_plus, by_b_plus, bz_b_plus, _ = \
-        _frenet(field, x_b_plus, y_b_plus, z_b_plus, delta)
-
-    tx_b_minus, ty_b_minus, tz_b_minus, nx_b_minus, ny_b_minus, nz_b_minus, bx_b_minus, by_b_minus, bz_b_minus, _ = \
-        _frenet(field, x_b_minus, y_b_minus, z_b_minus, delta)
-
-    # Mask points where n_b_plus . n_b_minus <= threshold (normal vector flipped)
-    dot_n_b = nx_b_plus * nx_b_minus + ny_b_plus * ny_b_minus + nz_b_plus * nz_b_minus
-    invalid_mask |= (dot_n_b <= allow_normal_flipping_val)
-
-    dT_db_x = (tx_b_plus - tx_b_minus) / (2 * delta)
-    dT_db_y = (ty_b_plus - ty_b_minus) / (2 * delta)
-    dT_db_z = (tz_b_plus - tz_b_minus) / (2 * delta)
-
-    dn_db_x = (nx_b_plus - nx_b_minus) / (2 * delta)
-    dn_db_y = (ny_b_plus - ny_b_minus) / (2 * delta)
-    dn_db_z = (nz_b_plus - nz_b_minus) / (2 * delta)
-
-    db_db_x = (bx_b_plus - bx_b_minus) / (2 * delta)
-    db_db_y = (by_b_plus - by_b_minus) / (2 * delta)
-    db_db_z = (bz_b_plus - bz_b_minus) / (2 * delta)
-
-    results['dn_db_b'] = dn_db_x * bx0 + dn_db_y * by0 + dn_db_z * bz0
-    results['dn_db_T'] = dn_db_x * tx0 + dn_db_y * ty0 + dn_db_z * tz0
-    results['db_db_T'] = db_db_x * tx0 + db_db_y * ty0 + db_db_z * tz0
-    
-    # Also calculate the antisymmetric pairs for validation
-    results['dn_dT_T'] = dn_dT_x * tx0 + dn_dT_y * ty0 + dn_dT_z * tz0  # = -κ
-    results['db_dT_T'] = db_dT_x * tx0 + db_dT_y * ty0 + db_dT_z * tz0  # = 0
-    results['db_dT_n'] = db_dT_x * nx0 + db_dT_y * ny0 + db_dT_z * nz0  # = -τ
-    
-    results['dn_dn_T'] = dn_dn_x * tx0 + dn_dn_y * ty0 + dn_dn_z * tz0  # = -(∂T/∂n)·n
-    results['db_dn_T'] = db_dn_x * tx0 + db_dn_y * ty0 + db_dn_z * tz0  # = -(∂T/∂n)·b
-    results['db_dn_n'] = db_dn_x * nx0 + db_dn_y * ny0 + db_dn_z * nz0  # = -(∂n/∂n)·b
-    
-    results['db_db_n'] = db_db_x * nx0 + db_db_y * ny0 + db_db_z * nz0  # = -(∂n/∂b)·b
-    results['dT_db_n'] = dT_db_x * nx0 + dT_db_y * ny0 + dT_db_z * nz0  # = -(∂n/∂b)·T
-    results['dT_db_b'] = dT_db_x * bx0 + dT_db_y * by0 + dT_db_z * bz0  # = -(∂b/∂b)·T
-
-    # ---- Zero out results where invalid_mask is True ----
-    if np.any(invalid_mask):
-        if scalar_input:
-            # Scalar input: if any condition is met, zero everything
-            for k in results:
-                results[k] = 0.0
-        else:
-            # Array input: zero only the elements where invalid_mask is True
-            for k, v in results.items():
-                arr = np.asarray(v).copy()
-                arr[invalid_mask] = 0.0
-                results[k] = arr
-    
-    if scalar_input:
-        return {k: v.item() if hasattr(v, 'item') else v for k, v in results.items()}
-    else:
-        return results
+    for key, val in results.items():
+        val = np.where(invalid, np.nan, val)
+        results[key] = _finish(scalar_input, val)
+    return results
 
 
 def verify_antisymmetry_relations(derivatives):
     """
-    Verify the antisymmetry relations between directional derivatives.
-    
+    Errors of the antisymmetry relations (∂v/∂u)·w + (∂w/∂u)·v = 0.
+
     Parameters
     ----------
     derivatives : dict
-        Dictionary from field_line_directional_derivatives
-        
+        Output of `field_line_directional_derivatives`.
+
     Returns
     -------
     errors : dict
-        Dictionary of antisymmetry relation errors
+        Each entry should be zero up to finite-difference error.
     """
     errors = {}
-    
-    # First set: Frenet-Serret formulas
+
+    # Tangential derivatives (Frenet-Serret formulas)
     errors['κ_check'] = derivatives['dT_dT_n'] + derivatives['dn_dT_T']
     errors['τ_check'] = derivatives['dn_dT_b'] + derivatives['db_dT_n']
     errors['zero_check_1'] = derivatives['dT_dT_b'] - derivatives['db_dT_T']
-    
-    # Second set: Normal derivatives
+
+    # Normal derivatives
     errors['dT_dn_n_check'] = derivatives['dT_dn_n'] + derivatives['dn_dn_T']
     errors['dT_dn_b_check'] = derivatives['dT_dn_b'] + derivatives['db_dn_T']
     errors['dn_dn_b_check'] = derivatives['dn_dn_b'] + derivatives['db_dn_n']
-    
-    # Third set: Binormal derivatives
+
+    # Binormal derivatives
     errors['dn_db_b_check'] = derivatives['dn_db_b'] + derivatives['db_db_n']
     errors['dn_db_T_check'] = derivatives['dn_db_T'] + derivatives['dT_db_n']
     errors['db_db_T_check'] = derivatives['db_db_T'] + derivatives['dT_db_b']
-    
+
     return errors
 
 
 def get_curvature_torsion_from_derivatives(derivatives):
     """
-    Extract curvature and torsion from the directional derivatives.
-    
+    Curvature κ = (∂T/∂T)·n and torsion τ = (∂n/∂T)·b from the derivatives.
+
     Parameters
     ----------
     derivatives : dict
-        Dictionary from field_line_directional_derivatives
-        
+        Output of `field_line_directional_derivatives`.
+
     Returns
     -------
-    curvature : float or ndarray
-        Field line curvature κ = (∂T/∂T)·n
-    torsion : float or ndarray
-        Field line torsion τ = (∂n/∂T)·b
+    curvature, torsion : float or ndarray
     """
-    curvature = derivatives['dT_dT_n']
-    torsion = derivatives['dn_dT_b']
-    
-    return curvature, torsion
+    return derivatives['dT_dT_n'], derivatives['dn_dT_b']
 
 
-def verify_unit_vectors(tx, ty, tz, nx, ny, nz, bx, by, bz, tol=1e-10):
+def verify_unit_vectors(tx, ty, tz, nx, ny, nz, bx, by, bz):
     """
-    Verify that T, n, and b are unit vectors and orthonormal.
-    
+    Orthonormality errors of a frame: unit lengths, orthogonality, b = T × n.
+
     Parameters
     ----------
-    tx, ty, tz : float or ndarray
-        Components of tangent vector T
-    nx, ny, nz : float or ndarray
-        Components of normal vector n
-    bx, by, bz : float or ndarray
-        Components of binormal vector b
-    tol : float, optional
-        Tolerance for checks, default 1e-10
-        
+    tx, ty, tz, nx, ny, nz, bx, by, bz : float or ndarray
+        Frame components, e.g. from `field_line_frenet_frame`.
+
     Returns
     -------
     errors : dict
-        Dictionary of errors for each check
+        ``'|T| - 1'``, ``'|n| - 1'``, ``'|b| - 1'``, ``'T·n'``, ``'T·b'``,
+        ``'n·b'``, ``'b - T×n'``; NaN where the frame is undefined.
     """
     errors = {}
-    
-    # Check unit length
     errors['|T| - 1'] = np.sqrt(tx**2 + ty**2 + tz**2) - 1.0
     errors['|n| - 1'] = np.sqrt(nx**2 + ny**2 + nz**2) - 1.0
     errors['|b| - 1'] = np.sqrt(bx**2 + by**2 + bz**2) - 1.0
-    
-    # Check orthogonality
-    errors['T·n'] = tx*nx + ty*ny + tz*nz
-    errors['T·b'] = tx*bx + ty*by + tz*bz
-    errors['n·b'] = nx*bx + ny*by + nz*bz
-    
-    # Check b = T × n
-    b_cross_x = ty*nz - tz*ny
-    b_cross_y = tz*nx - tx*nz
-    b_cross_z = tx*ny - ty*nx
-    errors['b - T×n'] = np.sqrt((bx - b_cross_x)**2 + (by - b_cross_y)**2 + (bz - b_cross_z)**2)
-    
+
+    errors['T·n'] = tx * nx + ty * ny + tz * nz
+    errors['T·b'] = tx * bx + ty * by + tz * bz
+    errors['n·b'] = nx * bx + ny * by + nz * bz
+
+    cx = ty * nz - tz * ny
+    cy = tz * nx - tx * nz
+    cz = tx * ny - ty * nx
+    errors['b - T×n'] = np.sqrt((bx - cx)**2 + (by - cy)**2 + (bz - cz)**2)
     return errors

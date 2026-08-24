@@ -99,10 +99,9 @@ def main():
     frame = field_line_frenet_frame(field, x, y, z, delta=dx)
     errors = verify_unit_vectors(*frame[:9])
     kappa = frame[9]
-    # The normal is set to zero where it cannot be defined reliably (straight
-    # or numerically degenerate field lines) — exclude those points.
-    nx, ny, nz = frame[3:6]
-    valid = (nx**2 + ny**2 + nz**2) > 0.5
+    # The normal is NaN where it cannot be defined reliably (straight or
+    # numerically degenerate field lines) — exclude those points.
+    valid = np.isfinite(frame[3])
     max_err = max(np.max(np.abs(e[valid])) for e in errors.values())
     print(f"\nFrenet frame on r={r:.1f} ring: {valid.sum()}/{phi.size} points valid, "
           f"max orthonormality error {max_err:.2e}")

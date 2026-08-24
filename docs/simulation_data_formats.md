@@ -189,8 +189,9 @@ verifying your own writer.
   (slice the arrays before constructing the `GriddedField`) for detailed
   regional analysis.
 - Out-of-domain points return `fill_value` (default NaN), which propagates
-  into geometry results — mask on NaN, or on the zero normal vectors that
-  the geometry functions produce at degenerate points.
+  into geometry results as NaN — the same convention the geometry functions
+  use for degenerate points (zero field, straight lines, unresolved
+  curvature), so a single `np.isfinite` mask covers both.
 - Keep large data as float32; `GriddedField` preserves the input dtype and
   stores the three components in one stacked array without duplication.
 

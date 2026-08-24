@@ -138,6 +138,8 @@ tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = \
 # curvature [1/Re]; tangent, normal, binormal are unit vectors (dimensionless)
 ```
 
+Undefined or unreliable quantities are returned as **NaN** — the tangent where |B| is zero or non-finite (magnetic nulls, points outside a simulation grid), the normal/binormal on straight field lines or where the finite difference does not resolve the curvature — so a single `np.isfinite` mask covers every case. The normal is the component of dT/ds perpendicular to T, making the frame orthonormal by construction at any `delta`. `field_line_frame_quality(field, x, y, z, delta)` returns the consistency diagnostic cos θ = |T·dT/ds|/|dT/ds| (grows as δ²); frames with cos θ above `orthogonality_tol` (default 0.1) are reported as NaN, which is the cue to reduce `delta`.
+
 ### Field Line Directional Derivatives
 ```python
 from mageometry import field_line_directional_derivatives

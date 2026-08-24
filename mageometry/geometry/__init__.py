@@ -21,6 +21,8 @@ from .field_line_geometry import (
     field_line_torsion,
     field_line_frenet_frame,
     field_line_geometry_complete,
+    field_line_frame_quality,
+    DEFAULT_ORTHOGONALITY_TOL,
 )
 
 # Directional derivatives of the Frenet-Serret frame and verification utilities
@@ -29,6 +31,7 @@ from .field_line_directional_derivatives import (
     verify_antisymmetry_relations,
     get_curvature_torsion_from_derivatives,
     verify_unit_vectors,
+    DEFAULT_NORMAL_FLIP_TOL,
 )
 
 __all__ = [
@@ -43,8 +46,12 @@ __all__ = [
     "field_line_torsion",
     "field_line_frenet_frame",
     "field_line_geometry_complete",
+    "field_line_frame_quality",
+    "DEFAULT_ORTHOGONALITY_TOL",
 
     # field line directional derivatives + helpers
+    "field_line_directional_derivatives",
+    "DEFAULT_NORMAL_FLIP_TOL",
     "verify_antisymmetry_relations",
     "get_curvature_torsion_from_derivatives",
     "verify_unit_vectors",
