@@ -15,6 +15,9 @@ The geometry functions take the magnetic field as a callable
 - `mageometry.io` — gridded fields from simulation output files
   (`GriddedField`, `load_xdmf`, `load_hdf5`)
 
+`mageometry.tracing` traces field lines through any such field callable
+(`trace_field_lines`).
+
 Planned subpackage: `mageometry.viz` (visualization).
 """
 
@@ -26,6 +29,10 @@ from . import fields
 from . import io
 from .fields import geopack_field
 from .io import GriddedField, load_xdmf, load_hdf5
+
+# Field line tracing (generic, field-callable based)
+from . import tracing
+from .tracing import trace_field_lines, FieldLineTrace
 
 # Geometry analysis (primary API)
 from . import geometry
@@ -51,6 +58,7 @@ __all__ = [
     "geopack",
     "fields",
     "io",
+    "tracing",
 
     # field source adapters
     "geopack_field",
@@ -59,6 +67,10 @@ __all__ = [
     "GriddedField",
     "load_xdmf",
     "load_hdf5",
+
+    # field line tracing
+    "trace_field_lines",
+    "FieldLineTrace",
 
     # Frenet-Serret frame
     "field_line_tangent",

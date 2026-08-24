@@ -45,6 +45,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   equatorial curvature 3/r. See
   `examples/python_code_samples/mhd_gridded_field_example.py` and
   `tests/test_io_gridded_field.py`.
+- **`mageometry.tracing.trace_field_lines`** (also exported at top level): field
+  line tracing for any ``field(x, y, z)`` callable, so Tsyganenko fields and
+  simulation-data fields are traced by the same code. Uses geopack's RK5 scheme
+  with per-step halving error control, but with generic termination: inner /
+  outer spheres (crossings placed exactly on the sphere), a bounding box (e.g.
+  `GriddedField.bounds`), a user `stop(x, y, z)` callable, `max_steps`, and
+  automatic termination where the field is undefined (NaN outside an
+  interpolated grid, magnetic nulls). `direction=1/-1/'both'`; results come
+  back as a `FieldLineTrace` with NaN-padded paths, arc length from the seed,
+  step counts, and status codes. Validated against the analytic dipole
+  (L-shell invariant ~1e-7, footpoint latitude, curvature along the traced
+  line) and against `geopack.trace_vectorized` on T89+IGRF (footpoints agree
+  within geopack's own ~1e-2 Re boundary overshoot). The geopack port
+  `geopack.trace_vectorized` is unchanged and stays as the scalar-faithful
+  reference.
 - Tsyganenko file round-trip test (`TestTsyganenkoFileRoundtrip`): a
   T96+dipole field is sampled on a grid, written as an XDMF/HDF5 pair in the
   MHD on-disk convention, loaded back, and compared against direct model

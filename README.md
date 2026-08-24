@@ -94,19 +94,25 @@ bz_total = bz + bz_int
 ```
 
 ### Field Line Tracing
+`trace_field_lines` traces field lines through any `field(x, y, z)` callable — the same Tsyganenko fields and simulation-data fields used by the geometry API — so a traced line can be fed straight back into the geometry functions.
+
 ```python
-from mageometry.geopack import trace_vectorized
+from mageometry import geopack, geopack_field, trace_field_lines, field_line_curvature
 
-# Trace using dipole (internal) + T96 (external)
-x0 = np.array([5.0, 6.0, 7.0, 8.0])
-y0 = np.zeros(4)
-z0 = np.zeros(4)
+ps = geopack.recalc(100)
+field = geopack_field("t96", "dip", parmod, ps)
 
-xf, yf, zf, status = trace_vectorized(
-    x0, y0, z0, dir=-1, rlim=30, parmod=parmod, exname="t96", inname="dip"
-)
-# status: 0 = hit inner boundary, 1 = hit outer boundary, 2 = max steps
+# Trace both directions from four equatorial seeds down to the r = 1 Re sphere
+tr = trace_field_lines(field, [5.0, 6.0, 7.0, 8.0], [0, 0, 0, 0], [0, 0, 0, 0],
+                       direction="both", ds=0.1, r0=1.0, rlim=30.0)
+tr.status            # per line: 0 inner sphere, 1 outer sphere/box, 2 max steps,
+                     #           3 field undefined (e.g. left the data domain), 4 custom stop
+x, y, z = tr.path(0)             # one line's points (NaN-padded 2D arrays in tr.x, tr.y, tr.z)
+s = tr.arc_length(0)             # arc length, 0 at the seed (tr.start_index[0])
+kappa = field_line_curvature(field, x, y, z)   # curvature along the traced line
 ```
+
+Units are the field's own (Re for geopack fields, grid units for simulation data). For interpolated fields pass `bounds=grid.bounds` to have lines stop cleanly on the data box; a `stop(x, y, z)` callable adds custom termination. The geopack engine's bitwise-faithful port of the scalar `geopack.trace` remains available as `mageometry.geopack.trace_vectorized` (see [Vectorized Components](#field-line-tracing-1)).
 
 ### Field Line Geometry (Frenet-Serret Frame)
 
@@ -163,13 +169,16 @@ derivs = field_line_directional_derivatives(
 Gridded magnetic fields from simulation output plug into the same geometry API. `GriddedField` holds a rectilinear grid plus the three field components and builds an interpolating `field(x, y, z)` callable; readers for specific file formats are thin adapters that construct a `GriddedField`. Currently provided: `load_xdmf` (XDMF-described uniform grids with HDF5 heavy data, as written by many MHD codes) and `load_hdf5` (plain HDF5 datasets with caller-supplied grid geometry). Both require the optional `h5py` dependency (`pip install h5py`).
 
 ```python
-from mageometry import load_xdmf, field_line_curvature
+from mageometry import load_xdmf, field_line_curvature, trace_field_lines
 
 grid = load_xdmf("run000.xmf")        # uniform grid + BX/BY/BZ heavy data
 field = grid.field(method="linear")   # field(x, y, z) -> (bx, by, bz)
 
 dx = grid.x[1] - grid.x[0]
 kappa = field_line_curvature(field, x, y, z, delta=dx)  # [1/grid-unit]
+
+# Field lines through the data, stopping on the grid box
+tr = trace_field_lines(field, x, y, z, direction="both", ds=dx, bounds=grid.bounds)
 ```
 
 Positions and results are in the simulation's own grid units (curvature in 1/grid-unit); rescale the axes or field arrays when constructing the `GriddedField` if you need physical units. For any other format, build the arrays yourself and call `GriddedField(x, y, z, bx, by, bz)` directly.
@@ -233,7 +242,7 @@ bz_total = bz_int + bz_ext
 
 ### Field Line Tracing
 
-`trace_vectorized` traces magnetic field lines from given starting points to inner or outer boundaries.
+`trace_vectorized` is the geopack engine's port of the scalar `geopack.trace()`, kept bitwise-faithful to it (including its Earth-specific step control and stopping rules) as a validation reference. For general use — any field callable, both directions, arc length along the path — prefer the top-level `mageometry.trace_field_lines` shown in [Usage Examples](#field-line-tracing).
 
 ```python
 trace_vectorized(xi, yi, zi, dir, rlim, r0, parmod, exname, inname, ...)

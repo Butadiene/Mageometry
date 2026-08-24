@@ -41,7 +41,8 @@ There is no `setup.py`/`setup.cfg` — all packaging lives in `pyproject.toml`. 
 - **Field adapters** (`mageometry.fields`, re-exported at top level): Builders that produce such callables. `geopack_field(external, internal, parmod, ps)` wraps the geopack models (external: t89/t96/t01/t04 or None, internal: dip/igrf or None) with parameters bound at construction. Future simulation-data fields plug in here.
 - **Field engine** (`mageometry.geopack`): The vectorized geopack fork, providing magnetic field models as one field source. Contains both APIs of the original project:
   - **Scalar API** (`mageometry.geopack.models.*`, `mageometry.geopack.geopack`): Original loop-based implementations, one point at a time. Kept mainly as the validation reference for the vectorized code.
-  - **Vectorized API** (`mageometry.geopack.vectorized.*`): NumPy-broadcasting implementations that process arrays of points simultaneously (20-150x speedup). Vectorized functions use the `_vectorized` suffix when accessed from `mageometry.geopack` (e.g., `t96_vectorized`, `trace_vectorized`).
+  - **Vectorized API** (`mageometry.geopack.vectorized.*`): NumPy-broadcasting implementations that process arrays of points simultaneously (20-150x speedup). Vectorized functions use the `_vectorized` suffix when accessed from `mageometry.geopack` (e.g., `t96_vectorized`, `trace_vectorized`). Note `trace_vectorized` traces geopack models only (exname/inname/parmod); generic tracing lives in `mageometry.tracing`.
+- **Field line tracing** (`mageometry.tracing`, re-exported at top level): `trace_field_lines(field, x, y, z, direction, ds, r0=, rlim=, bounds=, stop=, max_steps=)` traces through any field callable and returns a `FieldLineTrace` (NaN-padded paths, arc length, status codes). Generic RK5 with per-step halving; no Earth/GSM assumptions. The geopack engine's own `trace_vectorized` is deliberately left untouched as the bitwise-faithful port of scalar `geopack.trace` (validation asset) — do not try to merge the two.
 - **Simulation data input** (`mageometry.io`): `GriddedField` wraps a rectilinear grid + B components and builds interpolating field callables (`.field(method=...)`, scipy `RegularGridInterpolator`). File-format readers are thin adapters whose only job is to construct a `GriddedField` — currently `load_xdmf` (XDMF/HDF5 uniform grids) and `load_hdf5`; add new formats the same way. HDF5 access needs the optional `h5py` dependency (lazy import). Units are the data's own grid units throughout.
 - **Planned**: `mageometry.viz` (visualization). Not yet implemented.
 
@@ -51,6 +52,7 @@ There is no top-level `geopack` package anymore — this also avoids shadowing t
 
 - `mageometry/__init__.py` — Version, geometry API re-exports, `geopack` subpackage
 - `mageometry/fields.py` — Field-source adapters (`geopack_field`)
+- `mageometry/tracing.py` — Generic field line tracer (`trace_field_lines`, `FieldLineTrace`)
 - `mageometry/io/gridded_field.py` — `GriddedField`: gridded data + interpolation
 - `mageometry/io/xdmf.py` — XDMF and HDF5 readers (`load_xdmf`, `load_hdf5`)
 - `mageometry/geometry/field_line_geometry.py` — Frenet-Serret frame calculations

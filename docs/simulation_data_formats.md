@@ -193,3 +193,16 @@ verifying your own writer.
   the geometry functions produce at degenerate points.
 - Keep large data as float32; `GriddedField` preserves the input dtype and
   stores the three components in one stacked array without duplication.
+
+## Tracing field lines through the data
+
+`mageometry.trace_field_lines(field, x, y, z, ...)` works on the interpolating
+callable directly. Keep the default `fill_value=np.nan`: the tracer treats an
+undefined (non-finite or zero) field ahead as a termination condition, so
+lines end at the domain edge instead of raising. Pass `bounds=grid.bounds`
+to have such lines reported as boundary hits (`STATUS_OUTER`, last point
+placed exactly on the box face) rather than `STATUS_INVALID`; lines that
+run into a zero-field region inside the box (e.g. a masked planet core) stay
+`STATUS_INVALID`. Use a step `ds` of about one grid cell with linear
+interpolation; the traced points can be fed straight into the geometry
+functions.
