@@ -52,6 +52,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   16 and `field_line_directional_derivatives` 21 instead of 77.
 
 ### Added
+- Notebooks brought in line with the library-first design: `07` rewritten as
+  the geometry tutorial (field callables, NaN conventions, `field_line_frame_quality`,
+  choosing δ, geometry along `trace_field_lines` paths); new `08_simulation_data_geometry`
+  walking the `mageometry.io` pipeline on a reproducible T96-derived file; `05` gains a
+  `trace_field_lines` section and points to it as the analysis-level tracer; the T96
+  derivative-map notebook uses `geopack_field` instead of hand-written model wrappers.
+  All executed notebooks have refreshed outputs.
 - `field_line_frame_quality(field, x, y, z, delta)`: the finite-difference
   consistency diagnostic `cos_theta = |T·dT/ds| / |dT/ds|` (~δ²|κ'|/3κ), for
   choosing `delta` and `orthogonality_tol`. `DEFAULT_ORTHOGONALITY_TOL` and

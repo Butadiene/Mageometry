@@ -279,16 +279,20 @@ Related functions for field line analysis:
 
 ## Documentation and Examples
 
-Example notebooks are available in `examples/notebooks/`. Install matplotlib and pandas to run them.
+Example notebooks are available in `examples/notebooks/` (index: [`examples/notebooks/README.md`](examples/notebooks/README.md)). Install the example dependencies to run them: `pip install -e .[examples]` (matplotlib, jupyter, pandas) plus `h5py` for notebook 08.
 
 ### Tutorial Notebooks
+Start with the analysis library:
+- `07_fieldline_geometry_and_derivatives` — Field line geometry with Mageometry: field callables, Frenet-Serret frame, the nine directional derivatives, validity/NaN conventions, choosing δ, geometry along traced lines, maps
+- `08_simulation_data_geometry` — Simulation data pipeline: write a compatible XDMF/HDF5 file, load it, interpolate, compute curvature, trace through the data
+
+The geopack field engine:
 - `01_coordinate_transformations_guide` — Coordinate system transforms
 - `02_magnetic_field_models_guide` — Field model usage (T89, T96, T01, T04)
 - `03_performance_comparison` — Scalar vs vectorized benchmarks
 - `04_accuracy_validation` — Numerical accuracy verification
-- `05_field_line_tracing_guide` — Field line tracing tutorial
+- `05_field_line_tracing_guide` — Engine tracer tutorial (+ `trace_field_lines` section)
 - `06_field_line_tracing_validation` — Tracing accuracy validation
-- `07_fieldline_geometry_and_derivatives` — Frenet-Serret frame and directional derivatives
 
 ### Advanced Examples (`examples/notebooks/directional_derivatives_maps/`)
 - `dipole_field_directional_derivatives` — Dipole field directional derivative maps
