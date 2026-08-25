@@ -52,6 +52,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   16 and `field_line_directional_derivatives` 21 instead of 77.
 
 ### Added
+- **`mageometry.io` extensions.** `load_xdmf` / `load_hdf5` take
+  `region=((xmin, xmax), (ymin, ymax), (zmin, zmax))` and `stride` to read a
+  sub-box or coarsened grid as an HDF5 hyperslab (the full array never enters
+  memory); `GriddedField.subvolume(region, stride)` and the helper
+  `mageometry.io.region_slices` do the same in memory. Cell-centered XDMF
+  attributes (`Center="Cell"`) are accepted and placed at the cell centers
+  (`metadata['center']` records the convention; mixed centering is rejected);
+  a grid `<Time>` lands in `metadata['time']`. New `load_xdmf_series(path)`
+  opens time series lazily as an `XdmfSeries` (`times`, `series[i]`,
+  `series.at(t)`, iteration, slicing) from either an XDMF temporal collection
+  or a ParaView `.xmf.series` JSON index; reader options apply per step.
+  Readers no longer make an extra native-endian copy of each component
+  (`GriddedField` casts big-endian data while stacking).
 - Notebooks brought in line with the library-first design: `07` rewritten as
   the geometry tutorial (field callables, NaN conventions, `field_line_frame_quality`,
   choosing δ, geometry along `trace_field_lines` paths); new `08_simulation_data_geometry`

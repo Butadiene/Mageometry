@@ -168,7 +168,7 @@ derivs = field_line_directional_derivatives(
 
 ### Simulation Data (`mageometry.io`)
 
-Gridded magnetic fields from simulation output plug into the same geometry API. `GriddedField` holds a rectilinear grid plus the three field components and builds an interpolating `field(x, y, z)` callable; readers for specific file formats are thin adapters that construct a `GriddedField`. Currently provided: `load_xdmf` (XDMF-described uniform grids with HDF5 heavy data, as written by many MHD codes) and `load_hdf5` (plain HDF5 datasets with caller-supplied grid geometry). Both require the optional `h5py` dependency (`pip install h5py`).
+Gridded magnetic fields from simulation output plug into the same geometry API. `GriddedField` holds a rectilinear grid plus the three field components and builds an interpolating `field(x, y, z)` callable; readers for specific file formats are thin adapters that construct a `GriddedField`. Currently provided: `load_xdmf` (XDMF-described uniform grids with HDF5 heavy data, as written by many MHD codes), `load_xdmf_series` (time series of such grids), and `load_hdf5` (plain HDF5 datasets with caller-supplied grid geometry). All require the optional `h5py` dependency (`pip install h5py`).
 
 ```python
 from mageometry import load_xdmf, field_line_curvature, trace_field_lines
@@ -184,6 +184,8 @@ tr = trace_field_lines(field, x, y, z, direction="both", ds=dx, bounds=grid.boun
 ```
 
 Positions and results are in the simulation's own grid units (curvature in 1/grid-unit); rescale the axes or field arrays when constructing the `GriddedField` if you need physical units. For any other format, build the arrays yourself and call `GriddedField(x, y, z, bx, by, bz)` directly.
+
+Large runs: every reader takes `region=((xmin, xmax), (ymin, ymax), (zmin, zmax))` and `stride` to read only a sub-box or a coarsened grid (as an HDF5 hyperslab, so the full array never enters memory); `GriddedField.subvolume` does the same in memory. Node- and cell-centered attributes are both accepted. Time series — XDMF temporal collections or ParaView `.xmf.series` indexes — open lazily with `load_xdmf_series(path)`: `series.times`, `series[i]`, `series.at(t)`, or iterate one step at a time.
 
 The exact accepted format (XDMF subset, axis-order convention, data types) and a verified recipe for writing compatible files from your own simulation are documented in [`docs/simulation_data_formats.md`](docs/simulation_data_formats.md). A complete analysis workflow (center detection, curvature profile vs. the dipole 3/r law, Frenet frame quality) is in [`examples/python_code_samples/mhd_gridded_field_example.py`](examples/python_code_samples/mhd_gridded_field_example.py).
 

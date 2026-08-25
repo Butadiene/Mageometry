@@ -6,26 +6,37 @@ XDMF (https://xdmf.org) is an XML metadata format used by many simulation
 codes (and readable by ParaView/VisIt) that describes grid geometry and points
 to "heavy data" stored in HDF5. `load_xdmf` supports the common case of a
 uniform structured grid (``3DCORECTMesh`` topology with ``ORIGIN_DXDYDZ``
-geometry) with node-centered scalar attributes for the field components.
+geometry) with node- or cell-centered scalar attributes for the field
+components. Time series are handled by `load_xdmf_series`, which understands
+both XDMF temporal collections (one file, several ``<Grid>`` elements with
+``<Time>``) and ParaView ``.xmf.series`` JSON index files (one XDMF per
+step); steps are loaded lazily, one at a time.
 
 `load_hdf5` reads the HDF5 datasets directly when no XDMF file is available;
 the grid geometry is then supplied by the caller.
 
-Both readers return a `GriddedField`. HDF5 access requires the optional
-`h5py` dependency (``pip install mageometry[io]``).
+All readers accept ``region`` (a bounding box in grid coordinates) and
+``stride`` (subsampling factor) to read only part of a large dataset; the
+selection is applied as an HDF5 hyperslab, so the full array never enters
+memory. All readers return a `GriddedField`. HDF5 access requires the
+optional `h5py` dependency (``pip install mageometry[io]``).
 
 Axis-order convention: XDMF lists dimensions and Origin/DxDyDz values slowest
 axis first (Z, Y, X for 3D), matching the C-order HDF5 dataset layout
 ``(nz, ny, nx)``. The readers transpose to the Mageometry convention
-``(nx, ny, nz)``; use ``zyx_order=False`` if your data is already (nx, ny, nz).
+``(nx, ny, nz)``; use ``zyx_order=False`` in `load_hdf5` if your data is
+already (nx, ny, nz).
 """
 
+import json
 import os
 import xml.etree.ElementTree as ET
 
 import numpy as np
 
-from .gridded_field import GriddedField
+from .gridded_field import GriddedField, region_slices
+
+__all__ = ["load_xdmf", "load_hdf5", "load_xdmf_series", "XdmfSeries"]
 
 
 def _require_h5py():
@@ -39,15 +50,35 @@ def _require_h5py():
     return h5py
 
 
-def _axes_from_origin_spacing(origin, spacing, shape):
+def _uniform_axes(origin, spacing, shape, cell_centered=False):
+    """Axes of a uniform grid; cell-centered data sits at (i + 1/2) * spacing."""
+    half = 0.5 if cell_centered else 0.0
     return tuple(
-        o + s * np.arange(n, dtype=np.float64)
+        o + s * (np.arange(n, dtype=np.float64) + half)
         for o, s, n in zip(origin, spacing, shape)
     )
 
 
+def _read_hyperslab(dset, slices_xyz, zyx_order=True):
+    """Read the selected (x, y, z) slices of an HDF5 dataset as an (nx, ny, nz) array."""
+    sx, sy, sz = slices_xyz
+    if zyx_order:
+        return np.asarray(dset[sz, sy, sx]).transpose(2, 1, 0)
+    return np.asarray(dset[sx, sy, sz])
+
+
+def _stride_tuple(stride):
+    if np.isscalar(stride):
+        stride = (stride, stride, stride)
+    stride = tuple(int(s) for s in stride)
+    if len(stride) != 3 or any(s < 1 for s in stride):
+        raise ValueError("stride must be a positive int or a tuple of three positive ints.")
+    return stride
+
+
 def load_hdf5(path, datasets=('BX', 'BY', 'BZ'), origin=(0.0, 0.0, 0.0),
-              spacing=(1.0, 1.0, 1.0), zyx_order=True, metadata=None):
+              spacing=(1.0, 1.0, 1.0), zyx_order=True, metadata=None,
+              region=None, stride=1):
     """
     Load field components from an HDF5 file on a uniform grid.
 
@@ -66,12 +97,19 @@ def load_hdf5(path, datasets=('BX', 'BY', 'BZ'), origin=(0.0, 0.0, 0.0),
         ``(nx, ny, nz)``. Set False if they are already (nx, ny, nz).
     metadata : dict, optional
         Extra provenance merged into ``GriddedField.metadata``.
+    region : sequence, optional
+        ``((xmin, xmax), (ymin, ymax), (zmin, zmax))`` in grid coordinates;
+        only nodes inside (inclusive) are read. ``None`` for an axis keeps
+        its full extent.
+    stride : int or tuple of int, optional
+        Keep every ``stride``-th node per axis (coarsening). Default 1.
 
     Returns
     -------
     GriddedField
     """
     h5py = _require_h5py()
+    stride = _stride_tuple(stride)
     comps = []
     with h5py.File(path, 'r') as f:
         for name in datasets:
@@ -80,44 +118,61 @@ def load_hdf5(path, datasets=('BX', 'BY', 'BZ'), origin=(0.0, 0.0, 0.0),
                     f"Dataset {name!r} not found in {path!r}; "
                     f"available: {sorted(f.keys())}"
                 )
-            arr = f[name][()]
-            if zyx_order:
-                arr = arr.transpose(2, 1, 0)
-            # native-endian copy (h5py may return big-endian data)
-            comps.append(np.ascontiguousarray(arr, dtype=arr.dtype.newbyteorder('=')))
+        dset0 = f[datasets[0]]
+        shape = dset0.shape[::-1] if zyx_order else dset0.shape
+        full_axes = _uniform_axes(origin, spacing, shape)
+        slices = region_slices(full_axes, region, stride)
+        for name in datasets:
+            comps.append(_read_hyperslab(f[name], slices, zyx_order))
 
-    x, y, z = _axes_from_origin_spacing(origin, spacing, comps[0].shape)
+    axes = tuple(ax[sl] for ax, sl in zip(full_axes, slices))
     meta = {'source': os.path.abspath(path), 'datasets': tuple(datasets)}
     if metadata:
         meta.update(metadata)
-    return GriddedField(x, y, z, *comps, metadata=meta)
+    return GriddedField(*axes, *comps, metadata=meta)
 
 
-def _parse_xdmf_uniform_grid(path, components):
-    """Parse an XDMF file; return (shape_xyz, origin_xyz, spacing_xyz, refs).
+# ---------------------------------------------------------------------------
+# XDMF parsing
+# ---------------------------------------------------------------------------
 
+def _is_temporal_collection(grid):
+    return ((grid.get('GridType') or '').lower() == 'collection'
+            and (grid.get('CollectionType') or 'spatial').lower() == 'temporal')
+
+
+def _grid_time(grid):
+    t = grid.find('Time')
+    if t is None or t.get('Value') is None:
+        return None
+    return float(t.get('Value'))
+
+
+def _parse_uniform_grid(grid, components, where):
+    """Parse a uniform-grid <Grid> element.
+
+    Returns (shape_xyz, origin_xyz, spacing_xyz, cell_centered, refs) where
     refs maps component name -> (h5_filename, h5_dataset).
     """
-    root = ET.parse(path).getroot()
-    grid = root.find('.//Grid')
-    if grid is None:
-        raise ValueError(f"No <Grid> element found in {path!r}.")
-
     topology = grid.find('Topology')
+    if topology is None:
+        raise ValueError(f"No <Topology> in grid {where}.")
     topo_type = (topology.get('TopologyType') or topology.get('Type') or '')
     if topo_type.upper() not in ('3DCORECTMESH', 'CORECTMESH'):
         raise ValueError(
-            f"Unsupported TopologyType {topo_type!r} in {path!r}; only uniform "
+            f"Unsupported TopologyType {topo_type!r} in {where}; only uniform "
             "structured grids (3DCORECTMesh) are supported. For other "
             "topologies, read the data yourself and construct a GriddedField."
         )
     dims_zyx = [int(v) for v in topology.get('NumberOfElements').split()]
 
     geometry = grid.find('Geometry')
+    if geometry is None:
+        raise ValueError(f"No <Geometry> in grid {where}.")
     geo_type = (geometry.get('GeometryType') or geometry.get('Type') or '')
     if geo_type.upper() != 'ORIGIN_DXDYDZ':
         raise ValueError(
-            f"Unsupported GeometryType {geo_type!r} in {path!r}; "
+            f"Unsupported GeometryType {geo_type!r} in {where}; "
             "only ORIGIN_DXDYDZ is supported."
         )
     origin_zyx = spacing_zyx = None
@@ -128,9 +183,10 @@ def _parse_xdmf_uniform_grid(path, components):
         elif item.get('Name', '').lower() in ('spacing', 'dxdydz'):
             spacing_zyx = values
     if origin_zyx is None or spacing_zyx is None:
-        raise ValueError(f"Origin/Spacing DataItems not found in {path!r}.")
+        raise ValueError(f"Origin/Spacing DataItems not found in {where}.")
 
     refs = {}
+    centers = {}
     for attr in grid.findall('Attribute'):
         name = attr.get('Name')
         if name not in components:
@@ -138,20 +194,75 @@ def _parse_xdmf_uniform_grid(path, components):
         item = attr.find('DataItem')
         if (item.get('Format') or '').upper() != 'HDF':
             raise ValueError(
-                f"Attribute {name!r} in {path!r} is not HDF-backed "
+                f"Attribute {name!r} in {where} is not HDF-backed "
                 f"(Format={item.get('Format')!r})."
             )
         h5_file, _, h5_dset = item.text.strip().partition(':')
         refs[name] = (h5_file, h5_dset.lstrip('/'))
+        centers[name] = (attr.get('Center') or 'Node').lower()
     missing = [c for c in components if c not in refs]
     if missing:
-        raise KeyError(f"Attributes {missing} not found in {path!r}.")
+        raise KeyError(f"Attributes {missing} not found in {where}.")
 
-    return (tuple(dims_zyx[::-1]), tuple(origin_zyx[::-1]),
-            tuple(spacing_zyx[::-1]), refs)
+    center_set = set(centers.values())
+    if len(center_set) != 1 or not center_set <= {'node', 'cell'}:
+        raise ValueError(
+            f"Components must share one centering of 'Node' or 'Cell'; "
+            f"got {centers} in {where}."
+        )
+    cell_centered = center_set == {'cell'}
+
+    shape = tuple(dims_zyx[::-1])
+    if cell_centered:
+        shape = tuple(n - 1 for n in shape)
+    return (shape, tuple(origin_zyx[::-1]), tuple(spacing_zyx[::-1]),
+            cell_centered, refs)
 
 
-def load_xdmf(path, components=('BX', 'BY', 'BZ'), h5_file=None, metadata=None):
+def _load_grid(grid, components, xdmf_dir, where, h5_file=None,
+               metadata=None, region=None, stride=1):
+    h5py = _require_h5py()
+    stride = _stride_tuple(stride)
+    shape, origin, spacing, cell_centered, refs = _parse_uniform_grid(
+        grid, components, where)
+    full_axes = _uniform_axes(origin, spacing, shape, cell_centered)
+    slices = region_slices(full_axes, region, stride)
+
+    comps = []
+    for name in components:
+        ref_file, dset = refs[name]
+        target = h5_file if h5_file is not None else os.path.join(xdmf_dir, ref_file)
+        with h5py.File(target, 'r') as f:
+            stored = f[dset].shape[::-1]
+            if stored != shape:
+                raise ValueError(
+                    f"Dataset {dset!r} has grid shape {stored}, but the XDMF "
+                    f"topology declares {shape} for {'cell' if cell_centered else 'node'}-"
+                    "centered data."
+                )
+            comps.append(_read_hyperslab(f[dset], slices))
+
+    axes = tuple(ax[sl] for ax, sl in zip(full_axes, slices))
+    meta = {'source': where, 'components': tuple(components),
+            'center': 'cell' if cell_centered else 'node'}
+    t = _grid_time(grid)
+    if t is not None:
+        meta['time'] = t
+    if metadata:
+        meta.update(metadata)
+    return GriddedField(*axes, *comps, metadata=meta)
+
+
+def _root_grid(path):
+    root = ET.parse(path).getroot()
+    grid = root.find('.//Grid')
+    if grid is None:
+        raise ValueError(f"No <Grid> element found in {path!r}.")
+    return grid
+
+
+def load_xdmf(path, components=('BX', 'BY', 'BZ'), h5_file=None, metadata=None,
+              region=None, stride=1):
     """
     Load a gridded magnetic field from an XDMF file and its HDF5 heavy data.
 
@@ -161,37 +272,180 @@ def load_xdmf(path, components=('BX', 'BY', 'BZ'), h5_file=None, metadata=None):
         XDMF (.xmf) file path describing a uniform structured grid.
     components : tuple of str, optional
         Attribute names of the (bx, by, bz) components. Default
-        ('BX', 'BY', 'BZ').
+        ('BX', 'BY', 'BZ'). Node- and cell-centered attributes are both
+        accepted (cell-centered values are placed at the cell centers).
     h5_file : str, optional
         Override for the HDF5 file path. By default the file referenced by
         the XDMF is resolved relative to the XDMF file's directory; pass this
         when the heavy data lives elsewhere or was renamed.
     metadata : dict, optional
         Extra provenance merged into ``GriddedField.metadata``.
+    region : sequence, optional
+        ``((xmin, xmax), (ymin, ymax), (zmin, zmax))`` in grid coordinates;
+        only nodes inside (inclusive) are read from the HDF5 file. ``None``
+        for an axis keeps its full extent.
+    stride : int or tuple of int, optional
+        Keep every ``stride``-th node per axis (coarsening). Default 1.
 
     Returns
     -------
     GriddedField
+        ``metadata['time']`` is set when the grid carries a ``<Time>``.
+
+    Raises
+    ------
+    ValueError
+        For unsupported topologies/geometries, and for time-series files
+        (use `load_xdmf_series`).
     """
-    h5py = _require_h5py()
-    shape, origin, spacing, refs = _parse_xdmf_uniform_grid(path, components)
-
-    comps = []
+    grid = _root_grid(path)
+    if _is_temporal_collection(grid):
+        raise ValueError(
+            f"{path!r} is an XDMF temporal collection (time series); "
+            "use load_xdmf_series() and pick a step."
+        )
     xdmf_dir = os.path.dirname(os.path.abspath(path))
-    for name in components:
-        ref_file, dset = refs[name]
-        target = h5_file if h5_file is not None else os.path.join(xdmf_dir, ref_file)
-        with h5py.File(target, 'r') as f:
-            arr = f[dset][()].transpose(2, 1, 0)
-        if arr.shape != shape:
-            raise ValueError(
-                f"Dataset {dset!r} has grid shape {arr.shape}, but the XDMF "
-                f"topology declares {shape}."
-            )
-        comps.append(np.ascontiguousarray(arr, dtype=arr.dtype.newbyteorder('=')))
+    return _load_grid(grid, components, xdmf_dir, os.path.abspath(path),
+                      h5_file=h5_file, metadata=metadata, region=region,
+                      stride=stride)
 
-    x, y, z = _axes_from_origin_spacing(origin, spacing, shape)
-    meta = {'source': os.path.abspath(path), 'components': tuple(components)}
-    if metadata:
-        meta.update(metadata)
-    return GriddedField(x, y, z, *comps, metadata=meta)
+
+# ---------------------------------------------------------------------------
+# Time series
+# ---------------------------------------------------------------------------
+
+class XdmfSeries:
+    """
+    A lazily loaded time series of gridded fields.
+
+    Created by `load_xdmf_series`. Steps are read from disk only when
+    accessed, so a long series of large grids never has to fit in memory
+    at once. Reader options (components, region, stride, ...) given to
+    `load_xdmf_series` apply to every step.
+
+    Attributes
+    ----------
+    times : ndarray
+        Time value of each step (NaN where the file carries none).
+    sources : list of str
+        Where each step comes from (file path, plus a grid index for
+        temporal collections).
+    """
+
+    def __init__(self, steps, load_kwargs):
+        self._steps = steps          # list of (time, source, loader)
+        self._load_kwargs = load_kwargs
+        self.times = np.array([t if t is not None else np.nan for t, _, _ in steps])
+        self.sources = [s for _, s, _ in steps]
+
+    def __len__(self):
+        return len(self._steps)
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            return XdmfSeries(self._steps[i], self._load_kwargs)
+        n = len(self._steps)
+        if not -n <= i < n:
+            raise IndexError(f"step {i} out of range for series of {n} steps")
+        return self._steps[i][2](**self._load_kwargs)
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+    def index_at(self, time):
+        """Index of the step whose time is closest to ``time``."""
+        if np.all(np.isnan(self.times)):
+            raise ValueError("This series carries no time values; index by step.")
+        return int(np.nanargmin(np.abs(self.times - time)))
+
+    def at(self, time):
+        """Load the step whose time is closest to ``time``."""
+        return self[self.index_at(time)]
+
+    def __repr__(self):
+        if len(self) and not np.all(np.isnan(self.times)):
+            span = f", t=[{np.nanmin(self.times):g}, {np.nanmax(self.times):g}]"
+        else:
+            span = ""
+        return f"XdmfSeries(n_steps={len(self)}{span})"
+
+
+def load_xdmf_series(path, components=('BX', 'BY', 'BZ'), metadata=None,
+                     region=None, stride=1):
+    """
+    Open a time series of XDMF-described gridded fields (lazily).
+
+    Two layouts are recognized:
+
+    - a ParaView ``.xmf.series`` JSON index
+      (``{"file-series-version": "1.0", "files": [{"name": ..., "time": ...}, ...]}``),
+      each entry naming a single-grid XDMF file relative to the index;
+    - one XDMF file whose ``<Grid GridType="Collection"
+      CollectionType="Temporal">`` contains one uniform ``<Grid>`` per step,
+      each with a ``<Time Value="..."/>``.
+
+    Parameters
+    ----------
+    path : str
+        ``.xmf.series`` index or temporal-collection ``.xmf`` file.
+    components, metadata, region, stride
+        Passed to the per-step reader; see `load_xdmf`.
+
+    Returns
+    -------
+    XdmfSeries
+        Index it (``series[i]``), iterate over it, or use ``series.at(time)``
+        to obtain a `GriddedField` per step.
+    """
+    load_kwargs = dict(components=components, metadata=metadata,
+                       region=region, stride=stride)
+    base_dir = os.path.dirname(os.path.abspath(path))
+    steps = []
+
+    if path.endswith('.series') or _looks_like_json(path):
+        with open(path) as f:
+            index = json.load(f)
+        entries = index.get('files')
+        if not isinstance(entries, list):
+            raise ValueError(f"{path!r} is not a file-series index (no 'files' list).")
+        for entry in entries:
+            name = entry['name']
+            step_path = name if os.path.isabs(name) else os.path.join(base_dir, name)
+            t = entry.get('time')
+            t = float(t) if t is not None else None
+
+            def loader(step_path=step_path, t=t, **kw):
+                # The index carries the time; the per-step file usually does not.
+                meta = dict(kw.get('metadata') or {})
+                if t is not None:
+                    meta.setdefault('time', t)
+                kw['metadata'] = meta
+                return load_xdmf(step_path, **kw)
+
+            steps.append((t, step_path, loader))
+        return XdmfSeries(steps, load_kwargs)
+
+    grid = _root_grid(path)
+    if not _is_temporal_collection(grid):
+        raise ValueError(
+            f"{path!r} is neither a .xmf.series index nor an XDMF temporal "
+            "collection; for a single grid use load_xdmf()."
+        )
+    abs_path = os.path.abspath(path)
+    for k, child in enumerate(grid.findall('Grid')):
+        where = f"{abs_path}[grid {k}]"
+
+        def loader(child=child, where=where, **kw):
+            return _load_grid(child, xdmf_dir=base_dir, where=where, **kw)
+
+        steps.append((_grid_time(child), where, loader))
+    if not steps:
+        raise ValueError(f"Temporal collection in {path!r} contains no grids.")
+    return XdmfSeries(steps, load_kwargs)
+
+
+def _looks_like_json(path):
+    with open(path, 'rb') as f:
+        head = f.read(64).lstrip()
+    return head.startswith(b'{')

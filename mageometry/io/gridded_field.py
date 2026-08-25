@@ -19,6 +19,49 @@ import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
 
+def region_slices(axes, region=None, stride=1):
+    """
+    Index slices selecting a bounding box (and stride) on rectilinear axes.
+
+    Parameters
+    ----------
+    axes : sequence of 1D arrays
+        The (x, y, z) coordinate axes.
+    region : sequence, optional
+        ``((xmin, xmax), (ymin, ymax), (zmin, zmax))``; an entry of ``None``
+        keeps the full axis. Bounds are inclusive.
+    stride : int or tuple of int, optional
+        Keep every ``stride``-th node per axis.
+
+    Returns
+    -------
+    tuple of slice
+        One slice per axis, usable on the axes and on ``(nx, ny, nz)`` data.
+    """
+    if np.isscalar(stride):
+        stride = (stride,) * len(axes)
+    if region is None:
+        region = (None,) * len(axes)
+    if len(region) != len(axes) or len(stride) != len(axes):
+        raise ValueError("region and stride must have one entry per axis.")
+    slices = []
+    for ax, bounds, st in zip(axes, region, stride):
+        if bounds is None:
+            lo, hi = 0, ax.size
+        else:
+            bmin, bmax = bounds
+            lo = int(np.searchsorted(ax, bmin, side='left'))
+            hi = int(np.searchsorted(ax, bmax, side='right'))
+        n_sel = len(range(lo, hi, int(st)))
+        if n_sel < 2:
+            raise ValueError(
+                f"Region {bounds} with stride {st} selects {n_sel} node(s) on an axis "
+                f"spanning [{ax[0]:g}, {ax[-1]:g}]; at least 2 are needed."
+            )
+        slices.append(slice(lo, hi, int(st)))
+    return tuple(slices)
+
+
 class GriddedField:
     """
     A magnetic field sampled on a rectilinear grid.
@@ -84,6 +127,30 @@ class GriddedField:
         return ((self.x[0], self.x[-1]),
                 (self.y[0], self.y[-1]),
                 (self.z[0], self.z[-1]))
+
+    def subvolume(self, region=None, stride=1):
+        """
+        Extract a sub-box (optionally coarsened) as a new `GriddedField`.
+
+        Parameters
+        ----------
+        region : sequence, optional
+            ``((xmin, xmax), (ymin, ymax), (zmin, zmax))`` in grid
+            coordinates, bounds inclusive; ``None`` per axis keeps the full
+            extent.
+        stride : int or tuple of int, optional
+            Keep every ``stride``-th node per axis. Default 1.
+
+        Returns
+        -------
+        GriddedField
+            A copy of the selected nodes (the original is left untouched).
+        """
+        sx, sy, sz = region_slices((self.x, self.y, self.z), region, stride)
+        meta = dict(self.metadata, subvolume=(region, stride))
+        return GriddedField(self.x[sx], self.y[sy], self.z[sz],
+                            self.bx[sx, sy, sz], self.by[sx, sy, sz],
+                            self.bz[sx, sy, sz], metadata=meta)
 
     def __repr__(self):
         (x0, x1), (y0, y1), (z0, z1) = self.bounds

@@ -13,7 +13,7 @@ The geometry functions take the magnetic field as a callable
 - `mageometry.geopack` — vectorized geopack (Tsyganenko models T89/T96/T01/T04,
   IGRF, dipole, coordinate transforms, field line tracing)
 - `mageometry.io` — gridded fields from simulation output files
-  (`GriddedField`, `load_xdmf`, `load_hdf5`)
+  (`GriddedField`, `load_xdmf`, `load_hdf5`, `load_xdmf_series`)
 
 `mageometry.tracing` traces field lines through any such field callable
 (`trace_field_lines`).
@@ -28,7 +28,7 @@ from . import geopack
 from . import fields
 from . import io
 from .fields import geopack_field
-from .io import GriddedField, load_xdmf, load_hdf5
+from .io import GriddedField, load_xdmf, load_hdf5, load_xdmf_series, XdmfSeries
 
 # Field line tracing (generic, field-callable based)
 from . import tracing
@@ -68,6 +68,8 @@ __all__ = [
     "GriddedField",
     "load_xdmf",
     "load_hdf5",
+    "load_xdmf_series",
+    "XdmfSeries",
 
     # field line tracing
     "trace_field_lines",

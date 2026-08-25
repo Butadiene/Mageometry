@@ -22,9 +22,14 @@ Supported entry points:
 
 | Entry point | Input | Requires |
 |---|---|---|
-| `load_xdmf(path, ...)` | XDMF metadata + HDF5 heavy data | `h5py` |
+| `load_xdmf(path, ...)` | XDMF metadata + HDF5 heavy data (one time step) | `h5py` |
+| `load_xdmf_series(path, ...)` | XDMF temporal collection or `.xmf.series` index (time series, lazy) | `h5py` |
 | `load_hdf5(path, ...)` | plain HDF5 datasets + caller-supplied geometry | `h5py` |
 | `GriddedField(x, y, z, bx, by, bz)` | NumPy arrays from anywhere | — |
+
+All file readers accept `region=((xmin, xmax), (ymin, ymax), (zmin, zmax))`
+and `stride` to read only a sub-box / every n-th node — see
+[Reading part of a large grid](#reading-part-of-a-large-grid).
 
 `h5py` is an optional dependency: `pip install h5py` (or
 `pip install -e .[io]`).
@@ -52,8 +57,14 @@ XML file (`.xmf`) describing the grid, pointing at "heavy data" in HDF5.
     error; use direct construction for those.
   - `<Geometry GeometryType="ORIGIN_DXDYDZ">` with two `DataItem`s named
     `Origin` and `Spacing` (or `DxDyDz`), each holding three numbers.
-- One scalar, node-centered `<Attribute>` per field component. Default names
-  `BX`, `BY`, `BZ`; override with `components=('bx', 'by', 'bz')` etc.
+- One scalar `<Attribute>` per field component, all with the same
+  `Center` — either `Node` (values at the grid nodes) or `Cell` (values at
+  cell centers, i.e. at origin + (i + ½)·spacing, with one fewer value per
+  axis than the topology declares). Default names `BX`, `BY`, `BZ`; override
+  with `components=('bx', 'by', 'bz')` etc. `GriddedField.metadata['center']`
+  records which convention was found.
+- An optional `<Time Value="..."/>` inside the grid ends up in
+  `GriddedField.metadata['time']`.
 - Each attribute's `DataItem` must have `Format="HDF"` and reference the
   heavy data as `file.h5:/dataset`.
 
@@ -81,12 +92,45 @@ file was renamed or moved, pass the real path explicitly:
 grid = load_xdmf("run000.xmf", h5_file="/data/archive/run000-heavy.h5")
 ```
 
+### Time series
+
+`load_xdmf_series(path, ...)` opens a series **lazily** — nothing is read
+until a step is accessed, so a long run of large grids never has to fit in
+memory. Two layouts are recognized:
+
+- a ParaView **`.xmf.series`** JSON index next to one single-grid `.xmf`
+  per step:
+
+  ```json
+  {"file-series-version": "1.0",
+   "files": [{"name": "run_000.xmf", "time": 0.0},
+             {"name": "run_001.xmf", "time": 10.0}]}
+  ```
+
+- an **XDMF temporal collection**: one `.xmf` whose
+  `<Grid GridType="Collection" CollectionType="Temporal">` holds one uniform
+  `<Grid>` per step, each with `<Time Value="..."/>`.
+
+```python
+from mageometry import load_xdmf_series
+
+series = load_xdmf_series("run.xmf.series", region=((-15, -3), (-5, 5), (-5, 5)))
+series.times          # array of time values
+grid = series[3]      # GriddedField for step 3 (read now)
+grid = series.at(25.0)  # step closest to t = 25
+for grid in series:   # one step at a time
+    ...
+```
+
+Reader options (`components`, `region`, `stride`, `metadata`) apply to every
+step. `load_xdmf` on a collection file raises with a pointer to
+`load_xdmf_series`.
+
 ### Not (yet) supported
 
-- Time series (`.xmf.series` / multiple `<Grid>` elements): load one
-  time-step `.xmf` at a time.
-- Cell-centered attributes: values are treated as node-centered at the node
-  positions implied by Origin/Spacing.
+- Spatial collections / multi-block grids, `xi:include`, and non-HDF heavy
+  data (`Format="XML"` or `Binary`): read the data yourself and construct a
+  `GriddedField`.
 
 ## 2. Plain HDF5 (`load_hdf5`)
 
@@ -106,6 +150,26 @@ grid = load_hdf5(
 ```
 
 Set `zyx_order=False` if your datasets are already stored `(NX, NY, NZ)`.
+
+## Reading part of a large grid
+
+Full MHD grids (hundreds of nodes per axis, float32) are large; often only a
+region is of interest. Every file reader takes
+
+- `region=((xmin, xmax), (ymin, ymax), (zmin, zmax))` in grid coordinates
+  (inclusive bounds; `None` per axis keeps the full extent), and
+- `stride=n` or `stride=(nx, ny, nz)` to keep every n-th node.
+
+The selection is applied as an **HDF5 hyperslab**, so only the selected
+nodes are ever read from disk:
+
+```python
+tail = load_xdmf("run000.xmf", region=((-30, -5), (-10, 10), (-5, 5)))
+coarse = load_xdmf("run000.xmf", stride=4)     # quick look at the whole domain
+```
+
+For data already in memory, `GriddedField.subvolume(region, stride)` returns
+the same kind of sub-grid (as a copy).
 
 ## 3. Any other format: direct construction
 
