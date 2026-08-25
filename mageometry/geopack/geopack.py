@@ -10,43 +10,51 @@ from .models import t89, t96, t01, t04
 
 igrf_pattern = 'igrf*coeffs.txt'
 
-def update_igrf(local_dir):
+def update_igrf(local_dir=None, timeout=30):
     """
-    Update to the latest IGRF coefficients.
-    """
+    Download any IGRF coefficient files missing from the local directory.
 
-    # Where to find the files.
+    This is an explicit, opt-in network operation; it is never called on
+    import. The package ships with the coefficient files it needs, so this
+    is only useful when a newer IGRF generation has been released. Call
+    `init_igrf()` afterwards to load the new coefficients.
+
+    :param local_dir: Directory holding ``igrf*coeffs.txt`` (default: the
+        package's ``igrf_coeffs`` directory).
+    :param timeout: Network timeout in seconds per request.
+    :return: List of file names downloaded.
+    """
+    if local_dir is None:
+        local_dir = os.path.join(os.path.dirname(__file__), 'igrf_coeffs')
     url = 'http://www.ngdc.noaa.gov/IAGA/vmod/coeffs/'
 
-    # Find the coeff files.
+    request = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    with urlopen(request, timeout=timeout) as response:
+        if response.status != 200:
+            raise RuntimeError(
+                f'Failed to get the list of IGRF coefficients (HTTP {response.status}).')
+        html = response.read().decode('utf-8')
     coef_files = []
-    try:
-        request = Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urlopen(request) as response:
-            if response.status != 200:
-                print('Failed to get the list of IGRF coefficients. Status code: {response.status}')
-            else:
-                html = response.read().decode('utf-8')
-                for line in html.splitlines():
-                    if 'href' in line and '.txt' in line:
-                        start = line.find('href="')+6
-                        end = line.find('"', start)
-                        base_name = line[start:end]
-                        if fnmatch(base_name, igrf_pattern):
-                            coef_files.append(base_name)
-    except:
-        print('Failed to get the list of IGRF coefficients.')
-    
-    # Download the files.
+    for line in html.splitlines():
+        if 'href' in line and '.txt' in line:
+            start = line.find('href="') + 6
+            end = line.find('"', start)
+            base_name = line[start:end]
+            if fnmatch(base_name, igrf_pattern):
+                coef_files.append(base_name)
+
+    downloaded = []
     for coef_file in coef_files:
         local_file = os.path.join(local_dir, coef_file)
-        if os.path.exists(local_file): continue
-
-        remote_file = urljoin(url, coef_file)
-        with urlopen(remote_file) as response:
-            if response.status != 200: continue
+        if os.path.exists(local_file):
+            continue
+        with urlopen(urljoin(url, coef_file), timeout=timeout) as response:
+            if response.status != 200:
+                continue
             with open(local_file, 'wb') as file:
                 file.write(response.read())
+        downloaded.append(coef_file)
+    return downloaded
 
 
 
@@ -54,20 +62,19 @@ def update_igrf(local_dir):
 
 def init_igrf(version=None):
     """
-    Initialize the IGRF coefficients and related coefs.
-    Should be called once and only once when importing the geopack module.
+    Load the IGRF coefficients bundled with the package (no network access).
 
-    :param version: The version of IGRF coefficients to load, e.g., '13'. If None, the latest version will be loaded.
+    Called once on import; call it again after `update_igrf()` to pick up
+    newly downloaded files, or with an explicit ``version`` to select an
+    older generation.
+
+    :param version: The IGRF generation to load, e.g., '13'. If None, the
+        newest generation found in the ``igrf_coeffs`` directory is loaded.
     """
 
     global igrf, nmn,mns, nyear,years,yruts
 
-    print('Load IGRF coefficients ...')
-
-    # Load all available IGRF coefficients.
     local_dir = os.path.join(os.path.dirname(__file__), 'igrf_coeffs')
-    if not os.path.exists(local_dir): os.mkdir(local_dir)
-    update_igrf(local_dir)
 
     if version is None:
         # Load the latest version.
@@ -1442,8 +1449,3 @@ def t96_mgnp(xn_pd,vel,xgsm,ygsm,zgsm):
 
 
 init_igrf()
-
-
-if __name__ == '__main__':
-    update_igrf()
-    init_igrf()

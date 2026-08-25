@@ -18,17 +18,28 @@ Currently provided readers:
 
 All readers take ``region`` / ``stride`` to read a sub-box or coarsened grid
 as an HDF5 hyperslab; `GriddedField.subvolume` does the same in memory. All
-need the optional `h5py` dependency. Additional formats (VTK, CDF,
+need the optional `h5py` dependency.
+
+For data in any other format, write a small ``load_<format>(path) ->
+GriddedField`` following ``docs/simulation_data_formats.md``; the building
+blocks here are `read_fortran_records` (Fortran unformatted files),
+`FieldSeries.from_files` (lazy time series from per-step files and your
+loader), and `GriddedField.divergence` (a sanity check that catches
+permuted axes or components). Additional formats (VTK, CDF,
 raw binaries, ...) should follow the same pattern: parse, build arrays,
 return a `GriddedField`.
 """
 
-from .gridded_field import GriddedField, region_slices
+from .gridded_field import GriddedField, FieldSeries, region_slices
+from .binary import iter_fortran_records, read_fortran_records
 from .xdmf import load_xdmf, load_hdf5, load_xdmf_series, XdmfSeries
 
 __all__ = [
     "GriddedField",
+    "FieldSeries",
     "region_slices",
+    "iter_fortran_records",
+    "read_fortran_records",
     "load_xdmf",
     "load_hdf5",
     "load_xdmf_series",

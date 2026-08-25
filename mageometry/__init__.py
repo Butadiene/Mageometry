@@ -28,7 +28,7 @@ from . import geopack
 from . import fields
 from . import io
 from .fields import geopack_field
-from .io import GriddedField, load_xdmf, load_hdf5, load_xdmf_series, XdmfSeries
+from .io import GriddedField, FieldSeries, load_xdmf, load_hdf5, load_xdmf_series, XdmfSeries
 
 # Field line tracing (generic, field-callable based)
 from . import tracing
@@ -66,6 +66,7 @@ __all__ = [
 
     # simulation data input
     "GriddedField",
+    "FieldSeries",
     "load_xdmf",
     "load_hdf5",
     "load_xdmf_series",

@@ -62,6 +62,95 @@ def region_slices(axes, region=None, stride=1):
     return tuple(slices)
 
 
+class FieldSeries:
+    """
+    A lazily loaded time series of `GriddedField` objects.
+
+    Steps are read only when accessed, so a long series of large grids never
+    has to fit in memory at once. Build one from your own per-step files with
+    `FieldSeries.from_files`; `load_xdmf_series` returns one for XDMF data.
+
+    Parameters
+    ----------
+    steps : sequence of (time, source, loader)
+        ``time`` (float or None), a description of the step's origin, and a
+        zero-argument callable returning the `GriddedField`.
+
+    Attributes
+    ----------
+    times : ndarray
+        Time value of each step (NaN where unknown).
+    sources : list
+        Origin of each step (e.g. file path).
+    """
+
+    def __init__(self, steps):
+        self._steps = [tuple(s) for s in steps]
+        self.times = np.array([t if t is not None else np.nan
+                               for t, _, _ in self._steps], dtype=np.float64)
+        self.sources = [s for _, s, _ in self._steps]
+
+    @classmethod
+    def from_files(cls, paths, loader, times=None, **loader_kwargs):
+        """
+        Series from one file per step and a reader function.
+
+        Parameters
+        ----------
+        paths : sequence of str
+            One file per step, in time order.
+        loader : callable
+            ``loader(path, **loader_kwargs) -> GriddedField`` — a bundled
+            reader (`load_xdmf`, `load_hdf5`) or your own ``load_<format>``.
+        times : sequence of float, optional
+            Time value per step. Default: unknown (NaN).
+        **loader_kwargs
+            Passed to ``loader`` for every step.
+        """
+        paths = list(paths)
+        if times is None:
+            times = [None] * len(paths)
+        elif len(times) != len(paths):
+            raise ValueError("times must have one entry per path.")
+
+        def make(p):
+            return lambda: loader(p, **loader_kwargs)
+
+        return cls([(t, p, make(p)) for t, p in zip(times, paths)])
+
+    def __len__(self):
+        return len(self._steps)
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            return FieldSeries(self._steps[i])
+        n = len(self._steps)
+        if not -n <= i < n:
+            raise IndexError(f"step {i} out of range for series of {n} steps")
+        return self._steps[i][2]()
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+    def index_at(self, time):
+        """Index of the step whose time is closest to ``time``."""
+        if np.all(np.isnan(self.times)):
+            raise ValueError("This series carries no time values; index by step.")
+        return int(np.nanargmin(np.abs(self.times - time)))
+
+    def at(self, time):
+        """Load the step whose time is closest to ``time``."""
+        return self[self.index_at(time)]
+
+    def __repr__(self):
+        if len(self) and not np.all(np.isnan(self.times)):
+            span = f", t=[{np.nanmin(self.times):g}, {np.nanmax(self.times):g}]"
+        else:
+            span = ""
+        return f"{type(self).__name__}(n_steps={len(self)}{span})"
+
+
 class GriddedField:
     """
     A magnetic field sampled on a rectilinear grid.
@@ -151,6 +240,40 @@ class GriddedField:
         return GriddedField(self.x[sx], self.y[sy], self.z[sz],
                             self.bx[sx, sy, sz], self.by[sx, sy, sz],
                             self.bz[sx, sy, sz], metadata=meta)
+
+    def divergence(self, relative=True):
+        """
+        Finite-difference divergence of the field on the grid, as a sanity check.
+
+        A physical MHD field is (nearly) divergence-free, so a large result
+        almost always means the arrays were assembled wrongly: axes in the
+        wrong order, components permuted, or a wrong grid spacing.
+
+        Parameters
+        ----------
+        relative : bool, optional
+            If True (default) return the dimensionless
+            ``|div B| * h / |B|`` with ``h`` the mean grid spacing. Its
+            median away from the planet and the grid edges is ~1e-3-1e-2 for
+            correctly assembled data and ~0.1 or more when components are
+            permuted or sign-flipped or the axes are transposed. If False
+            return ``div B`` in field-unit / length-unit.
+
+        Returns
+        -------
+        ndarray of shape ``(nx, ny, nz)``
+        """
+        b = self.b.astype(np.float64, copy=False)
+        div = (np.gradient(b[..., 0], self.x, axis=0)
+               + np.gradient(b[..., 1], self.y, axis=1)
+               + np.gradient(b[..., 2], self.z, axis=2))
+        if not relative:
+            return div
+        h = np.mean([np.mean(np.diff(self.x)), np.mean(np.diff(self.y)),
+                     np.mean(np.diff(self.z))])
+        bmag = np.sqrt(np.sum(b * b, axis=-1))
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return np.where(bmag > 0, np.abs(div) * h / bmag, np.nan)
 
     def __repr__(self):
         (x0, x1), (y0, y1), (z0, z1) = self.bounds

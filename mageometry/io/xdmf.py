@@ -34,7 +34,7 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 
-from .gridded_field import GriddedField, region_slices
+from .gridded_field import GriddedField, FieldSeries, region_slices
 
 __all__ = ["load_xdmf", "load_hdf5", "load_xdmf_series", "XdmfSeries"]
 
@@ -314,61 +314,19 @@ def load_xdmf(path, components=('BX', 'BY', 'BZ'), h5_file=None, metadata=None,
 # Time series
 # ---------------------------------------------------------------------------
 
-class XdmfSeries:
+class XdmfSeries(FieldSeries):
     """
-    A lazily loaded time series of gridded fields.
+    A lazily loaded time series of XDMF-described gridded fields.
 
-    Created by `load_xdmf_series`. Steps are read from disk only when
-    accessed, so a long series of large grids never has to fit in memory
-    at once. Reader options (components, region, stride, ...) given to
-    `load_xdmf_series` apply to every step.
-
-    Attributes
-    ----------
-    times : ndarray
-        Time value of each step (NaN where the file carries none).
-    sources : list of str
-        Where each step comes from (file path, plus a grid index for
-        temporal collections).
+    Created by `load_xdmf_series`; see `FieldSeries` for the interface
+    (``times``, ``series[i]``, ``series.at(t)``, iteration, slicing).
+    Reader options given to `load_xdmf_series` apply to every step.
     """
-
-    def __init__(self, steps, load_kwargs):
-        self._steps = steps          # list of (time, source, loader)
-        self._load_kwargs = load_kwargs
-        self.times = np.array([t if t is not None else np.nan for t, _, _ in steps])
-        self.sources = [s for _, s, _ in steps]
-
-    def __len__(self):
-        return len(self._steps)
 
     def __getitem__(self, i):
         if isinstance(i, slice):
-            return XdmfSeries(self._steps[i], self._load_kwargs)
-        n = len(self._steps)
-        if not -n <= i < n:
-            raise IndexError(f"step {i} out of range for series of {n} steps")
-        return self._steps[i][2](**self._load_kwargs)
-
-    def __iter__(self):
-        for i in range(len(self)):
-            yield self[i]
-
-    def index_at(self, time):
-        """Index of the step whose time is closest to ``time``."""
-        if np.all(np.isnan(self.times)):
-            raise ValueError("This series carries no time values; index by step.")
-        return int(np.nanargmin(np.abs(self.times - time)))
-
-    def at(self, time):
-        """Load the step whose time is closest to ``time``."""
-        return self[self.index_at(time)]
-
-    def __repr__(self):
-        if len(self) and not np.all(np.isnan(self.times)):
-            span = f", t=[{np.nanmin(self.times):g}, {np.nanmax(self.times):g}]"
-        else:
-            span = ""
-        return f"XdmfSeries(n_steps={len(self)}{span})"
+            return XdmfSeries(self._steps[i])
+        return super().__getitem__(i)
 
 
 def load_xdmf_series(path, components=('BX', 'BY', 'BZ'), metadata=None,
@@ -415,8 +373,9 @@ def load_xdmf_series(path, components=('BX', 'BY', 'BZ'), metadata=None,
             t = entry.get('time')
             t = float(t) if t is not None else None
 
-            def loader(step_path=step_path, t=t, **kw):
+            def loader(step_path=step_path, t=t):
                 # The index carries the time; the per-step file usually does not.
+                kw = dict(load_kwargs)
                 meta = dict(kw.get('metadata') or {})
                 if t is not None:
                     meta.setdefault('time', t)
@@ -424,7 +383,7 @@ def load_xdmf_series(path, components=('BX', 'BY', 'BZ'), metadata=None,
                 return load_xdmf(step_path, **kw)
 
             steps.append((t, step_path, loader))
-        return XdmfSeries(steps, load_kwargs)
+        return XdmfSeries(steps)
 
     grid = _root_grid(path)
     if not _is_temporal_collection(grid):
@@ -436,13 +395,13 @@ def load_xdmf_series(path, components=('BX', 'BY', 'BZ'), metadata=None,
     for k, child in enumerate(grid.findall('Grid')):
         where = f"{abs_path}[grid {k}]"
 
-        def loader(child=child, where=where, **kw):
-            return _load_grid(child, xdmf_dir=base_dir, where=where, **kw)
+        def loader(child=child, where=where):
+            return _load_grid(child, xdmf_dir=base_dir, where=where, **load_kwargs)
 
         steps.append((_grid_time(child), where, loader))
     if not steps:
         raise ValueError(f"Temporal collection in {path!r} contains no grids.")
-    return XdmfSeries(steps, load_kwargs)
+    return XdmfSeries(steps)
 
 
 def _looks_like_json(path):

@@ -52,6 +52,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   16 and `field_line_directional_derivatives` 21 instead of 77.
 
 ### Added
+- **Bring-your-own-data support.** `docs/simulation_data_formats.md` is now a
+  hands-on guide for adapting arbitrary MHD output to `GriddedField`: raw
+  binaries, Fortran unformatted dumps, per-rank chunk files, VTK/NetCDF/HDF5
+  layouts, cell-centered/staggered grids, non-uniform axes, units and
+  coordinate conventions, per-step series, plus a validation checklist and a
+  reader template. Supporting library pieces: `mageometry.io.read_fortran_records`
+  / `iter_fortran_records` (Fortran sequential files, any byte order, 4- or
+  8-byte markers), `FieldSeries` (lazy time series from any per-step loader via
+  `FieldSeries.from_files(paths, loader, times)`; `XdmfSeries` is now its XDMF
+  flavour), and `GriddedField.divergence()` (relative |∇·B| h/|B|: ~1e-3 for
+  correctly assembled data, ~0.1 for transposed axes or permuted/sign-flipped
+  components).
+- **geopack no longer touches the network on import.** `init_igrf()` loads the
+  bundled IGRF coefficient files only; the old import-time HTTP check against
+  NOAA (which could stall imports indefinitely without connectivity) is gone.
+  `update_igrf(local_dir=None, timeout=30)` is an explicit opt-in download that
+  returns the files it fetched; the "Load IGRF coefficients ..." import message
+  is gone too.
 - **`mageometry.io` extensions.** `load_xdmf` / `load_hdf5` take
   `region=((xmin, xmax), (ymin, ymax), (zmin, zmax))` and `stride` to read a
   sub-box or coarsened grid as an HDF5 hyperslab (the full array never enters

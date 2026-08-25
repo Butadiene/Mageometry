@@ -529,5 +529,91 @@ class TestXdmfSeries(unittest.TestCase):
             load_xdmf_series(single)
 
 
+class TestBinaryHelpers(unittest.TestCase):
+
+    def _write_sequential(self, path, records, dtype, marker='i4'):
+        m = np.dtype(marker).newbyteorder(np.dtype(dtype).byteorder or '=')
+        with open(path, 'wb') as f:
+            for rec in records:
+                payload = np.asarray(rec).astype(dtype).tobytes()
+                f.write(np.array(len(payload), dtype=m).tobytes())
+                f.write(payload)
+                f.write(np.array(len(payload), dtype=m).tobytes())
+
+    def test_fortran_records_roundtrip(self):
+        from mageometry.io import read_fortran_records, iter_fortran_records
+        rng = np.random.default_rng(0)
+        recs = [rng.standard_normal(12), rng.standard_normal(30), rng.standard_normal(5)]
+        with tempfile.TemporaryDirectory() as d:
+            for dtype, marker in (('>f4', 'i4'), ('<f8', 'i4'), ('<f4', 'i8')):
+                path = os.path.join(d, 'seq.bin')
+                self._write_sequential(path, recs, dtype, marker)
+                kw = {'marker_dtype': '<i8'} if marker == 'i8' else {}
+                got = read_fortran_records(path, dtype=dtype, **kw)
+                self.assertEqual(len(got), 3)
+                for g, r in zip(got, recs):
+                    self.assertEqual(g.dtype.byteorder, '=')
+                    np.testing.assert_allclose(g, r.astype(dtype), rtol=1e-6)
+                # skip / count, and the iterator
+                got = read_fortran_records(path, dtype=dtype, skip=1, count=1, **kw)
+                self.assertEqual(len(got), 1)
+                self.assertEqual(got[0].size, 30)
+                self.assertEqual(sum(1 for _ in iter_fortran_records(path, dtype, **kw)), 3)
+            # wrong byte order is detected from the markers
+            path = os.path.join(d, 'seq.bin')
+            self._write_sequential(path, recs, '>f4')
+            with self.assertRaises(ValueError):
+                read_fortran_records(path, dtype='<f4')
+
+    def test_field_series_from_files(self):
+        from mageometry.io import FieldSeries
+        ax = np.linspace(-1, 1, 5)
+        calls = []
+
+        def loader(path, scale=1.0):
+            calls.append(path)
+            k = int(path[-1])
+            z = np.zeros((5, 5, 5))
+            return GriddedField(ax, ax, ax, z + k * scale, z, z, metadata={'path': path})
+
+        series = FieldSeries.from_files(['step0', 'step1', 'step2'], loader,
+                                        times=[0.0, 1.0, 2.5], scale=2.0)
+        self.assertEqual(len(series), 3)
+        self.assertEqual(calls, [])                # lazy: nothing read yet
+        np.testing.assert_array_equal(series.times, [0.0, 1.0, 2.5])
+        self.assertEqual(series.at(2.0).bx[0, 0, 0], 4.0)
+        self.assertEqual(calls, ['step2'])
+        self.assertEqual([g.metadata['path'] for g in series[1:]], ['step1', 'step2'])
+        with self.assertRaises(ValueError):
+            FieldSeries.from_files(['a', 'b'], loader, times=[0.0])
+        untimed = FieldSeries.from_files(['step0'], loader)
+        self.assertTrue(np.isnan(untimed.times[0]))
+        with self.assertRaises(ValueError):
+            untimed.at(0.0)
+
+
+class TestDivergenceCheck(unittest.TestCase):
+
+    def test_divergence_detects_permutations(self):
+        ax, bx, by, bz = make_dipole_grid(n=41)
+        grid = GriddedField(ax, ax, ax, bx, by, bz)
+        X, Y, Z = np.meshgrid(ax, ax, ax, indexing='ij')
+        outside = X**2 + Y**2 + Z**2 > 3.0**2
+        # measured: correct ~1e-3; permuted/transposed/sign-flipped 0.09-0.14
+        good = np.nanmedian(grid.divergence()[outside])
+        self.assertLess(good, 0.01)
+        # components permuted -> not divergence-free
+        bad = GriddedField(ax, ax, ax, by, bz, bx)
+        self.assertGreater(np.nanmedian(bad.divergence()[outside]), 0.05)
+        # axes transposed (data stored (nz, ny, nx) but declared (nx, ny, nz))
+        bad = GriddedField(ax, ax, ax, bx.transpose(2, 1, 0), by.transpose(2, 1, 0), bz.transpose(2, 1, 0))
+        self.assertGreater(np.nanmedian(bad.divergence()[outside]), 0.05)
+        # one component sign-flipped
+        bad = GriddedField(ax, ax, ax, bx, by, -bz)
+        self.assertGreater(np.nanmedian(bad.divergence()[outside]), 0.05)
+        # absolute divergence has the right shape and units
+        self.assertEqual(grid.divergence(relative=False).shape, grid.shape)
+
+
 if __name__ == '__main__':
     unittest.main()
