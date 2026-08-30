@@ -58,7 +58,7 @@ def plot_frenet_frame(field, x, y, z, delta=0.01, ax=None, plane='xz', length=1.
         ok = np.isfinite(vx)
         if not np.any(ok):
             continue
-        kw = dict(color=_COLORS[name], label=name)
+        kw = dict(color=_COLORS[name], label=name if legend else '_nolegend_')
         if is_3d(ax):
             kw.update(length=length, arrow_length_ratio=0.25, linewidth=1.5)
             kw.update(kwargs)

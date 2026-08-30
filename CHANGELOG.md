@@ -65,6 +65,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (log for positive quantities, symmetric diverging for signed ones); NaN is
   left blank. `viz.plane_grid` / `viz.project` expose the plane sampling for
   custom plots. New notebook `09_visualization`; `tests/test_viz.py`.
+- Notebook `08_simulation_data_geometry` gains two sections on gridded data:
+  the Frenet frame through the file (frame-quality maps linear vs cubic vs
+  model, point-by-point n·n agreement along a traced line, frame arrows) and
+  the nine directional derivatives through the file (error table normalised by
+  the model's scale, the b-direction antisymmetry residuals as the meaningful
+  consistency check, maps and profiles model vs file). `plot_frenet_frame`
+  with `legend=False` no longer leaves legend entries; `plot_line_profiles`
+  keeps an existing arc-length label when overlaying.
 - **Bring-your-own-data support.** `docs/simulation_data_formats.md` is now a
   hands-on guide for adapting arbitrary MHD output to `GriddedField`: raw
   binaries, Fortran unformatted dumps, per-rank chunk files, VTK/NetCDF/HDF5

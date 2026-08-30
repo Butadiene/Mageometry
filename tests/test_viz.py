@@ -160,6 +160,10 @@ class TestViz(unittest.TestCase):
         uniform = lambda x, y, z: (np.zeros_like(x), np.zeros_like(x), np.ones_like(x))
         out = self.viz.plot_frenet_frame(uniform, 0.0, 0.0, 0.0, legend=False)
         self.assertEqual(set(out), {'T'})
+        # legend=False must not leave entries for a later legend call
+        ax = out['T'].axes
+        self.viz.plot_frenet_frame(dipole_b, 3.0, 0.0, 0.0, ax=ax, delta=0.05)
+        self.assertEqual([t.get_text() for t in ax.get_legend().get_texts()], ['T', 'n', 'b'])
 
 
 if __name__ == '__main__':

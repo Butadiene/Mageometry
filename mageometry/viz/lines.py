@@ -165,7 +165,8 @@ def plot_line_profiles(trace, field, quantities=('curvature', 'torsion'), delta=
             ax.axhline(0.0, color='k', lw=0.6, alpha=0.5)
         ax.grid(alpha=0.3)
     axes[0].legend(fontsize='small')
-    axes[-1].set_xlabel(axis_label('arc length s from seed', unit))
+    if unit is not None or not axes[-1].get_xlabel():
+        axes[-1].set_xlabel(axis_label('arc length s from seed', unit))
     return axes
 
 
