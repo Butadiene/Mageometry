@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Mageometry** is a magnetic field line geometry analysis library: Frenet-Serret frames, curvature, torsion, and directional derivatives along field lines. The analysis toolkit (`mageometry.geometry`) is the primary product; the vectorized geopack implementation (`mageometry.geopack`, Tsyganenko models T89/T96/T01/T04, IGRF, field line tracing) serves as one magnetic field source. Planned additions: reading magnetic fields from simulation output files (`mageometry.io`) and visualization (`mageometry.viz`).
+**Mageometry** is a magnetic field line geometry analysis library: Frenet-Serret frames, curvature, torsion, and directional derivatives along field lines. The analysis toolkit (`mageometry.geometry`) is the primary product; the vectorized geopack implementation (`mageometry.geopack`, Tsyganenko models T89/T96/T01/T04, IGRF, field line tracing) serves as one magnetic field source. Further subpackages: reading magnetic fields from simulation output files (`mageometry.io`), generic field line tracing (`mageometry.tracing`), and visualization (`mageometry.viz`).
 
 **Project status — read this first:**
 
@@ -44,7 +44,7 @@ There is no `setup.py`/`setup.cfg` — all packaging lives in `pyproject.toml`. 
   - **Vectorized API** (`mageometry.geopack.vectorized.*`): NumPy-broadcasting implementations that process arrays of points simultaneously (20-150x speedup). Vectorized functions use the `_vectorized` suffix when accessed from `mageometry.geopack` (e.g., `t96_vectorized`, `trace_vectorized`). Note `trace_vectorized` traces geopack models only (exname/inname/parmod); generic tracing lives in `mageometry.tracing`.
 - **Field line tracing** (`mageometry.tracing`, re-exported at top level): `trace_field_lines(field, x, y, z, direction, ds, r0=, rlim=, bounds=, stop=, max_steps=)` traces through any field callable and returns a `FieldLineTrace` (NaN-padded paths, arc length, status codes). Generic RK5 with per-step halving; no Earth/GSM assumptions. The geopack engine's own `trace_vectorized` is deliberately left untouched as the bitwise-faithful port of scalar `geopack.trace` (validation asset) — do not try to merge the two.
 - **Simulation data input** (`mageometry.io`): `GriddedField` wraps a rectilinear grid + B components and builds interpolating field callables (`.field(method=...)`, scipy `RegularGridInterpolator`). File-format readers are thin adapters whose only job is to construct a `GriddedField` — currently `load_xdmf` (XDMF/HDF5 uniform grids, node- or cell-centered), `load_hdf5`, and `load_xdmf_series` (lazy time series → `XdmfSeries`; XDMF temporal collections and ParaView `.xmf.series` indexes); add new formats the same way. All readers take `region`/`stride` (HDF5 hyperslab reads via `region_slices`); `GriddedField.subvolume` slices in memory. Bring-your-own-format support is documentation-first (the user's stated priority): `docs/simulation_data_formats.md` teaches users to write `load_<format>() -> GriddedField` themselves, backed by generic building blocks only — `read_fortran_records`, `FieldSeries.from_files`, `GriddedField.divergence()` (assembly sanity check). Do not add readers for specific private simulation codes. HDF5 access needs the optional `h5py` dependency (lazy import). Units are the data's own grid units throughout.
-- **Planned**: `mageometry.viz` (visualization). Not yet implemented.
+- **Visualization** (`mageometry.viz`, optional matplotlib via the `[viz]` extra, lazy import, imported explicitly with `from mageometry import viz`): plots take the analysis objects (field callable, `FieldLineTrace`, coordinates) and return matplotlib artists; every function accepts an existing `ax` (2D or 3D). Quantities are resolved through `viz._quantities.QUANTITIES` (names → `Quantity` with label/colour-scale convention) or a `quantity(field, x, y, z)` callable — add new plottable quantities there. Colour scales: log for positive quantities, symmetric diverging for signed ones; NaN stays blank (do not fill it). Plane handling lives in `viz/planes.py` (`plane_grid`, `project`; axis-aligned planes only).
 
 There is no top-level `geopack` package anymore — this also avoids shadowing the upstream `geopack` PyPI package.
 
@@ -56,6 +56,7 @@ There is no top-level `geopack` package anymore — this also avoids shadowing t
 - `mageometry/io/gridded_field.py` — `GriddedField`: gridded data + interpolation
 - `mageometry/io/xdmf.py` — XDMF and HDF5 readers (`load_xdmf`, `load_hdf5`, `load_xdmf_series`)
 - `mageometry/io/binary.py` — Fortran unformatted record helpers for custom readers
+- `mageometry/viz/` — `maps.py` (`plot_geometry_map`, `plot_field_direction`), `lines.py` (`plot_field_lines`, `plot_line_profiles`), `frames.py` (`plot_frenet_frame`), `planes.py`, `_quantities.py` (quantity registry), `_mpl.py` (lazy matplotlib, colour norms)
 - `mageometry/geometry/field_line_geometry.py` — Frenet-Serret frame calculations
 - `mageometry/geometry/field_line_directional_derivatives.py` — Directional derivatives along field lines
 - `mageometry/geopack/geopack.py` — Core scalar functions: coordinate transforms, IGRF, tracing, recalc
@@ -100,6 +101,7 @@ Importing `mageometry` must never access the network (the inherited geopack used
 
 - **Required:** numpy >= 1.16, scipy >= 1.0
 - **Optional (`[io]` extra):** h5py >= 3.0 — only needed for `load_xdmf`/`load_hdf5`
+- **Optional (`[viz]` extra):** matplotlib >= 3.0 — only needed for `mageometry.viz`
 - **Dev:** pytest, pytest-cov, matplotlib, h5py
 - **Examples:** matplotlib, jupyter, pandas, psutil
 

@@ -18,7 +18,9 @@ The geometry functions take the magnetic field as a callable
 `mageometry.tracing` traces field lines through any such field callable
 (`trace_field_lines`).
 
-Planned subpackage: `mageometry.viz` (visualization).
+`mageometry.viz` (optional, needs matplotlib) plots geometry maps, traced
+field lines, profiles along lines, and Frenet frames from those same
+objects; import it explicitly (``from mageometry import viz``).
 """
 
 __version__ = '0.1.0.dev0'

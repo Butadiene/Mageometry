@@ -52,6 +52,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   16 and `field_line_directional_derivatives` 21 instead of 77.
 
 ### Added
+- **`mageometry.viz`: visualization** (optional matplotlib dependency, `[viz]`
+  extra; `from mageometry import viz`). Functions draw the analysis objects
+  directly and return matplotlib artists: `plot_geometry_map` (any named
+  quantity — curvature, torsion, frame quality, |B|, components, every
+  directional-derivative key — or a `quantity(field, x, y, z)` callable on an
+  axis-aligned plane, with optional field-direction arrows and a mask),
+  `plot_field_direction`, `plot_field_lines` (a `FieldLineTrace` projected onto a
+  plane or on a 3D axes, plain or coloured by a quantity along the path),
+  `plot_line_profiles` (quantities versus arc length), and `plot_frenet_frame`
+  (T/n/b arrows, 2D or 3D). Colour scales follow each quantity's convention
+  (log for positive quantities, symmetric diverging for signed ones); NaN is
+  left blank. `viz.plane_grid` / `viz.project` expose the plane sampling for
+  custom plots. New notebook `09_visualization`; `tests/test_viz.py`.
 - **Bring-your-own-data support.** `docs/simulation_data_formats.md` is now a
   hands-on guide for adapting arbitrary MHD output to `GriddedField`: raw
   binaries, Fortran unformatted dumps, per-rank chunk files, VTK/NetCDF/HDF5

@@ -7,6 +7,7 @@ Tutorial notebooks for Mageometry. Install the example dependencies to run them 
 | # | Notebook | Description |
 |---|----------|-------------|
 | 7 | [07_fieldline_geometry_and_derivatives](07_fieldline_geometry_and_derivatives.ipynb) | **Field line geometry with Mageometry**: field callables (`geopack_field`), the Frenet-Serret frame, the nine directional derivative formulas, NaN/validity conventions and the finite-difference quality diagnostic, choosing δ, geometry along traced field lines, vectorization, meridian maps |
+| 9 | [09_visualization](09_visualization.ipynb) | **Visualization with `mageometry.viz`**: geometry maps on planes, traced lines coloured by a quantity (2D and 3D), profiles along lines, Frenet frame arrows, custom quantities, and the same plots on gridded data |
 | 8 | [08_simulation_data_geometry](08_simulation_data_geometry.ipynb) | **Simulation data pipeline**: write a compatible XDMF/HDF5 file (from a T96 reference field, so every step is checkable), `load_xdmf` / `GriddedField`, linear vs cubic interpolation, curvature through the file, tracing with `bounds`, bringing your own data |
 
 ## The geopack field engine

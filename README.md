@@ -166,6 +166,25 @@ derivs = field_line_directional_derivatives(
 # derivs['db_db_T']  (∂b/∂b)·T
 ```
 
+### Visualization (`mageometry.viz`)
+
+Plots are built from the same objects as the analysis: a field callable, a `FieldLineTrace`, coordinates. Requires matplotlib (`pip install matplotlib` or `pip install -e .[viz]`); import explicitly with `from mageometry import viz`.
+
+```python
+from mageometry import viz
+
+earth = lambda x, y, z: x**2 + y**2 + z**2 < 1          # blank the planet
+mesh = viz.plot_geometry_map(field, "curvature", plane="xz", extent=(-15, 5, -8, 8),
+                             mask=earth, arrows=True, unit="Re")     # any quantity: 'torsion',
+                                                                     # 'bmag', 'dT_dn_n', ..., or a callable
+tr = trace_field_lines(field, [-5, -7, -9], [0, 0, 0], [0, 0, 0], direction="both", ds=0.1, r0=1.0)
+viz.plot_field_lines(tr, plane="xz", color="curvature", field=field)   # or ax=<3D axes>
+viz.plot_line_profiles(tr, field, ("curvature", "torsion"))            # vs arc length
+viz.plot_frenet_frame(field, -6.0, 0.0, 1.0, length=1.5)               # T / n / b arrows
+```
+
+Colour scales follow each quantity's convention (log for curvature and |B|, symmetric diverging for signed quantities); undefined (NaN) values are left blank. All functions accept an existing `ax` and return the matplotlib artists. See `examples/notebooks/09_visualization.ipynb`.
+
 ### Simulation Data (`mageometry.io`)
 
 Gridded magnetic fields from simulation output plug into the same geometry API. `GriddedField` holds a rectilinear grid plus the three field components and builds an interpolating `field(x, y, z)` callable; readers for specific file formats are thin adapters that construct a `GriddedField`. Currently provided: `load_xdmf` (XDMF-described uniform grids with HDF5 heavy data, as written by many MHD codes), `load_xdmf_series` (time series of such grids), and `load_hdf5` (plain HDF5 datasets with caller-supplied grid geometry). All require the optional `h5py` dependency (`pip install h5py`).
@@ -289,6 +308,7 @@ Example notebooks are available in `examples/notebooks/` (index: [`examples/note
 Start with the analysis library:
 - `07_fieldline_geometry_and_derivatives` — Field line geometry with Mageometry: field callables, Frenet-Serret frame, the nine directional derivatives, validity/NaN conventions, choosing δ, geometry along traced lines, maps
 - `08_simulation_data_geometry` — Simulation data pipeline: write a compatible XDMF/HDF5 file, load it, interpolate, compute curvature, trace through the data
+- `09_visualization` — `mageometry.viz`: geometry maps on planes, field lines coloured by a quantity (2D/3D), profiles along lines, Frenet frames, custom quantities, the same plots on gridded data
 
 The geopack field engine:
 - `01_coordinate_transformations_guide` — Coordinate system transforms
