@@ -33,6 +33,8 @@ cd Mageometry
 pip install -e .
 ```
 
+To run the tutorial notebooks in `examples/notebooks/`, install the example dependencies instead: `pip install -e .[examples]`.
+
 ## Usage Examples
 
 All vectorized functions accept both scalars and NumPy arrays. Call `geopack.recalc(ut)` once before using any model or transform. See [`examples/readme_examples.py`](examples/readme_examples.py) for a runnable version of the code below. For detailed function descriptions, please also refer to the [upstream geopack README](https://github.com/tsssss/geopack).
@@ -329,7 +331,7 @@ Related functions for field line analysis:
 
 ## Documentation and Examples
 
-Example notebooks are available in `examples/notebooks/` (index: [`examples/notebooks/README.md`](examples/notebooks/README.md)). Install the example dependencies to run them: `pip install -e .[examples]` (matplotlib, jupyter, pandas) plus `h5py` for notebook 08.
+Example notebooks are available in `examples/notebooks/` (index: [`examples/notebooks/README.md`](examples/notebooks/README.md)). Install the example dependencies to run them: `pip install -e .[examples]` (matplotlib, jupyter, pandas, h5py).
 
 ### Tutorial Notebooks
 Start with the analysis library:

@@ -45,7 +45,8 @@ examples = [
     "matplotlib>=3.0",
     "jupyter>=1.0",
     "pandas>=1.0",
-    "psutil>=5.0"
+    "psutil>=5.0",
+    "h5py>=3.0"
 ]
 
 [project.urls]

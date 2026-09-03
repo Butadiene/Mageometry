@@ -190,6 +190,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `field_line_directional_derivatives_vectorized`). Use the plain names
   (e.g. `geopack.field_line_curvature`) or import from `geopack.Mageometry`.
 
+### Fixed
+- The `[examples]` extra now includes `h5py`, so `pip install -e .[examples]`
+  is sufficient for every tutorial notebook (notebook 08 needs it); the README
+  installation section points notebook users at that command.
+
 ## [2.0.0] - 2026-02-11
 
 ### Breaking

@@ -1,6 +1,6 @@
 # Mageometry Notebooks Index
 
-Tutorial notebooks for Mageometry. Install the example dependencies to run them (`pip install -e .[examples]`, or matplotlib + jupyter + pandas + h5py).
+Tutorial notebooks for Mageometry. Install the example dependencies to run them (`pip install -e .[examples]`, or manually: matplotlib + jupyter + pandas + h5py).
 
 ## Start here: the analysis library
 
