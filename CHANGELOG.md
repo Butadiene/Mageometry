@@ -52,6 +52,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   16 and `field_line_directional_derivatives` 21 instead of 77.
 
 ### Added
+- **`mageometry.geometry.field_line_current`: |B| gradients along the frame and
+  the current density in the Frenet frame.** `field_magnitude_derivatives`
+  returns ∂B/∂T, ∂B/∂n, ∂B/∂b — the scalar pieces the frame's directional
+  derivatives don't carry (∂B/∂T is also the mirror-force gradient; ∇·B = 0
+  makes it redundant with `dT_dn_n + dT_db_b`, which is exploited for
+  verification rather than omitted). `field_line_current_density` assembles
+  μ₀J = B(dT_dn_b + dn_db_T) T + (∂B/∂b) n + (Bκ − ∂B/∂n) b — the parallel
+  current is pure field-line twist — returning frame and Cartesian components
+  plus the twist α = μ₀j∥/B = T·(∇×T). `verify_divergence_identity` evaluates
+  ∇·B = ∂B/∂T + B(dT_dn_n + dT_db_b): an end-to-end consistency check of both
+  derivative machineries on solenoidal fields, and a diagnostic that found T96
+  genuinely non-solenoidal (|∇·B| ~ 1 nT/Re) in parts of its Birkeland-current
+  module — in the scalar reference implementation too. Validated against direct
+  finite-difference curls of T96+IGRF (median relative error ~1e-6 of |∇×B| at
+  δ=2e-3) and the current-free dipole (the nontrivial cancellation Bκ = ∂B/∂n).
+  New viz quantities `mu0J_T`, `mu0J_n`, `mu0J_b`, `alpha`; notebook
+  `10_current_density_from_geometry`; `tests/test_field_line_current.py`.
 - **`mageometry.viz`: visualization** (optional matplotlib dependency, `[viz]`
   extra; `from mageometry import viz`). Functions draw the analysis objects
   directly and return matplotlib artists: `plot_geometry_map` (any named

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Mageometry** is a magnetic field line geometry analysis library: Frenet-Serret frames, curvature, torsion, and directional derivatives along field lines. The analysis toolkit (`mageometry.geometry`) is the primary product; the vectorized geopack implementation (`mageometry.geopack`, Tsyganenko models T89/T96/T01/T04, IGRF, field line tracing) serves as one magnetic field source. Further subpackages: reading magnetic fields from simulation output files (`mageometry.io`), generic field line tracing (`mageometry.tracing`), and visualization (`mageometry.viz`).
+**Mageometry** is a magnetic field line geometry analysis library: Frenet-Serret frames, curvature, torsion, directional derivatives, |B| gradients, and the Frenet-frame current density along field lines. The analysis toolkit (`mageometry.geometry`) is the primary product; the vectorized geopack implementation (`mageometry.geopack`, Tsyganenko models T89/T96/T01/T04, IGRF, field line tracing) serves as one magnetic field source. Further subpackages: reading magnetic fields from simulation output files (`mageometry.io`), generic field line tracing (`mageometry.tracing`), and visualization (`mageometry.viz`).
 
 **Project status — read this first:**
 
@@ -59,6 +59,7 @@ There is no top-level `geopack` package anymore — this also avoids shadowing t
 - `mageometry/viz/` — `maps.py` (`plot_geometry_map`, `plot_field_direction`), `lines.py` (`plot_field_lines`, `plot_line_profiles`), `frames.py` (`plot_frenet_frame`), `planes.py`, `_quantities.py` (quantity registry), `_mpl.py` (lazy matplotlib, colour norms)
 - `mageometry/geometry/field_line_geometry.py` — Frenet-Serret frame calculations
 - `mageometry/geometry/field_line_directional_derivatives.py` — Directional derivatives along field lines
+- `mageometry/geometry/field_line_current.py` — |B| gradients along the frame; current density μ₀J = ∇×B in the Frenet frame; ∇·B check
 - `mageometry/geopack/geopack.py` — Core scalar functions: coordinate transforms, IGRF, tracing, recalc
 - `mageometry/geopack/core.py` — Currently an empty placeholder (reserved for restructuring)
 - `mageometry/geopack/models/` — Scalar field models (t89, t96, t01, t04)

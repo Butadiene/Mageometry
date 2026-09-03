@@ -10,6 +10,7 @@ field lines.  All functions accept vectorized (NumPy array) inputs.
 from . import (
     field_line_geometry,
     field_line_directional_derivatives,
+    field_line_current,
 )
 
 # Frenet-Serret frame: tangent, curvature, normal, binormal, torsion
@@ -34,9 +35,17 @@ from .field_line_directional_derivatives import (
     DEFAULT_NORMAL_FLIP_TOL,
 )
 
+# |B| gradients along the frame and the Frenet-frame current density
+from .field_line_current import (
+    field_magnitude_derivatives,
+    field_line_current_density,
+    verify_divergence_identity,
+)
+
 __all__ = [
     "field_line_geometry",
     "field_line_directional_derivatives",
+    "field_line_current",
 
     # field line geometry
     "field_line_tangent",
@@ -55,4 +64,9 @@ __all__ = [
     "verify_antisymmetry_relations",
     "get_curvature_torsion_from_derivatives",
     "verify_unit_vectors",
+
+    # |B| gradients and current density
+    "field_magnitude_derivatives",
+    "field_line_current_density",
+    "verify_divergence_identity",
 ]

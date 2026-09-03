@@ -13,7 +13,7 @@ On top of that foundation it provides:
 - **Vectorized Field Models**: NumPy-based implementations of all Tsyganenko models (T89, T96, T01, T04) that process arrays of points simultaneously (20-150x speedup)
 - **Vectorized Field Line Tracing**: Parallel tracing of multiple field lines with improved boundary interpolation
 - **Vectorized Coordinate Transforms**: Array-based transformations between all coordinate systems
-- **Field Line Geometry (`mageometry.geometry`)**: Frenet-Serret frames, curvature, torsion, and directional derivatives along field lines — the main focus of ongoing development
+- **Field Line Geometry (`mageometry.geometry`)**: Frenet-Serret frames, curvature, torsion, directional derivatives, |B| gradients along the frame, and the current density μ₀J = ∇×B decomposed in the frame — the main focus of ongoing development
 - **Comprehensive Validation**: Extensive test suite ensuring < 10⁻¹¹ relative error vs original implementations
 
 ## Installation
@@ -166,6 +166,33 @@ derivs = field_line_directional_derivatives(
 # derivs['db_db_T']  (∂b/∂b)·T
 ```
 
+### |B| Gradients and Current Density
+
+Writing B = B·T with T the unit tangent, ∇×B closes in the Frenet-Serret frame with no n-component of ∇×T:
+
+```
+μ₀ J = B(dT_dn_b + dn_db_T) T  +  (∂B/∂b) n  +  (Bκ − ∂B/∂n) b
+        └── twist = μ₀ j∥ ──┘
+```
+
+The parallel current is pure field-line twist — B·T·(∇×T), carried entirely by the frame's directional derivatives — while the curvature and the transverse |B| gradients drive only the perpendicular components. `field_magnitude_derivatives` supplies the |B| gradients missing from the frame derivatives; `field_line_current_density` assembles μ₀J.
+
+```python
+from mageometry import field_magnitude_derivatives, field_line_current_density
+
+mag = field_magnitude_derivatives(field, x, y, z, delta=1e-3)
+# mag['B'] [nT]; mag['dB_dT'], mag['dB_dn'], mag['dB_db'] [nT/Re]
+# dB_dT is the mirror-force gradient along the line
+
+cur = field_line_current_density(field, x, y, z, delta=1e-3)
+# cur['mu0J_T'], cur['mu0J_n'], cur['mu0J_b']  μ₀J on the frame [nT/Re]
+# cur['mu0J_x'], cur['mu0J_y'], cur['mu0J_z']  the same vector in GSM
+# cur['alpha']  μ₀ j∥ / B = T·(∇×T), twist per unit length [1/Re]
+# For geopack fields: J [A/m²] ≈ μ₀J [nT/Re] × 1.25e-10 (0.125 nA/m² per nT/Re)
+```
+
+Against a direct finite-difference ∇×B of T96+IGRF, the three assembled components agree to a median relative error ~1e-6 of |∇×B| at `delta=2e-3` (`tests/test_field_line_current.py`; the current-free dipole doubles as the cancellation test Bκ = ∂B/∂n). `verify_divergence_identity(field, x, y, z, delta)` evaluates ∇·B = ∂B/∂T + B(dT_dn_n + dT_db_b) from the same machinery — zero to finite-difference accuracy on solenoidal fields, and a diagnostic for where a field genuinely is not (empirical models: parts of T96's Birkeland-current module reach |∇·B| ~ 1 nT/Re; interpolated data: the interpolant's divergence). See `examples/notebooks/10_current_density_from_geometry.ipynb`.
+
 ### Visualization (`mageometry.viz`)
 
 Plots are built from the same objects as the analysis: a field callable, a `FieldLineTrace`, coordinates. Requires matplotlib (`pip install matplotlib` or `pip install -e .[viz]`); import explicitly with `from mageometry import viz`.
@@ -175,8 +202,8 @@ from mageometry import viz
 
 earth = lambda x, y, z: x**2 + y**2 + z**2 < 1          # blank the planet
 mesh = viz.plot_geometry_map(field, "curvature", plane="xz", extent=(-15, 5, -8, 8),
-                             mask=earth, arrows=True, unit="Re")     # any quantity: 'torsion',
-                                                                     # 'bmag', 'dT_dn_n', ..., or a callable
+                             mask=earth, arrows=True, unit="Re")     # any quantity: 'torsion', 'bmag',
+                                                                     # 'mu0J_T', 'alpha', 'dT_dn_n', ..., or a callable
 tr = trace_field_lines(field, [-5, -7, -9], [0, 0, 0], [0, 0, 0], direction="both", ds=0.1, r0=1.0)
 viz.plot_field_lines(tr, plane="xz", color="curvature", field=field)   # or ax=<3D axes>
 viz.plot_line_profiles(tr, field, ("curvature", "torsion"))            # vs arc length
