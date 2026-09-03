@@ -5,7 +5,9 @@ Named scalar quantities that the plotting functions can evaluate on points.
 A quantity is either a name from `QUANTITIES` or a callable
 ``quantity(field, x, y, z) -> values`` (1D arrays in, 1D array out). Names
 cover the geometry API (curvature, torsion, frame quality, every
-directional-derivative key) and the field itself (|B| and components).
+directional-derivative key, the Frenet-frame current density components
+``mu0J_T``/``mu0J_n``/``mu0J_b`` and the twist ``alpha``) and the field
+itself (|B| and components).
 """
 
 import numpy as np
@@ -15,6 +17,7 @@ from ..geometry import (
     field_line_torsion,
     field_line_frame_quality,
     field_line_directional_derivatives,
+    field_line_current_density,
 )
 from ..geometry.field_line_directional_derivatives import _PROJECTIONS
 
@@ -77,6 +80,23 @@ for _key in _DERIVATIVE_KEYS:
                                 positive=(_key == 'dT_dT_n'),
                                 cmap='plasma' if _key == 'dT_dT_n' else None)
 del _key
+
+
+def _current(key):
+    def f(field, x, y, z, delta=0.01, **kw):
+        return field_line_current_density(field, x, y, z, delta=delta, **kw)[key]
+    return f
+
+
+_CURRENT_LABELS = {
+    'mu0J_T': 'μ₀J·T (parallel current)',
+    'mu0J_n': 'μ₀J·n',
+    'mu0J_b': 'μ₀J·b',
+    'alpha': 'α = μ₀j∥/B (twist)',
+}
+for _key, _label in _CURRENT_LABELS.items():
+    QUANTITIES[_key] = Quantity(_current(_key), _label, symmetric=True)
+del _key, _label
 
 
 def resolve_quantity(quantity, label=None):
