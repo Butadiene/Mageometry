@@ -214,9 +214,27 @@ viz.plot_frenet_frame(field, -6.0, 0.0, 1.0, length=1.5)               # T / n /
 
 Colour scales follow each quantity's convention (log for curvature and |B|, symmetric diverging for signed quantities); undefined (NaN) values are left blank. All functions accept an existing `ax` and return the matplotlib artists. See `examples/notebooks/09_visualization.ipynb`.
 
+### Interactive 3D Visualization (`mageometry.viz3d`)
+
+An interactive GPU-rendered companion to `mageometry.viz`, built on PyVista/VTK: rotate/zoom/pan the camera freely with the mouse and slice gridded volumes with drag-able plane widgets. Requires pyvista (`pip install pyvista` or `pip install -e .[viz3d]`); import explicitly with `from mageometry import viz3d`. Works on Linux (including WSL2 with WSLg), Windows, and macOS. On WSL2, if rendering falls back to the llvmpipe software rasterizer, set `GALLIUM_DRIVER=d3d12` to render on the Windows GPU.
+
+```python
+from mageometry import viz3d
+
+grid = load_xdmf("run000.xmf")                       # any GriddedField
+viz3d.slice_view(grid, "bmag")                       # three drag-able orthogonal slices
+viz3d.slice_view(grid, "curvature", mode="plane")    # one free plane (drag arrow / rotate)
+viz3d.explore(grid, "bmag", seeds=[[3, 0, 0], [5, 0, 0]],
+              line_color="curvature")                # slices + traced field lines
+```
+
+By default each slice is also shown face-on in a companion panel beside the 3D view (three stacked panels in `'ortho'` mode; in `'plane'` mode the panel's camera follows the widget normal as you rotate the plane). The panels update live while dragging, use an orthographic projection, and can be zoomed/panned independently; pass `front_view=False` for a single full-window 3D view.
+
+`add_field_lines` (traced lines as polylines or tubes, coloured by a quantity along the line), `add_frenet_frame` (T/n/b arrow glyphs), and the converters `to_rectilinear_grid` / `trace_polydata` compose custom scenes on any `pyvista.Plotter`. Quantities and colour scales follow the same conventions as `mageometry.viz`; NaN stays blank. Derivative quantities on large grids are expensive to evaluate on every node — coarsen with `grid.subvolume(stride=...)` first. In Jupyter, PyVista's notebook backends also work (`pv.set_jupyter_backend("trame")`), but the desktop window is the primary target. A runnable demo is in `examples/interactive_3d_demo.py`.
+
 ### Simulation Data (`mageometry.io`)
 
-Gridded magnetic fields from simulation output plug into the same geometry API. `GriddedField` holds a rectilinear grid plus the three field components and builds an interpolating `field(x, y, z)` callable; readers for specific file formats are thin adapters that construct a `GriddedField`. Currently provided: `load_xdmf` (XDMF-described uniform grids with HDF5 heavy data, as written by many MHD codes), `load_xdmf_series` (time series of such grids), and `load_hdf5` (plain HDF5 datasets with caller-supplied grid geometry). All require the optional `h5py` dependency (`pip install h5py`).
+Gridded magnetic fields from simulation output plug into the same geometry API. `GriddedField` holds a rectilinear grid plus the three field components and builds an interpolating `field(x, y, z)` callable; readers for specific file formats are thin adapters that construct a `GriddedField`. Currently provided: `load_xdmf` (XDMF-described uniform grids with HDF5 heavy data, as written by many MHD codes), `load_xdmf_series` (time series of such grids), `load_hdf5` (plain HDF5 datasets with caller-supplied grid geometry), and `load_vtk` (VTK ImageData / RectilinearGrid files, `.vti`/`.vtr`). The XDMF/HDF5 readers require the optional `h5py` dependency (`pip install h5py`); `load_vtk` requires `pyvista`.
 
 ```python
 from mageometry import load_xdmf, field_line_curvature, trace_field_lines

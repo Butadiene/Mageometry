@@ -249,8 +249,12 @@ ordering or ghost width shows up as block-shaped discontinuities, and
 
 ### Recipe E — VTK (`.vti`, `.vtr`, `.vts`)
 
-Use `pyvista` (or `vtk` directly). `ImageData` and `RectilinearGrid` map
-onto `GriddedField` one-to-one; VTK stores point data in x-fastest order.
+This recipe ships as `mageometry.io.load_vtk` (with `region`/`stride`
+applied in memory after the read, and `name=('bx', 'by', 'bz')` accepted
+for three scalar arrays); the code below stays as a reference for writing
+your own variant. Use `pyvista` (or `vtk` directly). `ImageData` and
+`RectilinearGrid` map onto `GriddedField` one-to-one; VTK stores point data
+in x-fastest order.
 
 ```python
 import numpy as np

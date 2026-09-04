@@ -32,6 +32,73 @@ def dipole_b(x, y, z):
     return 3.0 * x * z / r5, 3.0 * y * z / r5, (3.0 * z * z - r2) / r5
 
 
+class TestResolveScale(unittest.TestCase):
+    """Backend-neutral colour-scale limits (no matplotlib needed)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from mageometry.viz._quantities import Quantity
+        from mageometry.viz._scales import resolve_scale
+        cls.Quantity = Quantity
+        cls.resolve = staticmethod(resolve_scale)
+
+    def test_symmetric(self):
+        q = self.Quantity(None, 'q', symmetric=True)
+        vals = np.array([-4.0, -1.0, 0.0, 2.0, np.nan])
+        lo, hi, use_log = self.resolve(vals, q)
+        self.assertEqual((lo, hi, use_log), (-hi, np.percentile([4.0, 1.0, 0.0, 2.0], 98), False))
+        lo, hi, use_log = self.resolve(vals, q, vmax=3.0)
+        self.assertEqual((lo, hi, use_log), (-3.0, 3.0, False))
+
+    def test_log_positive(self):
+        q = self.Quantity(None, 'q', positive=True, log=True)
+        vals = np.array([0.0, 1e-3, 1e-1, 10.0, np.nan])
+        lo, hi, use_log = self.resolve(vals, q)
+        self.assertTrue(use_log)
+        self.assertGreater(lo, 0.0)
+        self.assertGreater(hi, lo)
+        # log=True with a single positive value: degenerate limits widened
+        lo, hi, use_log = self.resolve(np.array([5.0]), q)
+        self.assertEqual((lo, hi, use_log), (5.0, 50.0, True))
+
+    def test_log_falls_back_to_linear_without_positive_values(self):
+        q = self.Quantity(None, 'q', positive=True, log=True)
+        lo, hi, use_log = self.resolve(np.array([0.0, 0.0]), q)
+        self.assertFalse(use_log)
+        self.assertEqual(lo, 0.0)   # positive quantity: linear scale starts at zero
+
+    def test_linear_defaults_and_empty(self):
+        q = self.Quantity(None, 'q')
+        lo, hi, use_log = self.resolve(np.array([1.0, 2.0, 3.0]), q, log=False)
+        self.assertFalse(use_log)
+        self.assertLess(lo, hi)
+        self.assertEqual(self.resolve(np.array([np.nan]), q), (0.0, 1.0, False))
+        # degenerate constant values widened
+        lo, hi, use_log = self.resolve(np.array([2.0, 2.0]), q, log=False)
+        self.assertEqual((lo, hi), (2.0, 3.0))
+
+
+@unittest.skipUnless(HAVE_MPL, "matplotlib not installed")
+class TestColorNormAdapter(unittest.TestCase):
+    """color_norm must keep returning matplotlib norms matching resolve_scale."""
+
+    def test_matches_resolve_scale(self):
+        import matplotlib.colors as mcolors
+        from mageometry.viz._quantities import QUANTITIES
+        from mageometry.viz._mpl import color_norm
+        from mageometry.viz._scales import resolve_scale
+        vals = np.array([1e-3, 0.5, 2.0, 40.0])
+        norm = color_norm(vals, QUANTITIES['curvature'])
+        self.assertIsInstance(norm, mcolors.LogNorm)
+        lo, hi, use_log = resolve_scale(vals, QUANTITIES['curvature'])
+        self.assertTrue(use_log)
+        self.assertEqual((norm.vmin, norm.vmax), (lo, hi))
+        signed = np.array([-3.0, 1.0])
+        norm = color_norm(signed, QUANTITIES['torsion'])
+        self.assertNotIsInstance(norm, mcolors.LogNorm)
+        self.assertEqual(norm.vmin, -norm.vmax)
+
+
 @unittest.skipUnless(HAVE_MPL, "matplotlib not installed")
 class TestViz(unittest.TestCase):
 

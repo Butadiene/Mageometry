@@ -11,7 +11,7 @@ authors = [
 ]
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.7"
+requires-python = ">=3.9"
 keywords = ["space physics", "Tsyganenko model", "magnetosphere", "geomagnetic field", "field line geometry"]
 classifiers = [
     "Private :: Do Not Upload",
@@ -35,11 +35,15 @@ io = [
 viz = [
     "matplotlib>=3.0"
 ]
+viz3d = [
+    "pyvista>=0.44"
+]
 dev = [
     "pytest>=6.0",
     "pytest-cov>=2.0",
     "matplotlib>=3.0",
-    "h5py>=3.0"
+    "h5py>=3.0",
+    "pyvista>=0.44"
 ]
 examples = [
     "matplotlib>=3.0",

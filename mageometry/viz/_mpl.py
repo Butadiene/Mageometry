@@ -55,27 +55,8 @@ def color_norm(values, quantity, log=None, vmin=None, vmax=None, percentile=98.0
     """
     import matplotlib.colors as mcolors
 
-    finite = np.asarray(values)[np.isfinite(values)]
-    if log is None:
-        log = quantity.log
-    if finite.size == 0:
-        return mcolors.Normalize(0.0, 1.0)
-    if quantity.symmetric:
-        lim = np.percentile(np.abs(finite), percentile) if vmax is None else vmax
-        lim = lim if lim > 0 else 1.0
-        return mcolors.Normalize(-lim if vmin is None else vmin, lim)
-    if log:
-        pos = finite[finite > 0]
-        if pos.size == 0:
-            log = False
-        else:
-            lo = np.percentile(pos, 100 - percentile) if vmin is None else vmin
-            hi = np.percentile(pos, percentile) if vmax is None else vmax
-            if hi <= lo:
-                hi = lo * 10.0
-            return mcolors.LogNorm(lo, hi)
-    lo = (0.0 if quantity.positive else np.percentile(finite, 100 - percentile)) if vmin is None else vmin
-    hi = np.percentile(finite, percentile) if vmax is None else vmax
-    if hi <= lo:
-        hi = lo + 1.0
-    return mcolors.Normalize(lo, hi)
+    from ._scales import resolve_scale
+
+    lo, hi, use_log = resolve_scale(values, quantity, log=log, vmin=vmin,
+                                    vmax=vmax, percentile=percentile)
+    return mcolors.LogNorm(lo, hi) if use_log else mcolors.Normalize(lo, hi)
