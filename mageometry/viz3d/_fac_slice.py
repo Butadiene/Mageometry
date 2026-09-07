@@ -33,12 +33,13 @@ class _FACSlice:
 
     def __init__(self, plotter, volume, bounds, limit, current_label,
                  length_unit, normal, origin, scalar_bar, activate_main,
-                 panels=(), overview_widgets=(), expand=False):
+                 panels=(), overview_widgets=(), expand=False, scalar_name='fac'):
         self.plotter = plotter
         self.volume = volume
         self.bounds = bounds
         self.limit = limit
         self.label = current_label
+        self.scalar_name = scalar_name
         self.unit = length_unit
         self.activate_main = activate_main
         self.with_scalar_bar = scalar_bar
@@ -102,11 +103,13 @@ class _FACSlice:
         if has_data:
             if self.actor is None:
                 self.actor = self.plotter.add_mesh(
-                    sliced, scalars='fac', cmap='RdBu_r', clim=(-self.limit, self.limit),
+                    sliced, scalars=self.scalar_name, cmap='RdBu_r', clim=(-self.limit, self.limit),
                     lighting=False, nan_opacity=0, show_scalar_bar=False,
                     name='fac-slice', reset_camera=False, render=False, pickable=False)
             else:
                 self.actor.mapper.dataset = sliced
+                self.actor.mapper.array_name = self.scalar_name
+                self.actor.mapper.scalar_range = (-self.limit, self.limit)
             self.actor.visibility = True
             if self.with_scalar_bar and not self.bar_visible and not (self.focus and self.focus.active):
                 self.plotter.add_scalar_bar(
@@ -118,10 +121,28 @@ class _FACSlice:
         elif self.actor is not None:
             self.actor.visibility = False
 
-        suffix = 'all FAC strengths' if has_data else 'no valid FAC on plane'
+        suffix = f'all {self.scalar_name} strengths' if has_data else f'no valid {self.scalar_name} on plane'
         self._hint(f'Slice {self.location()} / {suffix}')
         if self.focus is not None:
             self.focus.refresh()
+
+    def set_component(self, volume, limit, label, scalar_name):
+        """Replace cached scalars without moving the plane or the camera."""
+        self.activate_main()
+        if self.bar_visible:
+            self.plotter.remove_scalar_bar(self.bar_title, render=False)
+            self.bar_visible = False
+        if self.focus.bar_visible:
+            bar = self.plotter.scalar_bars[self.focus.bar_title]
+            self.focus.props.discard(bar)
+            self.plotter.remove_scalar_bar(self.focus.bar_title, render=False)
+            self.focus.bar_visible = False
+        self.volume, self.limit, self.label = volume, limit, label
+        self.scalar_name = scalar_name
+        self.bar_title = f'Slice: {label}'
+        self.focus.bar_title = f'{scalar_name} cross-section: {label}'
+        if self.enabled:
+            self._update(self.normal, self.origin)
 
     def location(self):
         """Human-readable slice coordinates for both viewing modes."""

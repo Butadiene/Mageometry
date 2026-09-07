@@ -188,6 +188,7 @@ mag = field_magnitude_derivatives(field, x, y, z, delta=1e-3)
 
 cur = field_line_current_density(field, x, y, z, delta=1e-3)
 # cur['mu0J_T'], cur['mu0J_n'], cur['mu0J_b']  μ₀J on the frame [nT/Re]
+# cur['B_dT_dn_b'] + cur['B_dn_db_T']         the two terms of μ₀J_T
 # cur['mu0J_x'], cur['mu0J_y'], cur['mu0J_z']  the same vector in GSM
 # cur['alpha']  μ₀ j∥ / B = T·(∇×T), twist per unit length [1/Re]
 # For geopack fields: J [A/m²] ≈ μ₀J [nT/Re] × 1.25e-10 (0.125 nA/m² per nT/Re)
@@ -231,6 +232,104 @@ viz3d.explore(grid, "bmag", seeds=[[3, 0, 0], [5, 0, 0]],
 By default each slice is also shown face-on in a companion panel beside the 3D view (three stacked panels in `'ortho'` mode; in `'plane'` mode the panel's camera follows the widget normal as you rotate the plane). The panels update live while dragging, use an orthographic projection, and can be zoomed/panned independently; pass `front_view=False` for a single full-window 3D view.
 
 `add_field_lines` (traced lines as polylines or tubes, coloured by a quantity along the line), `add_frenet_frame` (T/n/b arrow glyphs), and the converters `to_rectilinear_grid` / `trace_polydata` compose custom scenes on any `pyvista.Plotter`. Quantities and colour scales follow the same conventions as `mageometry.viz`; NaN stays blank. Derivative quantities on large grids are expensive to evaluate on every node — coarsen with `grid.subvolume(stride=...)` first. In Jupyter, PyVista's notebook backends also work (`pv.set_jupyter_backend("trame")`), but the desktop window is the primary target. A runnable demo is in `examples/interactive_3d_demo.py`.
+
+#### Comparing current components (notebook 10)
+
+`viz3d.current_view` extends the FAC layout with a **component selector**.
+Click the top **dropdown** to choose a named component, or use **F5 / F6**
+(previous / next), to switch the 3D regions,
+arrows, peak maps, and slices together. It also works in the clean **F4**
+slice-only view, retaining the plane position, camera, pan, and zoom.
+The menu highlights the current selection. Click an item to select it;
+click outside or press Esc to dismiss. Up/Down and Enter also work while
+the menu is open. Menu gestures do not rotate or zoom the scene.
+See the [component dropdown](docs/images/current-component-menu.png),
+[normal-current overview](docs/images/current-components.png), and
+[binormal-current slice](docs/images/current-components-slice.png).
+
+```bash
+python examples/fac_viewer.py --component mu0J_n --slice x --slice-origin -6 0 0 --slice-only
+```
+
+```python
+from mageometry import viz3d
+
+viz3d.current_view(grid, component='mu0J_b', field=field, delta=0.002,
+                  current_scale=0.125, current_unit='nA/m^2', length_unit='Re',
+                  slice_normal='x', slice_origin=(-6, 0, 0), slice_only=True)
+```
+
+The conversion above assumes a model field in nT and coordinates in Re.
+Omit `field`, `delta`, and the unit-conversion options for a simulation grid
+in native units. The selectable quantities follow
+[notebook 10](examples/notebooks/10_current_density_from_geometry.ipynb):
+
+| Component | Displayed quantity | Signed arrow direction |
+| --- | --- | --- |
+| `fac` | Independent Cartesian curl(B) · T | T (along / against B) |
+| `mu0J_T` | Parallel current from field-line twist | T |
+| `B_dT_dn_b` | Parallel term 1: B(∂T/∂n)·b | T |
+| `B_dn_db_T` | Parallel term 2: B(∂n/∂b)·T | T |
+| `B_twist_diff` | Signed difference: B(∂T/∂n)·b − B(∂n/∂b)·T | T (difference, not total current) |
+| `mu0J_n` | Normal current: ∂\|B\|/∂b | n (principal normal) |
+| `mu0J_b` | Binormal current: \|B\|κ − ∂\|B\|/∂n | b (T × n, not B) |
+| `mu0J_x/y/z` | Cartesian components of the Frenet reconstruction | x / y / z |
+| `alpha` | Twist: μ₀J_T / \|B\| | None (scalar, not current density) |
+| `B_kappa` | Curvature contribution to μ₀J_b: +\|B\|κ | b |
+| `minus_dB_dn` | Pressure contribution to μ₀J_b: −∂\|B\|/∂n | b |
+
+Red/blue mean positive/negative **in the selected basis**, not always along/
+against B. `alpha` keeps inverse-length units and is never multiplied by
+`current_scale`. `current_unit` labels scaled currents; it does not perform
+conversion. The legacy `current_label` overrides only the `fac` label.
+
+The two entries immediately below `J_T` in the dropdown split its parallel
+current: **`B_dT_dn_b + B_dn_db_T = mu0J_T`** to round-off. Here B is the
+magnetic-field magnitude; lowercase b is the Frenet binormal. Both terms
+are signed contributions **along T**, not currents along n or b. They use
+the same current conversion and validity mask as `mu0J_T`, and are returned
+by `field_line_current_density` without additional field evaluations. Both
+names also work with `viz.plot_geometry_map` and other named-quantity viewers.
+
+```bash
+python examples/fac_viewer.py --component B_dT_dn_b --slice x --slice-origin -6 0 0 --slice-only
+# Select "J_T term 2: B(dn/db).T" to compare the second contribution.
+```
+
+See the [first parallel-current contribution on a slice](docs/images/parallel-current-terms.png).
+
+Choose **`J_T terms: 1 - 2 (difference)`** to view
+`B_twist_diff = B_dT_dn_b - B_dn_db_T`. This subtracts the signed terms,
+not their absolute values; the total parallel current remains their **sum**.
+The difference uses the same units, masks, and current conversion as the
+terms. Its arrows describe the signed difference along T, not the total J_T.
+Like the individual terms, it has its own colour scale and works in both
+slice modes. Start directly with:
+
+```bash
+python examples/fac_viewer.py --component B_twist_diff --slice x --slice-origin -6 0 0 --slice-only
+```
+
+See the [parallel-term difference distribution](docs/images/parallel-current-difference.png).
+
+The notebook's geometry APIs are evaluated and cached together on first use;
+subsequent component changes and slice drags reuse those values. Magnetic
+context lines stay fixed for comparison. Each component remembers its own
+threshold and uses its own fixed, symmetric 98th-percentile colour scale:
+**equal colours across different components need not mean equal amplitudes**.
+Compare the numeric legends when inspecting cancellation of `B_kappa` and
+`minus_dB_dn` in `mu0J_b`.
+
+Undefined frames or stencil samples remain blank. Unlike the independent
+`fac` diagnostic, the notebook reconstruction requires a valid Frenet frame,
+even for its Cartesian components. Grid-only geometry uses the masked
+preview's linear interpolant and a scalar step equal to its smallest spacing;
+set `geometry_delta` (CLI: `--geometry-delta`) to check convergence. With an
+explicit field, it defaults to `min(delta)`, or the smallest preview spacing
+when delta is omitted. Smooth, fully finite grids can instead supply
+`field=grid.field('cubic')` and an appropriate `delta`. Coarsening and linear
+interpolation affect derivatives; do not interpret preview structure without
+resolution and step-size checks.
 
 #### Finding field-aligned currents
 

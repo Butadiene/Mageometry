@@ -20,8 +20,9 @@ class _SliceFocus:
         self.active = False
         self.slider = None
         self.props = set()
+        self.layout_callbacks = []
         self.saved_visibility = {}
-        self.bar_title = f'FAC cross-section: {owner.label}'
+        self.bar_title = f'{owner.scalar_name} cross-section: {owner.label}'
         self.bar_visible = False
         self.corners = np.array(list(product(*np.asarray(owner.bounds).reshape(3, 2))))
         self.length = np.linalg.norm(np.ptp(self.corners, axis=0))
@@ -57,15 +58,14 @@ class _SliceFocus:
             panel.SetInteractive(False)
         if self.expand:
             self.renderer.SetViewport(0, 0, 1, 1)
+        for callback in self.layout_callbacks:
+            callback()
         for widget, _ in self.saved_widgets:
             widget.Off()
         self.renderer.background_color = '#eef2f6'
         self.plotter.enable_image_style()
         self.focus_style = self.plotter.iren.style
         self.char_observer = self.focus_style.AddObserver('CharEvent', self._char_event)
-        self.plotter.add_text('FAC / CROSS-SECTION', position=(0.035, 0.935),
-                             viewport=True, font_size=23, color='#263546',
-                             name='fac-focus-title', render=False)
         self.plotter.add_text(
             'F4: return to 3D  |  F1/F2/F3: YZ/XZ/XY  |  shift+drag: pan  |  wheel: zoom  |  r: fit',
             position=(0.035, 0.015), viewport=True, font_size=10,
@@ -102,6 +102,10 @@ class _SliceFocus:
         if not self.active:
             return
         self.owner.activate_main()
+        self.plotter.add_text(f'{self.owner.scalar_name} / CROSS-SECTION',
+                             position=(0.035, 0.935), viewport=True,
+                             font_size=17, color='#263546',
+                             name='fac-focus-title', render=False)
         normal, origin = self.owner.normal, self.owner.origin
         changed = self.last_normal is None or not np.allclose(normal, self.last_normal)
         if changed:
@@ -150,7 +154,8 @@ class _SliceFocus:
         self.plotter.add_text(self.owner.location(), position=(0.035, 0.875),
                              viewport=True, font_size=13, color='#263546',
                              name='fac-focus-location', render=False)
-        message = 'All FAC strengths / fixed colour scale' if has_data else 'No valid FAC on this plane'
+        key = self.owner.scalar_name
+        message = f'All {key} strengths / fixed colour scale' if has_data else f'No valid {key} on this plane'
         self.plotter.add_text(message, position=(0.035, 0.835), viewport=True,
                              font_size=10, color='#64748b', name='fac-focus-status', render=False)
         self.hide_overview()
@@ -212,6 +217,8 @@ class _SliceFocus:
             panel.SetDraw(draw)
             panel.SetInteractive(interactive)
         self.renderer.SetViewport(self.saved_viewport)
+        for callback in self.layout_callbacks:
+            callback()
         self.renderer.background_color = self.saved_background
         self.focus_style.RemoveObserver(self.char_observer)
         self.plotter.iren.style = self.saved_style

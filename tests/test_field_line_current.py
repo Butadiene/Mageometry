@@ -25,6 +25,7 @@ from mageometry import (
     geopack_field,
     field_magnitude_derivatives,
     field_line_current_density,
+    field_line_directional_derivatives,
     verify_divergence_identity,
 )
 
@@ -170,6 +171,67 @@ class TestFieldLineCurrentDensity(unittest.TestCase):
         cur = field_line_current_density(field, -6.0, 1.0, 2.0, delta=DELTA)
         for key, val in cur.items():
             self.assertIsInstance(val, float, msg=key)
+
+    def test_parallel_terms_match_directional_projections_and_sum(self):
+        field = geopack_field('t96', 'igrf', T96_PARMOD, self.ps)
+        points = _test_points()
+        current = field_line_current_density(field, *points, delta=DELTA)
+        derivatives = field_line_directional_derivatives(field, *points, delta=DELTA)
+        valid = np.isfinite(derivatives['dT_dn_b']) & np.isfinite(current['mu0J_T'])
+        self.assertGreater(np.count_nonzero(valid), len(points[0]) // 2)
+        for key, derivative in (('B_dT_dn_b', 'dT_dn_b'), ('B_dn_db_T', 'dn_db_T')):
+            np.testing.assert_allclose(current[key][valid],
+                                       (current['B'] * derivatives[derivative])[valid],
+                                       rtol=1e-11, atol=1e-11)
+            np.testing.assert_array_equal(np.isfinite(current[key]), np.isfinite(current['mu0J_T']))
+        np.testing.assert_allclose(current['B_dT_dn_b'] + current['B_dn_db_T'],
+                                   current['mu0J_T'], rtol=1e-12, atol=1e-12)
+
+    def test_helical_parallel_terms_broadcast_signs_and_call_budget(self):
+        # B=(-y,x,c): each parallel contribution is c/sqrt(x^2+y^2+c^2).
+        x, y = np.array([[0.5], [1.2]]), np.array([-1., 0., 1.])
+        for c in (-2., 2.):
+            calls = []
+
+            def field(x, y, z):
+                calls.append(1)
+                return -y, x, np.full_like(x, c)
+
+            current = field_line_current_density(field, x, y, 0., delta=1e-4)
+            self.assertEqual(len(calls), 20)  # no extra model evaluations
+            expected = c / np.sqrt(x*x + y*y + c*c)
+            for key in ('B_dT_dn_b', 'B_dn_db_T'):
+                self.assertEqual(current[key].shape, (2, 3))
+                np.testing.assert_allclose(current[key], expected, rtol=1e-7)
+
+    def test_parallel_terms_share_stencil_rejection_and_undefined_frames(self):
+        field = lambda x, y, z: (-y, x, np.ones_like(x))
+        # Reject transverse normal changes deliberately to exercise the
+        # common mask, rather than returning an apparently valid lone term.
+        current = field_line_current_density(field, [1., 2.], 0., 0.,
+                                             delta=0.2, normal_flip_tol=1.)
+        self.assertTrue(np.all(np.isnan(current['mu0J_T'])))
+        for key in ('B_dT_dn_b', 'B_dn_db_T', 'B_twist_diff'):
+            self.assertTrue(np.all(np.isnan(current[key])))
+        straight = lambda x, y, z: (np.sin(z), np.cos(z), np.zeros_like(z))
+        current = field_line_current_density(straight, 1., 0., 1.)
+        for key in ('B_dT_dn_b', 'B_dn_db_T', 'B_twist_diff'):
+            self.assertTrue(np.isnan(current[key]))
+
+    def test_parallel_difference_is_signed_term_one_minus_term_two(self):
+        calls = []
+
+        def field(x, y, z):
+            calls.append(1)
+            return -y*z, x*z, np.ones_like(x)
+
+        current = field_line_current_density(field, 1., 0.5, [-1., 1.], delta=DELTA)
+        self.assertEqual(len(calls), 20)
+        expected = current['B_dT_dn_b'] - current['B_dn_db_T']
+        np.testing.assert_array_equal(current['B_twist_diff'], expected)
+        self.assertTrue(np.any(expected > 0))
+        self.assertTrue(np.any(expected < 0))
+        self.assertFalse(np.allclose(expected, current['mu0J_T']))
 
 
 def _div_fd(field, x, y, z, h=2.5e-4):

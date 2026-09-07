@@ -93,6 +93,9 @@ def _current(key):
 
 _CURRENT_LABELS = {
     'mu0J_T': 'μ₀J·T (parallel current)',
+    'B_dT_dn_b': 'B(∂T/∂n)·b (parallel term 1)',
+    'B_dn_db_T': 'B(∂n/∂b)·T (parallel term 2)',
+    'B_twist_diff': 'B(∂T/∂n)·b − B(∂n/∂b)·T (term difference)',
     'mu0J_n': 'μ₀J·n',
     'mu0J_b': 'μ₀J·b',
     'alpha': 'α = μ₀j∥/B (twist)',

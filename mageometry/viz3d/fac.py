@@ -1,4 +1,4 @@
-"""A spatial overview of field-aligned current, with signed regions and arrows."""
+"""Spatial current-component overviews, with signed regions and arrows."""
 
 import numpy as np
 
@@ -9,8 +9,11 @@ from ._pv import get_plotter, require_pyvista
 from .mesh import to_rectilinear_grid, trace_polydata
 from .slicer import _face_camera
 from ._fac_slice import _FACSlice, _slice_settings
+from ._current import (COMPONENTS, COMPONENT_LABELS, _CurrentPreview,
+                       _component_label, _component_name)
+from ._dropdown import _Dropdown
 
-__all__ = ['fac_view']
+__all__ = ['fac_view', 'current_view']
 
 _POSITIVE = '#c94343'
 _NEGATIVE = '#2877ba'
@@ -19,13 +22,12 @@ _BACKGROUND = '#f5f7fa'
 
 
 def _masked_field(field, mask):
-    """Avoid evaluating a model inside an explicitly excluded region."""
-    if mask is None:
-        return field
-
+    """Skip excluded regions and undefined frame/stencil coordinates."""
     def evaluate(x, y, z):
         coords = np.broadcast_arrays(x, y, z)
-        keep = ~np.broadcast_to(np.asarray(mask(*coords), dtype=bool), coords[0].shape)
+        keep = np.all(np.isfinite(coords), axis=0)
+        if mask is not None:
+            keep &= ~np.broadcast_to(np.asarray(mask(*coords), dtype=bool), coords[0].shape)
         result = tuple(np.full(coords[0].shape, np.nan) for _ in range(3))
         if np.any(keep):
             components = field(*(c[keep] for c in coords))
@@ -152,14 +154,67 @@ def _valid_volume(mesh, values):
     return mesh.extract_cells(cells.ravel(order='F'))
 
 
+def current_view(gridded_field, component='mu0J_T', **kwargs):
+    """Explore notebook-10 current components in the FAC viewer layout.
+
+    Parameters
+    ----------
+    gridded_field : GriddedField
+        Magnetic field snapshot in consistent Cartesian coordinates.
+    component : str, optional
+        Initial quantity: ``mu0J_T`` (default), ``mu0J_n``, ``mu0J_b``,
+        ``mu0J_x``, ``mu0J_y``, ``mu0J_z``, ``alpha``, ``B_kappa``,
+        ``minus_dB_dn``, the parallel terms ``B_dT_dn_b`` / ``B_dn_db_T``,
+        their signed difference ``B_twist_diff``, or the independent
+        Cartesian ``fac`` diagnostic.
+        Switch with the top dropdown or F5/F6, including in slice-only mode.
+    **kwargs
+        All :func:`fac_view` options, including slices, masks, and tracing.
+        ``current_unit`` labels scaled currents; ``alpha`` is never scaled
+        by ``current_scale`` and has inverse-length units. ``current_label``
+        overrides only the FAC label. ``geometry_delta`` is a positive scalar
+        step for the notebook APIs: by default min(delta) for an explicit
+        field, otherwise the smallest preview spacing. Grid geometry uses
+        the masked preview's linear interpolant; to use cubic interpolation,
+        pass ``field=grid.field('cubic')`` and an appropriate ``delta``.
+
+    Returns
+    -------
+    pyvista.Plotter
+        The same layout and controls as :func:`fac_view`, with component
+        selection. Camera, slice position, and magnetic context lines stay
+        fixed; each component remembers its threshold and has its own fixed
+        symmetric colour scale. Arrows follow its signed T/n/b or Cartesian
+        basis. No arrows are drawn for the scalar twist ``alpha``.
+
+    Notes
+    -----
+    Non-FAC components use ``field_line_current_density``,
+    ``field_magnitude_derivatives``, and ``field_line_frenet_frame`` exactly
+    as in notebook 10; they are cached together at first selection. Undefined
+    frames/stencils remain NaN, including Cartesian reconstructions on
+    straight lines. ``fac`` does not require a normal and remains available.
+    ``B_kappa + minus_dB_dn = mu0J_b`` where the required frames are valid.
+    ``B_dT_dn_b + B_dn_db_T = mu0J_T`` to round-off. These are separately
+    displayed contributions along T, with the same units and validity mask
+    as mu0J_T, not separate vector directions or unweighted twist rates.
+    ``B_twist_diff = B_dT_dn_b - B_dn_db_T`` is a signed comparison,
+    not total parallel current; its arrows represent the difference along T.
+    Display scales are percentile-based, not a test of physical significance.
+    Check derivative-step and preview-resolution convergence before analysis.
+    """
+    return fac_view(gridded_field, component=_component_name(component), **kwargs)
+
+
 def fac_view(gridded_field, field=None, delta=None, threshold=None,
              percentile=90.0, max_points=120000, mask=None, seeds=None,
              n_lines=10, trace_kwargs=None, current_scale=1.0,
-             current_label='mu0 J parallel [field unit / length unit]',
+             current_label=None,
              length_unit='grid unit', planet_radius=None,
              planet_center=(0.0, 0.0, 0.0), front_view=None,
              plotter=None, show=True, slice_normal=None, slice_origin=None,
-             slice_only=False):
+             slice_only=False, component=None, current_unit=None,
+             geometry_delta=None):
     """Locate field-aligned currents in a gridded magnetic field.
 
     Red regions carry positive current along B, blue regions negative
@@ -229,6 +284,16 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         toggles this mode and restores the overview camera and visibility.
         A dedicated position slider scans the cached slices; shift+drag
         pans and the wheel zooms. Defaults to an XZ slice if none is given.
+    component : str or None, optional
+        None keeps the original FAC-only controls. A component name enables
+        the selector described in :func:`current_view`.
+    current_unit : str, optional
+        Unit label for scaled currents, e.g. 'nA/m^2'. Does not convert data.
+        With no unit override, labels describe native mu0 J. Twist alpha
+        always retains inverse-length units and is not current-scaled.
+    geometry_delta : float, optional
+        Scalar finite-difference step for notebook-10 components. See
+        :func:`current_view`; unused for FAC-only viewing.
 
     Returns
     -------
@@ -241,6 +306,8 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
     pv = require_pyvista()
     owned_plotter = plotter is None
     slice_controller = None
+    selectable = component is not None
+    component = _component_name(component) if selectable else 'fac'
     slice_normal, slice_origin = _slice_settings(slice_normal, slice_origin)
     if not np.isfinite(current_scale) or current_scale <= 0:
         raise ValueError("current_scale must be positive and finite.")
@@ -261,11 +328,30 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         seeds = np.asarray(seeds, dtype=float)
         if seeds.ndim != 2 or seeds.shape[1] != 3 or not np.all(np.isfinite(seeds)):
             raise ValueError("seeds must be finite with shape (n, 3).")
+    if geometry_delta is not None and (not np.isscalar(geometry_delta)
+            or not np.isfinite(geometry_delta) or geometry_delta <= 0):
+        raise ValueError("geometry_delta must be a positive finite scalar.")
 
-    preview, values = _sample_fac(gridded_field, field, delta, max_points, mask)
-    values *= current_scale
+    preview, fac = _sample_fac(gridded_field, field, delta, max_points, mask)
+    spacing = min(float(np.min(np.diff(a))) for a in (preview.x, preview.y, preview.z))
+    if geometry_delta is None:
+        geometry_delta = float(np.min(delta)) if field is not None and delta is not None else spacing
+    geometry_field = _masked_field(preview.field() if field is None else field, mask)
+    cache = _CurrentPreview(preview, fac, geometry_field, geometry_delta)
+    fac_label = current_label
+    scalar_name = component
+
+    def display_values(key):
+        raw, basis = cache.get(key)
+        return raw * (1.0 if key == 'alpha' else current_scale), basis
+
+    def display_label(key):
+        return _component_label(key, current_unit, length_unit, fac_label)
+
+    values, basis = display_values(component)
+    current_label = display_label(component)
     mesh = to_rectilinear_grid(preview, quantities=())
-    mesh.point_data['fac'] = values.ravel(order='F')
+    mesh.point_data[scalar_name] = values.ravel(order='F')
     volume = _valid_volume(mesh, values)
     magnitude = np.abs(values[np.isfinite(values)])
     peak = float(magnitude.max()) if magnitude.size else 0.0
@@ -276,6 +362,7 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
     # Zero means retain every nonzero current, not the current-free volume.
     floor = np.nextafter(0.0, 1.0)
     threshold = max(threshold, floor)
+    thresholds = {component: threshold}
 
     if front_view:
         plotter = get_plotter(shape='1|3', splitting_position=0.7,
@@ -290,12 +377,25 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         plotter.subplot(*main_location)
 
     plotter.set_background(_BACKGROUND, all_renderers=False)
-    plotter.add_text('FIELD-ALIGNED CURRENT', position=(0.035, 0.94),
-                     viewport=True, font_size=19, color=_INK, name='fac-title')
-    plotter.add_text('+ along B', position=(0.035, 0.885), viewport=True,
-                     font_size=12, color=_POSITIVE)
-    plotter.add_text('- against B', position=(0.24, 0.885), viewport=True,
-                     font_size=12, color=_NEGATIVE)
+    plotter.add_text('CURRENT DECOMPOSITION' if selectable else 'FIELD-ALIGNED CURRENT',
+                     position=(0.035, 0.94), viewport=True,
+                     font_size=17 if selectable else 19, color=_INK, name='fac-title')
+
+    def describe_component():
+        direction = COMPONENTS[component][1]
+        along = 'B' if direction == 'T' else direction
+        positive = f'+ along {along}' if direction else '+ positive twist'
+        negative = f'- against {along}' if direction else '- negative twist'
+        plotter.add_text(positive, position=(0.035, 0.885), viewport=True,
+                         font_size=12, color=_POSITIVE, name='fac-sign-positive')
+        plotter.add_text(negative, position=(0.24, 0.885), viewport=True,
+                         font_size=12, color=_NEGATIVE, name='fac-sign-negative')
+        if selectable:
+            plotter.add_text(COMPONENTS[component][2], position=(0.035, 0.845),
+                             viewport=True, font_size=10, color=_INK,
+                             name='fac-component-description', render=False)
+
+    describe_component()
     plotter.add_text('Grey: magnetic field lines', position=(0.47, 0.885),
                      viewport=True, font_size=10, color='#64748b')
     plotter.add_mesh(mesh.outline(), color='#c0cbd6', line_width=1,
@@ -320,8 +420,8 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         axes[axis] = np.array([mesh.center[axis]])
         panel = pv.RectilinearGrid(*axes)
         projected = _peak_projection(values, axis).ravel(order='F')
-        panel.point_data['fac'] = projected.copy()
-        actor = plotter.add_mesh(panel, scalars='fac', cmap='RdBu_r',
+        panel.point_data[scalar_name] = projected.copy()
+        actor = plotter.add_mesh(panel, scalars=scalar_name, cmap='RdBu_r',
                                  clim=(-limit, limit), nan_opacity=0,
                                  lighting=False, show_scalar_bar=False,
                                  name='fac-projection')
@@ -350,12 +450,11 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         plotter.enable_parallel_projection()
         plotter.reset_camera()
         plotter.camera.parallel_scale *= 1.4
-        panels.append((panel, projected))
+        panels.append([panel, projected, actor])
     if front_view:
         plotter.subplot(0)
 
     flat = values.ravel(order='F')
-    spacing = min(float(np.min(np.diff(a))) for a in (preview.x, preview.y, preview.z))
     if seeds is None:
         selected = _region_seeds(mesh.points, flat, threshold, n_lines, 0.12 * mesh.length)
         seeds = mesh.points[selected]
@@ -375,42 +474,45 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
 
     def update(cutoff):
         cutoff = max(float(cutoff), floor)
+        thresholds[component] = cutoff
         # Operate on the owned renderer even if the cursor is over a panel.
         activate_main()
         for sign, name, color in ((1, 'positive', _POSITIVE), (-1, 'negative', _NEGATIVE)):
             actor_name = f'fac-{name}'
             plotter.remove_actor(actor_name, reset_camera=False, render=False)
             if volume.n_cells and np.any(sign * flat >= cutoff):
-                region = volume.clip_scalar(value=sign * cutoff, scalars='fac', invert=sign < 0)
+                region = volume.clip_scalar(value=sign * cutoff, scalars=scalar_name, invert=sign < 0)
                 if region.n_cells:
                     actor = plotter.add_mesh(region.extract_surface(), color=color,
                                      opacity=0.5, smooth_shading=True, name=actor_name,
                                      reset_camera=False, render=False, show_scalar_bar=False)
                     actor.visibility = visibility['regions']
         plotter.remove_actor('fac-arrows', reset_camera=False, render=False)
-        selected = _region_seeds(mesh.points, flat, cutoff, 32, 0.07 * mesh.length)
+        vectors = None if basis is None else basis.reshape((-1, 3), order='F')
+        eligible = np.full_like(flat, np.nan) if vectors is None else np.where(
+            np.all(np.isfinite(vectors), axis=-1), flat, np.nan)
+        selected = _region_seeds(mesh.points, eligible, cutoff, 32, 0.07 * mesh.length)
         if selected.size:
             arrows = pv.PolyData(mesh.points[selected])
-            b = np.asarray(mesh.point_data['B'])[selected]
-            arrows['direction'] = np.sign(flat[selected, None]) * b / np.linalg.norm(b, axis=1)[:, None]
-            arrows['fac'] = flat[selected]
+            arrows['direction'] = np.sign(flat[selected, None]) * vectors[selected]
+            arrows[scalar_name] = flat[selected]
             glyphs = arrows.glyph(orient='direction', scale=False, factor=0.035 * mesh.length)
-            actor = plotter.add_mesh(glyphs, scalars='fac', clim=(-limit, limit),
+            actor = plotter.add_mesh(glyphs, scalars=scalar_name, clim=(-limit, limit),
                                      cmap='RdBu_r', name='fac-arrows', show_scalar_bar=False,
                                      reset_camera=False, render=False)
             actor.visibility = visibility['arrows']
-        for panel, projected in panels:
-            panel.point_data['fac'] = np.where(np.abs(projected) >= cutoff, projected, np.nan)
+        for panel, projected, _ in panels:
+            panel.point_data[scalar_name] = np.where(np.abs(projected) >= cutoff, projected, np.nan)
         count = np.count_nonzero(np.isfinite(flat) & (np.abs(flat) >= cutoff))
         if not magnitude.size:
-            status = 'FAC unavailable: no valid derivative stencils'
+            status = f'{component} unavailable: no valid frames / derivative stencils'
         elif count == 0:
-            status = 'No FAC above threshold'
+            status = f'No {component} above threshold'
         else:
             status = f'{count:,} / {magnitude.size:,} valid nodes above threshold'
         plotter.add_text(status, position=(0.035, 0.22), viewport=True,
                          font_size=11, color=_INK, name='fac-status', render=False)
-        plotter.add_text(f'|FAC| >= {cutoff:.3g}  /  {current_label}',
+        plotter.add_text(f'|{component}| >= {cutoff:.3g}  /  {current_label}',
                          position=(0.035, 0.17), viewport=True, font_size=10,
                          color=_INK, name='fac-cutoff', render=False)
         if slice_controller is not None:
@@ -419,7 +521,7 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
     update(threshold)
     slider_max = max(peak * 1.01, threshold * 1.1) if peak or threshold > floor else 1.0
     threshold_widget = plotter.add_slider_widget(update, rng=(0, slider_max),
-                              value=threshold, title='FAC strength threshold',
+                              value=threshold, title='Strength threshold',
                               pointa=(0.06, 0.09), pointb=(0.64, 0.09), color=_INK,
                               title_height=0.017, fmt='%.2g', interaction_event='end')
     preview_shape = ' x '.join(map(str, preview.shape))
@@ -475,7 +577,76 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
               activate_main=activate_main,
               panels=tuple(plotter.renderers)[1:] if front_view else (),
               overview_widgets=(threshold_widget, main_renderer.axes_widget),
-              expand=owned_plotter)
+              expand=owned_plotter, scalar_name=scalar_name)
+
+    selector = None
+
+    def select(key):
+        nonlocal component, scalar_name, values, basis, flat, volume
+        nonlocal magnitude, limit, peak, current_label
+        if key == component:
+            if selector is not None:
+                selector.set_selected(key)
+            return
+        activate_main()
+        # Compute before modifying the scene so a failed calculation cannot
+        # leave the old component labelled as the newly requested one.
+        if key not in cache.values:
+            plotter.add_text('Computing notebook components (cached after first use)...',
+                             position=(0.035, 0.83), viewport=True, font_size=10,
+                             color=_INK, name='fac-focus-loading', render=False)
+            plotter.render()
+        try:
+            new_values, new_basis = display_values(key)
+        except Exception:
+            selector.set_selected(component)
+            raise
+        finally:
+            plotter.remove_actor('fac-focus-loading', reset_camera=False, render=False)
+        old_label, old_name = current_label, scalar_name
+        component = scalar_name = key
+        values, basis = new_values, new_basis
+        current_label = display_label(key)
+        flat = values.ravel(order='F')
+        del mesh.point_data[old_name]
+        mesh.point_data[scalar_name] = flat
+        volume = _valid_volume(mesh, values)
+        magnitude = np.abs(flat[np.isfinite(flat)])
+        peak = float(magnitude.max()) if magnitude.size else 0.0
+        limit = float(np.percentile(magnitude, 98)) if magnitude.size else 1.0
+        limit = limit if limit > 0 else peak or 1.0
+        cutoff = thresholds.get(key, float(np.percentile(magnitude, percentile)) if magnitude.size else 0.0)
+        rep = threshold_widget.GetRepresentation()
+        rep.SetMaximumValue(max(peak * 1.01, cutoff * 1.1, floor) if peak or cutoff > floor else 1.)
+        rep.SetValue(cutoff)
+        selector.set_selected(key)
+        for axis, (panel, projected, actor) in enumerate(panels):
+            panels[axis][1] = _peak_projection(values, axis).ravel(order='F')
+            del panel.point_data[old_name]
+            panel.point_data[scalar_name] = panels[axis][1].copy()
+            actor.mapper.array_name = scalar_name
+            actor.mapper.scalar_range = (-limit, limit)
+        if panels:
+            plotter.remove_scalar_bar(old_label, render=False)
+            plotter.subplot(3)
+            plotter.add_scalar_bar(title=current_label, mapper=panels[-1][2].mapper,
+                                   color=_INK, title_font_size=10, label_font_size=9,
+                                   vertical=False, width=0.85, height=0.1,
+                                   position_x=0.08, position_y=0.02, fmt='%.2g', render=False)
+            activate_main()
+        describe_component()
+        update(cutoff)
+        slice_controller.set_component(volume, limit, current_label, scalar_name)
+        plotter.render()
+
+    if selectable:
+        selector = _Dropdown(plotter, COMPONENT_LABELS, component, select)
+        slice_controller.focus.layout_callbacks.append(selector.layout)
+        # The selector must remain interactive in the isolated slice mode.
+        slice_controller.focus.props.update(selector.props)
+        keys = tuple(COMPONENTS)
+        plotter.add_key_event('F5', lambda: select(keys[(keys.index(component) - 1) % len(keys)]))
+        plotter.add_key_event('F6', lambda: select(keys[(keys.index(component) + 1) % len(keys)]))
     if slice_only:
         slice_controller.focus.enter()
     if show:

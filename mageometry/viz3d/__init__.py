@@ -12,6 +12,7 @@ Linux (including WSL2 with WSLg), Windows, and macOS.
   volume (three orthogonal planes, or one free plane)
 - `explore` — one call: slices plus field lines traced from seed points
 - `fac_view` — signed FAC regions, current arrows, and peak-projection maps
+- `current_view` — switch notebook-10 current components in the same viewer
 - `add_field_lines` — traced lines as polylines or tubes, optionally
   coloured by a quantity along the line
 - `add_frenet_frame` — T/n/b arrow glyphs at points
@@ -33,12 +34,13 @@ from .slicer import slice_view
 from .lines import add_field_lines
 from .frames import add_frenet_frame
 from .explore import explore
-from .fac import fac_view
+from .fac import fac_view, current_view
 
 __all__ = [
     "slice_view",
     "explore",
     "fac_view",
+    "current_view",
     "add_field_lines",
     "add_frenet_frame",
     "to_rectilinear_grid",

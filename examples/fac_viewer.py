@@ -1,4 +1,4 @@
-"""Open a FAC overview for a model field or an existing simulation snapshot.
+"""Explore current components for a model field or a simulation snapshot.
 
 Examples (run from the repository after an editable install):
     python examples/fac_viewer.py
@@ -9,10 +9,15 @@ Examples (run from the repository after an editable install):
     python examples/fac_viewer.py --slice y
     python examples/fac_viewer.py --slice x --slice-origin -6 0 0
     python examples/fac_viewer.py --slice x --slice-origin -6 0 0 --slice-only
+    python examples/fac_viewer.py --component mu0J_n --slice x --slice-only
+    python examples/fac_viewer.py --component mu0J_b --geometry-delta 0.002
+    python examples/fac_viewer.py --component B_dT_dn_b --slice x --slice-only
+    python examples/fac_viewer.py --component B_twist_diff --slice x --slice-only
     python examples/fac_viewer.py --screenshot /tmp/fac-preview.png
 
-Red: positive FAC along B. Blue: negative FAC against B. Grey curves are
-magnetic field lines. Move the threshold slider to isolate stronger FAC.
+Choose a component with the top dropdown or F5/F6 (previous/next).
+Red/blue: positive/negative in that component's basis; grey: magnetic lines.
+Move the threshold slider to isolate stronger currents. Alpha has no arrows.
 Right-hand maps are signed peak projections, not slices or integrated current.
 Press c for a draggable slice in the main view, or F1/F2/F3 for YZ/XZ/XY planes.
 F4 toggles a clean face-on slice view with a dedicated position slider.
@@ -36,8 +41,7 @@ def model_snapshot():
         b = tuple(np.where(mask(*coords), np.nan, c) for c in field(*coords))
     grid = GriddedField(*axes, *b)
     return grid, dict(field=field, delta=0.002, mask=mask, planet_radius=1.,
-                      length_unit='Re', current_scale=0.125,
-                      current_label='J parallel [nA/m^2]',
+                      length_unit='Re', current_scale=0.125, current_unit='nA/m^2',
                       trace_kwargs={'r0': 2.5, 'ds': 0.15, 'max_steps': 350})
 
 
@@ -50,10 +54,18 @@ def main():
     parser.add_argument('--origin', type=float, nargs=3, help='x y z origin for direct HDF5')
     parser.add_argument('--spacing', type=float, nargs=3, help='dx dy dz for direct HDF5')
     parser.add_argument('--stride', type=int, default=1, help='read every nth grid node')
-    parser.add_argument('--threshold', type=float, help='absolute FAC display cutoff')
+    parser.add_argument('--component', default='fac',
+                         choices=('fac', 'mu0J_T', 'B_dT_dn_b', 'B_dn_db_T',
+                                  'B_twist_diff',
+                                  'mu0J_n', 'mu0J_b', 'mu0J_x',
+                                  'mu0J_y', 'mu0J_z', 'alpha', 'B_kappa', 'minus_dB_dn'),
+                         help='initial component (switch interactively with F5/F6)')
+    parser.add_argument('--threshold', type=float, help='absolute cutoff for the initial component')
+    parser.add_argument('--geometry-delta', type=float,
+                         help='scalar derivative step for notebook-10 components')
     parser.add_argument('--max-points', type=int, default=120000, help='preview node budget')
     parser.add_argument('--slice', choices=('x', 'y', 'z'), dest='slice_normal',
-                         help='show a FAC slice initially, normal to this axis')
+                         help='show a component slice initially, normal to this axis')
     parser.add_argument('--slice-origin', type=float, nargs=3,
                          help='initial point on the slice (x y z, in grid coordinates)')
     parser.add_argument('--slice-only', action='store_true',
@@ -80,8 +92,10 @@ def main():
     if args.screenshot:
         import pyvista as pv
         pv.OFF_SCREEN = True
-    print(f'Preparing FAC overview: {grid}', flush=True)
-    plotter = viz3d.fac_view(grid, threshold=args.threshold, max_points=args.max_points,
+    print(f'Preparing current overview ({args.component}): {grid}', flush=True)
+    plotter = viz3d.current_view(grid, component=args.component,
+                            threshold=args.threshold, max_points=args.max_points,
+                            geometry_delta=args.geometry_delta,
                             slice_normal=args.slice_normal, slice_origin=args.slice_origin,
                             slice_only=args.slice_only,
                             show=False, **options)

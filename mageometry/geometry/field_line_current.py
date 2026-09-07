@@ -194,6 +194,13 @@ def field_line_current_density(field, x, y, z, delta=0.01,
     current : dict of float or ndarray
         - ``'mu0J_T'``, ``'mu0J_n'``, ``'mu0J_b'``: μ₀J projected on the
           frame (field-unit/length-unit)
+        - ``'B_dT_dn_b'``, ``'B_dn_db_T'``: the two parallel-current
+          contributions B(∂T/∂n)·b and B(∂n/∂b)·T, in the same units.
+          Their sum equals ``mu0J_T`` to round-off; both use its validity
+          mask and reuse the already evaluated transverse stencils.
+        - ``'B_twist_diff'``: ``B_dT_dn_b - B_dn_db_T``, the signed
+          difference of the two terms, not their sum or total parallel
+          current. Same units and validity mask; no extra field evaluations.
         - ``'mu0J_x'``, ``'mu0J_y'``, ``'mu0J_z'``: the same vector in the
           field's Cartesian coordinates
         - ``'alpha'``: μ₀ j∥ / B = T·(∇×T), the twist per unit length
@@ -251,11 +258,17 @@ def field_line_current_density(field, x, y, z, delta=0.01,
     with np.errstate(invalid='ignore'):
         alpha = twist['n'] + twist['b']
         mu0J_T = B0 * alpha
+        B_dT_dn_b = B0 * twist['n']
+        B_dn_db_T = B0 * twist['b']
+        B_twist_diff = B_dT_dn_b - B_dn_db_T
         mu0J_n = grad['b']
         mu0J_b = B0 * curvature - grad['n']
 
     results = {
         'mu0J_T': mu0J_T, 'mu0J_n': mu0J_n, 'mu0J_b': mu0J_b,
+        'B_dT_dn_b': B_dT_dn_b,
+        'B_dn_db_T': B_dn_db_T,
+        'B_twist_diff': B_twist_diff,
         'mu0J_x': mu0J_T * tx + mu0J_n * nx + mu0J_b * bnx,
         'mu0J_y': mu0J_T * ty + mu0J_n * ny + mu0J_b * bny,
         'mu0J_z': mu0J_T * tz + mu0J_n * nz + mu0J_b * bnz,

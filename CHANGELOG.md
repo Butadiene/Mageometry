@@ -52,6 +52,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   16 and `field_line_directional_derivatives` 21 instead of 77.
 
 ### Added
+- **Parallel-term difference distribution.** `B_twist_diff` displays the
+  signed subtraction `B_dT_dn_b - B_dn_db_T` via the current dropdown,
+  regions, projections, slices, and named-quantity plots. It is a comparison
+  diagnostic, not total parallel current. It reuses cached terms and their
+  validity mask, with the same current scaling and no extra field calls.
+- **Separate parallel-current contributions.** `B_dT_dn_b` and `B_dn_db_T`
+  display B(∂T/∂n)·b and B(∂n/∂b)·T in the current-view dropdown, slices,
+  and named-quantity plots. `field_line_current_density` returns both terms
+  from its existing stencils, with the same validity mask as `mu0J_T` and
+  no additional field evaluations. Their sum recovers `mu0J_T` to round-off;
+  both use signed T-direction arrows and the current unit conversion.
+- **Notebook-10 current-component viewer.** `viz3d.current_view` switches
+  between independent Cartesian FAC, Frenet `mu0J_T/n/b`, reconstructed
+  `mu0J_x/y/z`, twist `alpha`, and the binormal curvature/pressure terms.
+  A labelled dropdown and F5/F6 update regions, basis-correct arrows, peak maps,
+  and both slice modes without moving the camera or plane. Geometry is
+  cached on first selection; each component retains its own threshold and
+  colour scale. Alpha has inverse-length units and no current arrows or
+  current scaling. `current_unit` and `geometry_delta` configure unit labels
+  and the notebook derivative step. The demo supports `--component` and
+  `--geometry-delta`; the original `fac_view` remains available.
+- **Dropdown component selection.** The component slider is replaced by a
+  clickable list with descriptive labels, selected/hovered highlighting,
+  keyboard navigation, and outside-click/Esc dismissal. It follows viewport
+  changes in slice-only mode and does not pass menu gestures to the camera.
 - **Clean FAC slice view.** `F4` isolates the cross-section face-on with a
   fixed colour scale and a dedicated position slider, and restores the
   previous overview camera and visibility when toggled again. The plane
