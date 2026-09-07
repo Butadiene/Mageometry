@@ -18,6 +18,7 @@ from ..geometry import (
     field_line_frame_quality,
     field_line_directional_derivatives,
     field_line_current_density,
+    field_aligned_current_density,
 )
 from ..geometry.field_line_directional_derivatives import _PROJECTIONS
 
@@ -64,6 +65,8 @@ def _derivative(key):
 
 
 QUANTITIES = {
+    'fac': Quantity(field_aligned_current_density, 'mu0 J parallel (FAC)',
+                    symmetric=True),
     'curvature': Quantity(lambda f, x, y, z, delta=0.01, **kw: field_line_curvature(f, x, y, z, delta=delta),
                           'curvature κ', positive=True, log=True, cmap='plasma'),
     'torsion': Quantity(field_line_torsion, 'torsion τ', symmetric=True),

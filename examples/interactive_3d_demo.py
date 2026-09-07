@@ -4,9 +4,9 @@ Interactive 3D visualization demo (mageometry.viz3d, requires pyvista).
 Samples a T96 + dipole magnetosphere onto a grid and opens two interactive
 desktop windows in sequence (close one to get the next):
 
-1. `explore` — |B| on three drag-able orthogonal slice planes, plus field
-   lines traced from equatorial seeds, coloured by curvature. The three
-   panels on the right show each slice face-on and follow the drag.
+1. `fac_view` — signed FAC regions, current direction arrows, magnetic
+   field lines and three peak-projection maps. Drag the threshold slider
+   to isolate the stronger currents. Red flows along B, blue against B.
 2. `slice_view` in free-plane mode — curvature on a single plane widget
    (drag the arrow to translate, grab the plane to rotate), with Frenet
    frame arrows along the noon meridian. The right panel views the slice
@@ -45,14 +45,14 @@ for comp in (bx, by, bz):
     comp[inside] = np.nan
 grid = GriddedField(x, y, z, bx, by, bz)
 
-# --- 1. One-call viewer: slices + field lines -------------------------------
-seeds = np.column_stack([np.arange(-9.0, -3.9, 1.0),
-                         np.zeros(6), np.zeros(6)])
-print("Window 1: |B| slices + field lines coloured by curvature "
+# --- 1. FAC overview -------------------------------------------------------
+print("Window 1: FAC regions and current directions "
       "(close the window to continue)")
-viz3d.explore(grid, 'bmag', seeds=seeds, line_color='curvature',
-              field=field, trace_kwargs={'ds': 0.1, 'r0': 2.0},
-              tube_radius=0.06)
+viz3d.fac_view(grid, field=field, delta=0.002,
+                mask=lambda x, y, z: x*x + y*y + z*z < 2.0**2,
+                trace_kwargs={'ds': 0.1, 'r0': 2.0}, planet_radius=1.0,
+                length_unit='Re', current_scale=0.125,
+                current_label='J parallel [nA/m^2]')
 
 # --- 2. Free slice plane + Frenet frames ------------------------------------
 print("Window 2: curvature on a free slice plane + Frenet frames")

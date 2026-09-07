@@ -57,6 +57,60 @@ def _bmag(field, x, y, z):
     return np.sqrt(bx * bx + by * by + bz * bz)
 
 
+def field_aligned_current_density(field, x, y, z, delta=0.01):
+    """Compute the signed parallel current ``mu0 J_parallel = curl(B) dot T``.
+
+    Cartesian central differences require seven field evaluations and no
+    Frenet normal, so this diagnostic also works on straight field lines.
+    Positive values flow along B; negative values flow against B.
+
+    Parameters
+    ----------
+    field : callable
+        ``field(x, y, z) -> (bx, by, bz)``, accepting NumPy arrays.
+    x, y, z : float or array_like
+        Coordinates in the field's length unit; inputs are broadcast.
+    delta : float or (3,) array_like, optional
+        Positive finite central-difference steps along x, y, z. Default 0.01.
+
+    Returns
+    -------
+    float or ndarray
+        Signed mu0 J_parallel in field-unit/length-unit. NaN at magnetic
+        nulls or wherever the field or any stencil sample is non-finite.
+        This is the magnetostatic curl-B estimate (displacement current
+        neglected), not a conversion to physical amperes. For nT and Re,
+        multiply by approximately 0.125 to obtain nA/m^2.
+    """
+    steps = np.broadcast_to(np.asarray(delta, dtype=float), (3,))
+    if not np.all(np.isfinite(steps) & (steps > 0)):
+        raise ValueError("delta must contain positive finite step sizes.")
+    scalar_input, x, y, z = _as_arrays(x, y, z)
+
+    def evaluate(coords):
+        return np.stack(np.broadcast_arrays(
+            *[np.asarray(c, dtype=float) for c in field(*coords)], coords[0])[:3],
+            axis=-1)
+
+    coords = (x, y, z)
+    b = evaluate(coords)
+    valid = np.all(np.isfinite(b), axis=-1)
+    derivatives = []
+    for axis, step in enumerate(steps):
+        plus, minus = list(coords), list(coords)
+        plus[axis], minus[axis] = coords[axis] + step, coords[axis] - step
+        bp, bm = evaluate(plus), evaluate(minus)
+        valid &= np.all(np.isfinite(bp) & np.isfinite(bm), axis=-1)
+        derivatives.append((bp - bm) / (2 * step))
+    dx, dy, dz = derivatives
+    curl = np.stack((dy[..., 2] - dz[..., 1], dz[..., 0] - dx[..., 2],
+                     dx[..., 1] - dy[..., 0]), axis=-1)
+    magnitude = np.linalg.norm(b, axis=-1)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        result = np.sum(curl * (b / magnitude[..., None]), axis=-1)
+    return _finish(scalar_input, np.where(valid & (magnitude > 0), result, np.nan))
+
+
 def field_magnitude_derivatives(field, x, y, z, delta=0.01,
                                 orthogonality_tol=DEFAULT_ORTHOGONALITY_TOL):
     """

@@ -37,6 +37,7 @@ from .field_line_directional_derivatives import (
 
 # |B| gradients along the frame and the Frenet-frame current density
 from .field_line_current import (
+    field_aligned_current_density,
     field_magnitude_derivatives,
     field_line_current_density,
     verify_divergence_identity,
@@ -66,6 +67,7 @@ __all__ = [
     "verify_unit_vectors",
 
     # |B| gradients and current density
+    "field_aligned_current_density",
     "field_magnitude_derivatives",
     "field_line_current_density",
     "verify_divergence_identity",

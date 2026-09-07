@@ -232,6 +232,98 @@ By default each slice is also shown face-on in a companion panel beside the 3D v
 
 `add_field_lines` (traced lines as polylines or tubes, coloured by a quantity along the line), `add_frenet_frame` (T/n/b arrow glyphs), and the converters `to_rectilinear_grid` / `trace_polydata` compose custom scenes on any `pyvista.Plotter`. Quantities and colour scales follow the same conventions as `mageometry.viz`; NaN stays blank. Derivative quantities on large grids are expensive to evaluate on every node — coarsen with `grid.subvolume(stride=...)` first. In Jupyter, PyVista's notebook backends also work (`pv.set_jupyter_backend("trame")`), but the desktop window is the primary target. A runnable demo is in `examples/interactive_3d_demo.py`.
 
+#### Finding field-aligned currents
+
+![FAC overview for a T96 plus dipole field: signed 3D regions and peak maps](docs/images/fac-overview.png)
+
+`fac_view` opens a FAC overview: red regions carry current **along B**, blue
+regions **against B**, and arrows show the parallel-current direction. Thin
+grey magnetic field lines show connectivity. The slider selects a minimum
+absolute current strength; `x`/`y`/`z` change the viewing direction, `r` resets
+the view, `l` toggles magnetic lines, `a` toggles current arrows, and `s`
+toggles the translucent regions to reveal the arrows inside them.
+
+```python
+from mageometry import load_xdmf, viz3d
+
+grid = load_xdmf("run000.xmf", stride=4)
+plotter = viz3d.fac_view(grid)   # automatic seeds and threshold
+# Or: viz3d.fac_view(grid, threshold=0.05, max_points=None)
+```
+
+Press **`c`** to show a draggable FAC slice in the left 3D view. The amber
+widget moves and rotates the plane; **`F1` / `F2` / `F3`** align it to
+**YZ / XZ / XY** while retaining its position. Press `c` again to hide it,
+or `s` to hide the surrounding current regions and focus on the cross-section.
+To open with a slice already visible:
+
+```python
+viz3d.fac_view(grid, slice_normal='x', slice_origin=(-6, 0, 0))
+# Arbitrary orientation: slice_normal=(1, 1, 0)
+```
+
+The slice shows **all FAC strengths**, independently of the region threshold,
+using the same fixed colour scale as the peak maps. It interpolates the cached
+preview values inside valid cells; masked or missing cells remain holes.
+Dragging the plane does not recompute the field or reset the camera. The
+right-hand peak maps retain their overview. Slices start hidden by default.
+See the [T96 + dipole cross-section example](docs/images/fac-slice.png).
+
+Press **`F4`** for a clean, face-on view of **only the slice**. It fills the
+viewer window with the cross-section and its colour scale, hiding the 3D
+regions, field lines, planet, handles, and overview panels. A dedicated
+**position slider** scans the plane along its normal without changing the
+colour scale; `F1`/`F2`/`F3` still select YZ/XZ/XY. Use shift+drag to pan,
+the wheel to zoom, and `r` to fit the slice. Scanning retains your zoom and
+pan. Press `F4` again to restore the previous 3D camera and visibility, or
+`c` to return with the slice hidden. With an external multi-panel plotter,
+only the FAC subplot is isolated; other subplots remain visible.
+
+```python
+viz3d.fac_view(grid, slice_normal='x', slice_origin=(-6, 0, 0), slice_only=True)
+```
+
+The command-line equivalent is:
+
+```bash
+python examples/fac_viewer.py --slice x --slice-origin -6 0 0 --slice-only
+```
+
+Without an explicit normal, the initial slice is XZ. The isolated view uses
+the same cached FAC values and masks. See the
+[slice-only screen example](docs/images/fac-slice-only.png).
+
+The three right-hand maps show the **signed peak of |FAC| along each viewing
+axis**. They expose off-centre structures without positioning slice planes;
+they are neither slices nor integrated currents. When opposite signs overlap,
+only the strongest sample appears on that sightline. The 3D view retains both.
+
+The diagnostic is `mu0 J_parallel = curl(B) dot B / |B|`, with Cartesian
+differences, so it remains defined on straight field lines. Simulation grids
+use their nonuniform axis spacing; invalid stencils and boundary nodes are
+blank. For an analytic model, pass `field=field, delta=0.002` to evaluate
+central differences directly. The reusable calculation is
+`field_aligned_current_density(field, x, y, z, delta=...)`, also available as
+the `'fac'` quantity in other viewers.
+
+Values default to **field-unit/length-unit**, representing `mu0 J_parallel`.
+For a geopack field in nT and Re, pass `current_scale=0.125`,
+`current_label='J parallel [nA/m^2]'`, and `length_unit='Re'`. Red/blue encode
+direction relative to B, not universally upward/downward. The curl-B estimate
+neglects displacement current. The automatic threshold is a display percentile,
+not a test of physical significance: inspect grid-resolution and derivative-step
+convergence before interpreting weak features. The preview is capped at 120,000
+nodes by default; coarsening changes derivative resolution. Its dimensions are
+shown in the window. Use `max_points=None` for the full grid, and reader-side
+`region`/`stride` to control the memory needed to load large snapshots.
+
+Run `python examples/fac_viewer.py` for T96 + dipole, or
+`python examples/fac_viewer.py --xmf run000.xmf --stride 4` for simulation data.
+`--h5` can override the XDMF heavy-data file; direct HDF5 input requires
+`--origin` and `--spacing`. Use `--screenshot /tmp/fac.png` for an off-screen PNG.
+Add `--slice y` (XZ plane), or `--slice x --slice-origin -6 0 0`, to start
+with a cross-section visible.
+
 ### Simulation Data (`mageometry.io`)
 
 Gridded magnetic fields from simulation output plug into the same geometry API. `GriddedField` holds a rectilinear grid plus the three field components and builds an interpolating `field(x, y, z)` callable; readers for specific file formats are thin adapters that construct a `GriddedField`. Currently provided: `load_xdmf` (XDMF-described uniform grids with HDF5 heavy data, as written by many MHD codes), `load_xdmf_series` (time series of such grids), `load_hdf5` (plain HDF5 datasets with caller-supplied grid geometry), and `load_vtk` (VTK ImageData / RectilinearGrid files, `.vti`/`.vtr`). The XDMF/HDF5 readers require the optional `h5py` dependency (`pip install h5py`); `load_vtk` requires `pyvista`.

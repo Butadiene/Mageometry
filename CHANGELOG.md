@@ -52,6 +52,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   16 and `field_line_directional_derivatives` 21 instead of 77.
 
 ### Added
+- **Clean FAC slice view.** `F4` isolates the cross-section face-on with a
+  fixed colour scale and a dedicated position slider, and restores the
+  previous overview camera and visibility when toggled again. The plane
+  follows its normal while preserving pan and zoom. `slice_only=True` and
+  the demo's `--slice-only` option start in this mode.
+- **Optional interactive FAC cross-sections.** In `fac_view`, `c` toggles a
+  draggable plane in the main 3D view and `F1`/`F2`/`F3` select YZ/XZ/XY.
+  `slice_normal`/`slice_origin` and the demo's `--slice`/`--slice-origin`
+  options configure its initial position. Slices display all FAC strengths
+  from cached valid preview cells, independently of the region threshold,
+  while retaining the existing overview and camera.
+- **FAC overview in `mageometry.viz3d.fac_view`.** Signed current regions,
+  direction arrows, sparse magnetic context lines, three signed peak maps,
+  an interactive strength threshold, and camera/visibility shortcuts. Works
+  with simulation grids or analytic field callables, preserves missing-data
+  masks, and reports preview resolution. `field_aligned_current_density` and
+  the `'fac'` plotting quantity compute Cartesian curl projected along B,
+  including straight field lines where a Frenet normal is undefined.
+  `examples/fac_viewer.py` opens a model or simulation snapshot and supports
+  off-screen screenshots; the existing 3D demo now opens with the FAC view.
 - **`mageometry.geometry.field_line_current`: |B| gradients along the frame and
   the current density in the Frenet frame.** `field_magnitude_derivatives`
   returns ∂B/∂T, ∂B/∂n, ∂B/∂b — the scalar pieces the frame's directional
