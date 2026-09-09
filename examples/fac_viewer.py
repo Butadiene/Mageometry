@@ -1,4 +1,4 @@
-"""Explore current components for a model field or a simulation snapshot.
+"""Explore magnetic currents and transverse geometry for a model or snapshot.
 
 Examples (run from the repository after an editable install):
     python examples/fac_viewer.py
@@ -17,15 +17,18 @@ Examples (run from the repository after an editable install):
 
 Choose a component with the top dropdown or F5/F6 (previous/next).
 Red/blue: positive/negative in that component's basis; grey: magnetic lines.
-Move the threshold slider to isolate stronger currents. Alpha has no arrows.
+Move the threshold slider to isolate stronger values. Geometry rates have no arrows.
 Right-hand maps are signed peak projections, not slices or integrated current.
 Press c for a draggable slice in the main view, or F1/F2/F3 for YZ/XZ/XY planes.
-F4 toggles a clean face-on slice view with a dedicated position slider.
+The centre panel always shows the current face-on slice.
+F4 enlarges it with a dedicated position slider.
 """
 
 import argparse
 
 import numpy as np
+
+from mageometry.viz3d._current import COMPONENTS
 
 from mageometry import GriddedField, geopack, geopack_field, load_hdf5, load_vtk, load_xdmf, viz3d
 
@@ -45,8 +48,8 @@ def model_snapshot():
                       trace_kwargs={'r0': 2.5, 'ds': 0.15, 'max_steps': 350})
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+def main(default_component="fac", description=None):
+    parser = argparse.ArgumentParser(description=description or __doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sources = parser.add_mutually_exclusive_group()
     sources.add_argument('--xmf', help='XDMF metadata for a simulation snapshot')
     sources.add_argument('--vtk', help='VTK ImageData or RectilinearGrid snapshot')
@@ -54,15 +57,12 @@ def main():
     parser.add_argument('--origin', type=float, nargs=3, help='x y z origin for direct HDF5')
     parser.add_argument('--spacing', type=float, nargs=3, help='dx dy dz for direct HDF5')
     parser.add_argument('--stride', type=int, default=1, help='read every nth grid node')
-    parser.add_argument('--component', default='fac',
-                         choices=('fac', 'mu0J_T', 'B_dT_dn_b', 'B_dn_db_T',
-                                  'B_twist_diff',
-                                  'mu0J_n', 'mu0J_b', 'mu0J_x',
-                                  'mu0J_y', 'mu0J_z', 'alpha', 'B_kappa', 'minus_dB_dn'),
+    parser.add_argument('--component', default=default_component,
+                         choices=tuple(COMPONENTS),
                          help='initial component (switch interactively with F5/F6)')
     parser.add_argument('--threshold', type=float, help='absolute cutoff for the initial component')
     parser.add_argument('--geometry-delta', type=float,
-                         help='scalar derivative step for notebook-10 components')
+                         help='derivative step for geometry diagnostics')
     parser.add_argument('--max-points', type=int, default=120000, help='preview node budget')
     parser.add_argument('--slice', choices=('x', 'y', 'z'), dest='slice_normal',
                          help='show a component slice initially, normal to this axis')
@@ -92,12 +92,12 @@ def main():
     if args.screenshot:
         import pyvista as pv
         pv.OFF_SCREEN = True
-    print(f'Preparing current overview ({args.component}): {grid}', flush=True)
-    plotter = viz3d.current_view(grid, component=args.component,
+    print(f'Preparing magnetic geometry ({args.component}): {grid}', flush=True)
+    plotter = viz3d.geometry_view(grid, component=args.component,
                             threshold=args.threshold, max_points=args.max_points,
                             geometry_delta=args.geometry_delta,
                             slice_normal=args.slice_normal, slice_origin=args.slice_origin,
-                            slice_only=args.slice_only,
+                            slice_only=args.slice_only, slice_panel=True,
                             show=False, **options)
     if args.screenshot:
         plotter.screenshot(args.screenshot)

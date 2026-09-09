@@ -9,7 +9,7 @@ from ._pv import get_plotter, require_pyvista
 from .mesh import to_rectilinear_grid, trace_polydata
 from .slicer import _face_camera
 from ._fac_slice import _FACSlice, _slice_settings
-from ._current import (COMPONENTS, COMPONENT_LABELS, _CurrentPreview,
+from ._current import (COMPONENTS, COMPONENT_LABELS, RATE_COMPONENTS, _CurrentPreview,
                        _component_label, _component_name)
 from ._dropdown import _Dropdown
 
@@ -163,15 +163,16 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
         Magnetic field snapshot in consistent Cartesian coordinates.
     component : str, optional
         Initial quantity: ``mu0J_T`` (default), ``mu0J_n``, ``mu0J_b``,
-        ``mu0J_x``, ``mu0J_y``, ``mu0J_z``, ``alpha``, ``B_kappa``,
+        ``mu0J_x``, ``mu0J_y``, ``mu0J_z``, ``alpha``, ``sigma``, ``q``,
+        ``gamma``, ``omega_c``, ``B_kappa``,
         ``minus_dB_dn``, the parallel terms ``B_dT_dn_b`` / ``B_dn_db_T``,
         their signed difference ``B_twist_diff``, or the independent
         Cartesian ``fac`` diagnostic.
         Switch with the top dropdown or F5/F6, including in slice-only mode.
     **kwargs
         All :func:`fac_view` options, including slices, masks, and tracing.
-        ``current_unit`` labels scaled currents; ``alpha`` is never scaled
-        by ``current_scale`` and has inverse-length units. ``current_label``
+        ``current_unit`` labels scaled currents; transverse rates are never scaled
+        by ``current_scale`` and have inverse-length units. ``current_label``
         overrides only the FAC label. ``geometry_delta`` is a positive scalar
         step for the notebook APIs: by default min(delta) for an explicit
         field, otherwise the smallest preview spacing. Grid geometry uses
@@ -185,11 +186,11 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
         selection. Camera, slice position, and magnetic context lines stay
         fixed; each component remembers its threshold and has its own fixed
         symmetric colour scale. Arrows follow its signed T/n/b or Cartesian
-        basis. No arrows are drawn for the scalar twist ``alpha``.
+        basis. Transverse rates and ``B_twist_diff`` have no current arrows.
 
     Notes
     -----
-    Non-FAC components use ``field_line_current_density``,
+    Legacy current components use ``field_line_current_density``,
     ``field_magnitude_derivatives``, and ``field_line_frenet_frame`` exactly
     as in notebook 10; they are cached together at first selection. Undefined
     frames/stencils remain NaN, including Cartesian reconstructions on
@@ -199,7 +200,10 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
     displayed contributions along T, with the same units and validity mask
     as mu0J_T, not separate vector directions or unweighted twist rates.
     ``B_twist_diff = B_dT_dn_b - B_dn_db_T`` is a signed comparison,
-    not total parallel current; its arrows represent the difference along T.
+    not total parallel current; no current arrows are drawn.
+    Transverse rates use first Cartesian B derivatives via
+    ``field_line_transverse_geometry``. Viewer alpha now uses that estimate,
+    including on straight lines; legacy current API values are unchanged.
     Display scales are percentile-based, not a test of physical significance.
     Check derivative-step and preview-resolution convergence before analysis.
     """
@@ -214,7 +218,7 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
              planet_center=(0.0, 0.0, 0.0), front_view=None,
              plotter=None, show=True, slice_normal=None, slice_origin=None,
              slice_only=False, component=None, current_unit=None,
-             geometry_delta=None):
+             geometry_delta=None, slice_panel=False):
     """Locate field-aligned currents in a gridded magnetic field.
 
     Red regions carry positive current along B, blue regions negative
@@ -284,6 +288,9 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         toggles this mode and restores the overview camera and visibility.
         A dedicated position slider scans the cached slices; shift+drag
         pans and the wheel zooms. Defaults to an XZ slice if none is given.
+    slice_panel : bool, optional
+        Keep a synchronized face-on slice beside the overview (default False).
+        Requires front_view=True. F4 still enlarges the slice.
     component : str or None, optional
         None keeps the original FAC-only controls. A component name enables
         the selector described in :func:`current_view`.
@@ -324,6 +331,10 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         front_view = plotter is None
     if front_view and plotter is not None:
         raise ValueError("front_view requires fac_view to create its own plotter.")
+    if slice_panel and not front_view:
+        raise ValueError("slice_panel requires front_view=True.")
+    if slice_panel and slice_normal is None:
+        slice_normal = np.array([0., 1., 0.])
     if seeds is not None:
         seeds = np.asarray(seeds, dtype=float)
         if seeds.ndim != 2 or seeds.shape[1] != 3 or not np.all(np.isfinite(seeds)):
@@ -343,7 +354,7 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
 
     def display_values(key):
         raw, basis = cache.get(key)
-        return raw * (1.0 if key == 'alpha' else current_scale), basis
+        return raw * (1.0 if key in RATE_COMPONENTS else current_scale), basis
 
     def display_label(key):
         return _component_label(key, current_unit, length_unit, fac_label)
@@ -365,8 +376,13 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
     thresholds = {component: threshold}
 
     if front_view:
-        plotter = get_plotter(shape='1|3', splitting_position=0.7,
-                              window_size=(1440, 960), border=False)
+        plotter = get_plotter(shape='1|4' if slice_panel else '1|3', splitting_position=0.7,
+                              window_size=(1920, 960) if slice_panel else (1440, 960), border=False)
+        if slice_panel:
+            plotter.renderers[0].SetViewport(0, 0, 0.48, 1)
+            plotter.renderers[4].SetViewport(0.48, 0, 0.82, 1)
+            for axis in range(3):
+                plotter.renderers[axis + 1].SetViewport(0.82, (2 - axis) / 3, 1, (3 - axis) / 3)
         plotter.subplot(0)
     else:
         plotter = get_plotter(plotter, window_size=(1200, 900))
@@ -377,15 +393,15 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         plotter.subplot(*main_location)
 
     plotter.set_background(_BACKGROUND, all_renderers=False)
-    plotter.add_text('CURRENT DECOMPOSITION' if selectable else 'FIELD-ALIGNED CURRENT',
+    plotter.add_text('MAGNETIC FIELD GEOMETRY' if selectable else 'FIELD-ALIGNED CURRENT',
                      position=(0.035, 0.94), viewport=True,
                      font_size=17 if selectable else 19, color=_INK, name='fac-title')
 
     def describe_component():
         direction = COMPONENTS[component][1]
         along = 'B' if direction == 'T' else direction
-        positive = f'+ along {along}' if direction else '+ positive twist'
-        negative = f'- against {along}' if direction else '- negative twist'
+        positive = f'+ along {along}' if direction else '+ positive value'
+        negative = f'- against {along}' if direction else '- negative value'
         plotter.add_text(positive, position=(0.035, 0.885), viewport=True,
                          font_size=12, color=_POSITIVE, name='fac-sign-positive')
         plotter.add_text(negative, position=(0.24, 0.885), viewport=True,
@@ -578,6 +594,10 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
               panels=tuple(plotter.renderers)[1:] if front_view else (),
               overview_widgets=(threshold_widget, main_renderer.axes_widget),
               expand=owned_plotter, scalar_name=scalar_name)
+
+    if slice_panel:
+        from ._slice_panel import _SlicePanel
+        slice_controller.panel = _SlicePanel(slice_controller, 4)
 
     selector = None
 

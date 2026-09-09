@@ -133,6 +133,7 @@ class _Dropdown:
         header_height = min(42, height * 0.055) / height
         self.bounds = (0.55, 0.965 - header_height, 0.96, 0.965)
         x0, y0, x1, y1 = self.bounds
+        row_height = min(row_height, (y0 - 0.04) / len(self.rows))
         self._rectangle(self.header, self.bounds)
         inset = 12 / width
         self.value.SetPosition(x0 + inset, (y0 + y1) / 2)

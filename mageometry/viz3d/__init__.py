@@ -35,12 +35,14 @@ from .lines import add_field_lines
 from .frames import add_frenet_frame
 from .explore import explore
 from .fac import fac_view, current_view
+from .geometry import geometry_view
 
 __all__ = [
     "slice_view",
     "explore",
     "fac_view",
     "current_view",
+    "geometry_view",
     "add_field_lines",
     "add_frenet_frame",
     "to_rectilinear_grid",

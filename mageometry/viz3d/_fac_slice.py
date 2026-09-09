@@ -50,6 +50,7 @@ class _FACSlice:
         self.enabled = normal is not None
         self.normal = np.array([0., 1., 0.]) if normal is None else normal
         self.origin = np.mean(np.asarray(bounds).reshape(3, 2), axis=1) if origin is None else origin
+        self.panel = None
         self.focus = None
 
         self._hint('Slice off')
@@ -65,7 +66,7 @@ class _FACSlice:
     def _hint(self, status):
         self.activate_main()
         self.plotter.add_text(
-            f'{status}\nc: slice  |  F1/F2/F3: YZ/XZ/XY  |  F4: slice only  |  drag amber handle',
+            f'{status}\nc: slice  |  F1/F2/F3: YZ/XZ/XY  |  F4: enlarge  |  drag handle',
             position=(0.035, 0.79), viewport=True, font_size=9, color='#64748b',
             name='fac-slice-status', render=False)
 
@@ -93,7 +94,7 @@ class _FACSlice:
         self._update(self.widget.GetNormal(), self.widget.GetOrigin())
 
     def _update(self, normal, origin):
-        if not self.enabled:
+        if not self.enabled and self.panel is None:
             return
         self.activate_main()
         self.normal = np.asarray(normal, dtype=float)
@@ -110,6 +111,8 @@ class _FACSlice:
                 self.actor.mapper.dataset = sliced
                 self.actor.mapper.array_name = self.scalar_name
                 self.actor.mapper.scalar_range = (-self.limit, self.limit)
+            # Resolve the mapper pipeline before camera fitting or data reads.
+            self.actor.mapper.Update()
             self.actor.visibility = True
             if self.with_scalar_bar and not self.bar_visible and not (self.focus and self.focus.active):
                 self.plotter.add_scalar_bar(
@@ -125,6 +128,8 @@ class _FACSlice:
         self._hint(f'Slice {self.location()} / {suffix}')
         if self.focus is not None:
             self.focus.refresh()
+        if self.panel is not None:
+            self.panel.refresh()
 
     def set_component(self, volume, limit, label, scalar_name):
         """Replace cached scalars without moving the plane or the camera."""
@@ -141,8 +146,10 @@ class _FACSlice:
         self.scalar_name = scalar_name
         self.bar_title = f'Slice: {label}'
         self.focus.bar_title = f'{scalar_name} cross-section: {label}'
-        if self.enabled:
+        if self.enabled or self.panel is not None:
             self._update(self.normal, self.origin)
+            if not self.enabled and self.actor is not None:
+                self.actor.visibility = False
 
     def location(self):
         """Human-readable slice coordinates for both viewing modes."""

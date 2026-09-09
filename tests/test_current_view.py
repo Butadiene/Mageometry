@@ -6,7 +6,8 @@ import numpy as np
 
 from mageometry import (GriddedField, field_line_current_density,
                         field_line_frenet_frame, field_magnitude_derivatives, viz3d)
-from mageometry.viz3d._current import COMPONENTS, _CurrentPreview, _component_label
+from mageometry.geometry import field_line_transverse_geometry
+from mageometry.viz3d._current import RATE_COMPONENTS, COMPONENTS, _CurrentPreview, _component_label
 from mageometry.viz3d.fac import _masked_field, _peak_projection, _region_seeds, _sample_fac
 from mageometry.viz3d.mesh import to_rectilinear_grid
 from mageometry.viz3d.slicer import _widget_state
@@ -52,15 +53,28 @@ def select(plotter, component):
 
 class TestCurrentComponents(unittest.TestCase):
 
+    def test_rates_do_not_evaluate_legacy_frame_derivatives(self):
+        from unittest.mock import patch
+        preview, fac = _sample_fac(grid(), field=bipolar, delta=0.002)
+        cache = _CurrentPreview(preview, fac, bipolar, 0.002)
+        with patch('mageometry.viz3d._current.field_line_current_density',
+                   side_effect=AssertionError('Rates must not compute legacy currents')):
+            for key in RATE_COMPONENTS:
+                values, basis = cache.get(key)
+                self.assertIsNone(basis)
+                self.assertTrue(np.any(np.isfinite(values)))
+
     def test_notebook_values_bases_and_binormal_terms(self):
         preview, fac = _sample_fac(grid(), field=bipolar, delta=0.002)
         cache = _CurrentPreview(preview, fac, _masked_field(bipolar, None), 0.002)
         coords = np.meshgrid(preview.x, preview.y, preview.z, indexing='ij')
         expected = field_line_current_density(bipolar, *coords, delta=0.002)
+        expected.update({k: v for k, v in field_line_transverse_geometry(
+            bipolar, *coords, delta=0.002).items() if k in RATE_COMPONENTS})
         frame = field_line_frenet_frame(bipolar, *coords, delta=0.002)
         mag = field_magnitude_derivatives(bipolar, *coords, delta=0.002)
         for key in ('mu0J_T', 'B_dT_dn_b', 'B_dn_db_T', 'B_twist_diff', 'mu0J_n', 'mu0J_b',
-                    'mu0J_x', 'mu0J_y', 'mu0J_z', 'alpha'):
+                    'mu0J_x', 'mu0J_y', 'mu0J_z', 'alpha', 'sigma', 'q', 'gamma', 'omega_c'):
             actual, basis = cache.get(key)
             np.testing.assert_allclose(actual, expected[key], equal_nan=True)
             if key[-1] in 'xyz':
@@ -105,8 +119,11 @@ class TestCurrentComponents(unittest.TestCase):
         cache = _CurrentPreview(preview, fac, _masked_field(field, None), 0.002)
         np.testing.assert_allclose(cache.get('fac')[0], 1, atol=1e-6)
         for key in COMPONENTS:
-            if key != 'fac':
+            if key not in ('fac', 'alpha', 'gamma', 'omega_c'):
                 self.assertTrue(np.all(np.isnan(cache.get(key)[0])), key)
+        np.testing.assert_allclose(cache.get('alpha')[0], 1, atol=1e-6)
+        np.testing.assert_allclose(cache.get('gamma')[0], 1, atol=1e-6)
+        np.testing.assert_allclose(cache.get('omega_c')[0], 0, atol=2e-8)
         preview.b[:] = np.nan
         empty = _CurrentPreview(preview, np.full(preview.shape, np.nan),
                                 lambda *args: self.fail('Missing nodes must not be evaluated'), 0.1)
@@ -201,7 +218,7 @@ class TestCurrentViewer(unittest.TestCase):
         cache = _CurrentPreview(preview, fac, _masked_field(bipolar, None), 0.002)
         mesh = to_rectilinear_grid(preview, quantities=())
         for key in ('mu0J_n', 'mu0J_b', 'B_kappa', 'minus_dB_dn',
-                    'B_dT_dn_b', 'B_dn_db_T', 'B_twist_diff'):
+                    'B_dT_dn_b', 'B_dn_db_T'):
             select(p, key)
             cutoff = _widget_state(p).slider_widgets[0].GetRepresentation().GetValue()
             values, basis = cache.get(key)
@@ -249,9 +266,17 @@ class TestCurrentViewer(unittest.TestCase):
         self.assertNotIn('fac-arrows', p.actors)
         self.assertTrue(all('alpha [1 / Re]' in title for title in p.scalar_bars.keys()))
         points = actor.mapper.dataset.points
-        expected = field_line_current_density(bipolar, *points.T, delta=0.002)['alpha']
+        expected = field_line_transverse_geometry(bipolar, *points.T, delta=0.002)['alpha']
         # This plane lies exactly on grid nodes, so no cross-plane interpolation.
         np.testing.assert_allclose(actor.mapper.dataset['alpha'], expected, atol=1e-10)
+        for key in RATE_COMPONENTS:
+            select(p, key)
+            expected_rate = field_line_transverse_geometry(
+                bipolar, *actor.mapper.dataset.points.T, delta=0.002)[key]
+            # VTK slice coordinates may be float32; coiling magnifies rounding.
+            np.testing.assert_allclose(actor.mapper.dataset[key], expected_rate, atol=3e-8)
+            self.assertNotIn('fac-arrows', p.actors)
+            self.assertTrue(all('1 / Re' in title for title in p.scalar_bars.keys()))
         self.assertGreater(np.std(p.screenshot()), 5)
         press(p, 'F4')
         self.assertEqual([r.GetDraw() for r in p.renderers], [1, 1, 1, 1])

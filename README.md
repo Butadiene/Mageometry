@@ -235,6 +235,11 @@ By default each slice is also shown face-on in a companion panel beside the 3D v
 
 #### Comparing current components (notebook 10)
 
+[General magnetic geometry viewing](docs/transverse_geometry.md) adds `alpha`,
+`sigma`, `q`, `gamma`, and `omega_c` through `viz3d.geometry_view` and
+`python examples/geometry_viewer.py --component sigma --slice x --slice-only`.
+The calculation is also available as `geometry.field_line_transverse_geometry`.
+
 `viz3d.current_view` extends the FAC layout with a **component selector**.
 Click the top **dropdown** to choose a named component, or use **F5 / F6**
 (previous / next), to switch the 3D regions,
@@ -270,11 +275,11 @@ in native units. The selectable quantities follow
 | `mu0J_T` | Parallel current from field-line twist | T |
 | `B_dT_dn_b` | Parallel term 1: B(∂T/∂n)·b | T |
 | `B_dn_db_T` | Parallel term 2: B(∂n/∂b)·T | T |
-| `B_twist_diff` | Signed difference: B(∂T/∂n)·b − B(∂n/∂b)·T | T (difference, not total current) |
+| `B_twist_diff` | Signed difference: B(∂T/∂n)·b − B(∂n/∂b)·T | None (shear diagnostic) |
 | `mu0J_n` | Normal current: ∂\|B\|/∂b | n (principal normal) |
 | `mu0J_b` | Binormal current: \|B\|κ − ∂\|B\|/∂n | b (T × n, not B) |
 | `mu0J_x/y/z` | Cartesian components of the Frenet reconstruction | x / y / z |
-| `alpha` | Twist: μ₀J_T / \|B\| | None (scalar, not current density) |
+| `alpha` | Cartesian μ₀j∥ / \|B\| | None (scalar, not current density) |
 | `B_kappa` | Curvature contribution to μ₀J_b: +\|B\|κ | b |
 | `minus_dB_dn` | Pressure contribution to μ₀J_b: −∂\|B\|/∂n | b |
 
@@ -302,7 +307,7 @@ Choose **`J_T terms: 1 - 2 (difference)`** to view
 `B_twist_diff = B_dT_dn_b - B_dn_db_T`. This subtracts the signed terms,
 not their absolute values; the total parallel current remains their **sum**.
 The difference uses the same units, masks, and current conversion as the
-terms. Its arrows describe the signed difference along T, not the total J_T.
+terms. It has no current arrows, because the difference represents shear.
 Like the individual terms, it has its own colour scale and works in both
 slice modes. Start directly with:
 

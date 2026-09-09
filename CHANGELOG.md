@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add `geometry.field_line_transverse_geometry` for first-gradient alpha, sigma,
+  q, gamma and signed local coiling rate, including invariant diagnostics on
+  straight lines.
+- Add `viz3d.geometry_view` and `examples/geometry_viewer.py`, sharing the
+  current viewer controls and supporting all five transverse distributions.
+
+### Changed
+- Keep a synchronized face-on cross-section visible beside the 3D overview in
+  geometry_viewer and fac_viewer; F4 still expands the slice.
+- Viewer alpha uses Cartesian first magnetic derivatives and stays defined
+  without a Frenet normal; the legacy current calculation API is unchanged.
+- Remove current arrows from the shear diagnostic `B_twist_diff`.
+
 ### Breaking
 - **Package inverted: the analysis library is now the top-level package.** The
   import root changed from `geopack` to `mageometry`:

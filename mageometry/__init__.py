@@ -62,6 +62,7 @@ from .geometry import (
     field_aligned_current_density,
     field_magnitude_derivatives,
     field_line_current_density,
+    field_line_transverse_geometry,
     verify_divergence_identity,
 )
 
@@ -109,5 +110,6 @@ __all__ = [
     "field_aligned_current_density",
     "field_magnitude_derivatives",
     "field_line_current_density",
+    "field_line_transverse_geometry",
     "verify_divergence_identity",
 ]

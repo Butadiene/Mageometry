@@ -53,6 +53,42 @@ class TestFACSlice(unittest.TestCase):
     def tearDown(self):
         pv.close_all()
 
+    def test_persistent_panel_tracks_slice_component_and_focus(self):
+        p = viz3d.geometry_view(grid(), component='fac', slice_panel=True,
+                               slice_normal='z', n_lines=0, show=False)
+        panel = p.renderers[4]
+        actor = panel.actors['fac-panel-slice']
+        np.testing.assert_allclose(actor.mapper.dataset['fac'], 0, atol=1e-12)
+        widget = _widget_state(p).plane_widgets[-1]
+        widget.SetOrigin(0, 0, 0.5)
+        widget.InvokeEvent('InteractionEvent')
+        np.testing.assert_allclose(actor.mapper.dataset.points[:, 2], 0.5)
+        self.assertTrue(np.all(actor.mapper.dataset['fac'] > 0))
+        press(p, 'F4')
+        self.assertFalse(panel.GetDraw())
+        press(p, 'F6')
+        self.assertEqual(actor.mapper.array_name, p.actors['fac-slice'].mapper.array_name)
+        self.assertEqual(actor.visibility, p.actors['fac-slice'].visibility)
+        press(p, 'F5')
+        press(p, 'F4')
+        self.assertTrue(panel.GetDraw())
+        self.assertTrue(actor.visibility)
+        press(p, 'c')
+        self.assertTrue(actor.visibility)
+        self.assertFalse(p.actors['fac-slice'].visibility)
+        slider = _widget_state(p).slider_widgets[1]
+        slider.GetRepresentation().SetValue(-0.5)
+        slider.InvokeEvent('InteractionEvent')
+        np.testing.assert_allclose(actor.mapper.dataset.points[:, 2], -0.5)
+        self.assertTrue(np.all(actor.mapper.dataset['fac'] < 0))
+        self.assertFalse(p.actors['fac-slice'].visibility)
+        self.assertGreater(np.std(p.screenshot()), 5)
+        press(p, 'c')
+        widget.SetOrigin(0, 0, 5)
+        widget.InvokeEvent('InteractionEvent')
+        self.assertFalse(actor.visibility)
+        self.assertFalse(any(title.startswith('Cross-section:') for title in p.scalar_bars.keys()))
+
     def test_slice_drag_samples_both_signs_without_changing_camera(self):
         p = viz3d.fac_view(grid(), n_lines=0, threshold=1.5, show=False,
                            slice_normal='z', slice_origin=(0, 0, 0))

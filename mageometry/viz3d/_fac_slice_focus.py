@@ -173,7 +173,11 @@ class _SliceFocus:
         up /= np.linalg.norm(up)
         right = np.cross(up, direction)
         actor = self.owner.actor
+        if actor is not None and actor.visibility:
+            actor.mapper.Update()
         points = actor.mapper.dataset.points if actor is not None and actor.visibility else self.corners
+        if not len(points):
+            points = self.corners
         horizontal, vertical = points @ right, points @ up
         h0, h1, v0, v1 = horizontal.min(), horizontal.max(), vertical.min(), vertical.max()
         center = right * (h0 + h1) / 2 + up * (v0 + v1) / 2 + normal * np.dot(normal, origin)
