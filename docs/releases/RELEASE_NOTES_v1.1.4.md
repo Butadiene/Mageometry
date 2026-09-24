@@ -1,5 +1,7 @@
 # Release Notes - v1.1.4
 
+> **Historical predecessor release.** These notes describe `geopack-vectorize` / `geopack-vectorized`, not the current Mageometry checkout. For current installation and APIs, use the [documentation index](../README.md). See the [archive context](README.md).
+
 ## Bug Fixes and Improvements
 
 ### Fixed Field Line Tracing Error

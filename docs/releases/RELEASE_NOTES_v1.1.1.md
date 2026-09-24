@@ -1,5 +1,7 @@
 # Release Notes - Version 1.1.1
 
+> **Historical predecessor release.** These notes describe `geopack-vectorize` / `geopack-vectorized`, not the current Mageometry checkout. For current installation and APIs, use the [documentation index](../README.md). See the [archive context](README.md).
+
 ## 📝 Documentation Update
 
 ### Changes

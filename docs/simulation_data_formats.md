@@ -1,8 +1,24 @@
 # Simulation Data: Formats and Bringing Your Own (`mageometry.io`)
 
-This document is written for one purpose: to let you get **your** simulation
-output — whatever code produced it, whatever it looks like on disk — into
-Mageometry, correctly, and to know that you did it correctly.
+[Documentation index](README.md) · [Geometry analysis](geometry_analysis.md)
+· [Viewer guide](viewer.md)
+
+Convert your magnetic-field output into a `GriddedField`, then use the same
+analysis API as for analytic fields. Start with a bundled reader when its
+format matches your data; otherwise adapt a recipe to your file layout.
+All filenames, array names, and sample layouts in this guide are placeholders.
+
+| Your input | Start here | Optional dependency |
+| --- | --- | --- |
+| Uniform XDMF + HDF5 | [Bundled XDMF reader](#xdmf-snapshots) | `.[io]` |
+| Plain HDF5 with known origin/spacing | [Direct HDF5](#direct-hdf5) | `.[io]` |
+| VTK ImageData / RectilinearGrid | [VTK recipe](#recipe-e--vtk-vti-vtr) | `.[viz3d]` |
+| NumPy / raw binary / Fortran records | [Reader cookbook](#part-ii--cookbook-from-your-files-to-griddedfield) | Base NumPy/SciPy install |
+| Time series | [Series reader](#xdmf-time-series) or [custom series](#recipe-g--time-series-from-per-step-files) | Depends on the underlying reader |
+
+Install extras from the repository root, for example
+`python -m pip install -e '.[io,viz3d]'`. For file selection and display
+controls, use the [viewer guide](viewer.md).
 
 Part I describes the one data structure everything lands on. Part II is a
 cookbook for the formats simulation codes actually produce. Part III covers
@@ -15,9 +31,16 @@ on interpolation, tracing, and memory.
 ## Part I — The one contract: `GriddedField`
 
 ```python
+import numpy as np
 from mageometry import GriddedField
 
-grid = GriddedField(x, y, z, bx, by, bz, metadata={"source": "run42/step0100"})
+# A small synthetic example; substitute your axes and components here.
+x = np.linspace(-2, 2, 17)
+y = np.linspace(-3, 3, 19)
+z = np.linspace(-1, 1, 13)
+X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+bx, by, bz = -Y, X, np.ones_like(Z)
+grid = GriddedField(x, y, z, bx, by, bz, metadata={"source": "synthetic"})
 field = grid.field(method="linear")     # field(x, y, z) -> (bx, by, bz)
 ```
 
@@ -30,7 +53,7 @@ Every geometry function (`field_line_curvature`, `field_line_frenet_frame`,
 |---|---|
 | `x`, `y`, `z` | 1D arrays, **strictly increasing**, at least 2 points each. Uniform spacing is *not* required — any rectilinear (stretched) axes work. |
 | `bx`, `by`, `bz` | Arrays of shape **`(len(x), len(y), len(z))`** — first index is x, last is z. |
-| `metadata` | Optional dict, kept as-is (provenance, units, run name, ...). |
+| `metadata` | Optional dict, shallow-copied (provenance, unit labels, ...); values are not interpreted. |
 
 What `GriddedField` does **not** do — and therefore what you must do before
 constructing it:
@@ -49,7 +72,9 @@ constructing it:
   first ([Staggered grids](#cell-centered-and-staggered-grids)).
 - **Memory.** The three components are stacked into one
   `(nx, ny, nz, 3)` array, so the input arrays are copied once. float32
-  input stays float32.
+  input stays float32 when all components use that dtype. The stored dtype
+  is chosen from `bx` and float32; convert all three components to a common
+  float dtype first when their precisions differ.
 
 Building blocks provided for your reader (all in `mageometry.io`):
 
@@ -58,16 +83,18 @@ Building blocks provided for your reader (all in `mageometry.io`):
 | `read_fortran_records(path, dtype)` / `iter_fortran_records` | Fortran unformatted sequential files (record-length markers) |
 | `region_slices(axes, region, stride)` | Turn a bounding box / stride into index slices |
 | `GriddedField.subvolume(region, stride)` | Cut a sub-box out of an in-memory grid |
-| `GriddedField.divergence()` | Sanity check: catches transposed axes, permuted or flipped components |
+| `GriddedField.divergence()` | Numerical divergence diagnostic; can reveal layout errors, but does not prove correctness |
 | `FieldSeries.from_files(paths, loader, times)` | Lazy time series from one file per step and your loader |
 
 ---
 
 ## Part II — Cookbook: from your files to `GriddedField`
 
-Each recipe is a complete `load_<format>()` function you can copy. They all
-end the same way; only the parsing differs. Recipes use only NumPy unless a
-third-party reader is the natural tool.
+The reader functions below handle their stated example layouts. Adapt
+headers, variables, rank ordering, and centering to your format. Other
+snippets illustrate transformations or depend on caller-supplied values;
+they are labelled accordingly. Third-party packages used in a recipe,
+such as xarray and its file backend, are not installed by Mageometry.
 
 ### The mental model: three questions
 
@@ -75,7 +102,8 @@ Before writing any code, answer these for your data; every recipe below is
 an instance of them.
 
 1. **What is the memory layout of one component?** Is the fastest-varying
-   index x or z (C order `(nz, ny, nx)` vs Fortran order `(nx, ny, nz)`)?
+   index x or z? C-order `(nz, ny, nx)` and Fortran-order `(nx, ny, nz)`
+   both have x varying fastest; C-order `(nx, ny, nz)` has z fastest.
    Are there ghost/guard cells to strip? Any header bytes?
 2. **Where are the values located?** Node positions (`origin + i·dx`) or
    cell centers (`origin + (i + ½)·dx`)? Uniform or stretched axes? Are the
@@ -83,8 +111,9 @@ an instance of them.
 3. **What are the units and the frame?** Code units → physical units;
    which axis is which; is the frame right-handed?
 
-If you get question 1 wrong, `GriddedField.divergence()` will tell you
-([Part IV](#part-iv--validating-a-new-reader)).
+Check the loaded arrays against known values as well as their divergence.
+Some ordering errors preserve zero divergence; see
+[Part IV](#part-iv--validating-a-new-reader).
 
 ### Recipe A — NumPy arrays already in memory / `.npy` / `.npz`
 
@@ -93,12 +122,12 @@ import numpy as np
 from mageometry import GriddedField
 
 def load_npz(path):
-    d = np.load(path)
     # Adjust the key names and the axis order to your file. Here the
-    # arrays are stored (nz, ny, nx) as most C/Python codes do.
-    bx, by, bz = (d[k].transpose(2, 1, 0) for k in ("bx", "by", "bz"))
-    return GriddedField(d["x"], d["y"], d["z"], bx, by, bz,
-                        metadata={"source": path})
+    # arrays are stored (nz, ny, nx).
+    with np.load(path) as d:
+        bx, by, bz = (d[k].transpose(2, 1, 0) for k in ("bx", "by", "bz"))
+        return GriddedField(d["x"], d["y"], d["z"], bx, by, bz,
+                            metadata={"source": str(path)})
 ```
 
 `transpose(2, 1, 0)` is a view — no copy until `GriddedField` stacks the
@@ -106,8 +135,7 @@ components.
 
 ### Recipe B — Raw binary (`np.fromfile` / `np.memmap`)
 
-Raw dumps are the most common output of home-grown codes. You need to know
-(or find out) the element type, byte order, header size, and layout.
+For raw dumps, specify the element type, byte order, header size, and layout.
 
 ```python
 import numpy as np
@@ -117,7 +145,6 @@ def load_raw(path, nx, ny, nz, dtype=">f4", header_bytes=0,
              variables=("rho", "vx", "vy", "vz", "p", "bx", "by", "bz"),
              origin=(0.0, 0.0, 0.0), spacing=(1.0, 1.0, 1.0)):
     """One file holding `variables` back to back, each stored (nz, ny, nx)."""
-    n = nx * ny * nz
     # memmap: nothing is read until it is indexed, so the file may be far
     # larger than memory. dtype includes the byte order ('>' big-endian).
     data = np.memmap(path, dtype=dtype, mode="r", offset=header_bytes,
@@ -151,6 +178,10 @@ Fortran `write(unit) array` produces records framed by 4-byte (sometimes
 whole thing; `read_fortran_records` handles it and validates the markers
 (a mismatch immediately tells you the byte order or marker size is wrong).
 
+The helpers support positive-length records with matching leading/trailing
+markers. Negative continuation markers are rejected; direct-access files
+without record markers need a raw-layout reader instead.
+
 ```python
 import numpy as np
 from mageometry import GriddedField
@@ -162,7 +193,7 @@ def load_fortran_planes(path, nx, ny, nz, dtype=">f4",
                         spacing=(1.0, 1.0, 1.0)):
     """
     Layout handled here: one record per x-y plane, `nz` planes per variable,
-    variables one after another (record k = variable k // nz, plane k % nz).
+    Variables are consecutive; record k belongs to variable k // nz, plane k % nz.
     Each plane is stored y-major: reshape to (ny + ghosts, nx).
     """
     ny_file = ny + sum(ny_ghost)
@@ -170,7 +201,7 @@ def load_fortran_planes(path, nx, ny, nz, dtype=">f4",
     comps = {}
     recs = iter_fortran_records(path, dtype=dtype)
     for name in variables:
-        planes = np.empty((nz, ny, nx), dtype=np.float32)
+        planes = np.empty((nz, ny, nx), dtype=np.dtype(dtype).newbyteorder('='))
         for k in range(nz):
             planes[k] = next(recs).reshape(ny_file, nx)[lo:hi, :]
         if name in ("bx", "by", "bz"):
@@ -190,7 +221,10 @@ Variants you will meet:
   `marker_dtype=">i8"` (or `"<i8"`).
 - **A header record** (grid sizes, time): read it first with
   `read_fortran_records(path, dtype=">i4", count=1)` and decode; then use
-  `skip=1` or the iterator for the rest.
+  `skip=1` with `read_fortran_records`, or `start=header_end_byte_offset`
+  with the iterator for the rest. Skipped records are still decoded with
+  the selected payload dtype, so use a byte offset for mixed record types
+  that cannot all be decoded with the same dtype.
 - **Discovering the layout:** the first record's length divided by the
   item size is the number of values per record. Match it against
   `nx*ny`, `nx*ny*nz`, `(nx+2g)*(ny+2g)`, ... to find plane/volume records
@@ -220,13 +254,20 @@ def load_chunks(pattern, n_ranks, decomposition, block, ghost, dtype=">f4",
     Rank r = ix + px * (iy + py * iz)  <-- check against your code!
     """
     px, py, pz = decomposition
+    if n_ranks != px * py * pz:
+        raise ValueError('n_ranks must match the decomposition.')
+    if not {'bx', 'by', 'bz'}.issubset(variables):
+        raise ValueError('variables must include bx, by, and bz.')
     nx, ny, nz = (b * p for b, p in zip(block, (px, py, pz)))
-    full = {v: np.empty((nx, ny, nz), np.float32) for v in ("bx", "by", "bz")}
+    native_dtype = np.dtype(dtype).newbyteorder('=')
+    full = {v: np.empty((nx, ny, nz), native_dtype) for v in ("bx", "by", "bz")}
     shape_disk = tuple(b + 2 * ghost for b in block)          # (bx_, by_, bz_)
     for r in range(n_ranks):
         ix, rem = r % px, r // px
         iy, iz = rem % py, rem // py
         recs = read_fortran_records(pattern.format(r), dtype=dtype)
+        if len(recs) != len(variables):
+            raise ValueError('Expected one record per variable in each rank file.')
         for name, rec in zip(variables, recs):
             if name not in full:
                 continue
@@ -247,7 +288,7 @@ If you also have a merged/global file from the same run (many codes ship a
 ordering or ghost width shows up as block-shaped discontinuities, and
 `divergence()` lights up along the block boundaries.
 
-### Recipe E — VTK (`.vti`, `.vtr`, `.vts`)
+### Recipe E — VTK (`.vti`, `.vtr`)
 
 This recipe ships as `mageometry.io.load_vtk` (with `region`/`stride`
 applied in memory after the read, and `name=('bx', 'by', 'bz')` accepted
@@ -266,8 +307,10 @@ def load_vtk(path, name="B"):
     nx, ny, nz = mesh.dimensions             # point counts
     if isinstance(mesh, pv.ImageData):
         axes = [o + s * np.arange(n) for o, s, n in zip(mesh.origin, mesh.spacing, mesh.dimensions)]
-    else:                                    # RectilinearGrid: explicit axes
+    elif isinstance(mesh, pv.RectilinearGrid):
         axes = [np.asarray(mesh.x), np.asarray(mesh.y), np.asarray(mesh.z)]
+    else:
+        raise ValueError('Only ImageData and RectilinearGrid are supported.')
     if name in mesh.point_data:
         B = np.asarray(mesh.point_data[name])            # (n_points, 3), x fastest
         comps = [B[:, k].reshape((nz, ny, nx)).transpose(2, 1, 0) for k in range(3)]
@@ -278,8 +321,11 @@ def load_vtk(path, name="B"):
     return GriddedField(*axes, *comps, metadata={"source": path})
 ```
 
-`StructuredGrid` (curvilinear) and unstructured meshes have no rectilinear
-axes; see [Curvilinear, AMR, unstructured](#curvilinear-amr-and-unstructured-meshes).
+The bundled reader also validates array names and component counts. Use
+`from mageometry import load_vtk` in normal applications; the simplified
+function above illustrates point/cell ordering. `StructuredGrid` (`.vts`)
+and unstructured meshes are rejected; see
+[Curvilinear, AMR, unstructured](#curvilinear-amr-and-unstructured-meshes).
 
 ### Recipe F — NetCDF / HDF5 / Zarr with your own layout
 
@@ -292,10 +338,10 @@ import xarray as xr
 from mageometry import GriddedField
 
 def load_netcdf(path, bx="Bx", by="By", bz="Bz", dims=("x", "y", "z")):
-    ds = xr.open_dataset(path)
-    axes = [np.asarray(ds[d].values, dtype=float) for d in dims]
-    comps = [np.asarray(ds[v].transpose(*dims).values) for v in (bx, by, bz)]
-    return GriddedField(*axes, *comps, metadata={"source": path, **ds.attrs})
+    with xr.open_dataset(path) as ds:
+        axes = [np.asarray(ds[d].values, dtype=float) for d in dims]
+        comps = [np.asarray(ds[v].transpose(*dims).values) for v in (bx, by, bz)]
+        return GriddedField(*axes, *comps, metadata={"source": str(path), **ds.attrs})
 ```
 
 `transpose(*dims)` makes the array order `(x, y, z)` regardless of how the
@@ -304,30 +350,41 @@ file stores it. For h5py, read `f[name][()]` (or a hyperslab
 
 ### Recipe G — Time series from per-step files
 
-Do not load every step; wrap your loader in a lazy `FieldSeries`:
+Do not load every step; wrap your loader in a lazy `FieldSeries`. Set
+`nx`, `ny`, `nz`, `dtype`, and `dt_output` from your data's format and
+output settings:
 
 ```python
-import glob, re
+import glob
+from pathlib import Path
+import re
 from mageometry.io import FieldSeries
 
-paths = sorted(glob.glob("run/step_*.bin"))
-times = [float(re.search(r"step_(\d+)", p).group(1)) * dt_output for p in paths]
+def step_number(path):
+    return int(re.fullmatch(r"step_(\d+)\.bin", Path(path).name).group(1))
+
+paths = sorted(glob.glob("run/step_*.bin"), key=step_number)
+if not paths:
+    raise ValueError('No step files matched the pattern.')
+times = [step_number(path) * dt_output for path in paths]
 series = FieldSeries.from_files(paths, load_raw, times=times,
-                                nx=600, ny=400, nz=400, dtype=">f4")   # kwargs go to load_raw
+                                nx=nx, ny=ny, nz=nz, dtype=dtype)   # kwargs go to load_raw
 series.times          # array
-grid = series.at(1200.0)          # loads one step
+grid = series.at(times[0])        # loads the first step
 for grid in series[::10]:         # every 10th step, one at a time
     ...
 ```
 
 The bundled `load_xdmf_series` returns the same kind of object for XDMF
-data.
+data. This snippet also uses `load_raw` from Recipe B. `series.at(t)` loads
+the nearest step; it does not interpolate time. Repeated indexing reloads
+the step, so keep a loaded grid when reusing it.
 
 ### Cell-centered and staggered grids
 
 - **Cell-centered** (finite-volume codes): the values belong to cell
-  centers. Build the axes as `x_c = x_edges[:-1] + dx/2` (or
-  `origin + (i + ½)·dx`) and pass them; nothing else changes.
+  centers. Build the axes as `x_c = 0.5 * (x_edges[:-1] + x_edges[1:])`
+  (and likewise for y/z); this also works for stretched axes.
 - **Staggered / Yee** (constrained-transport MHD): `bx` lives on x-faces,
   `by` on y-faces, `bz` on z-faces, so the three arrays differ in shape by
   one along their own axis. Bring them to cell centers by averaging the two
@@ -340,10 +397,10 @@ data.
   grid = GriddedField(x_c, y_c, z_c, bx_c, by_c, bz_c)
   ```
 
-  This is second-order accurate and is what most visualization tools do.
-  (The face-averaged field is no longer exactly divergence-free to the
-  discrete operator, but it is to second order — `divergence()` will still
-  be small.)
+  This is a centered interpolation for midpoint cells. Confirm the actual
+  face/centre locations before using it on other layouts. It does not
+  preserve a solver's discrete divergence constraint in general; evaluate
+  the resulting field with independent checks below.
 
 ### Non-uniform (stretched) axes
 
@@ -402,12 +459,13 @@ provenance in `metadata`:
 
 ```python
 def load_myformat(path, *, region=None, stride=1, **layout):
+    from mageometry import GriddedField
+    from mageometry.io import region_slices
+
     axes, bx, by, bz = _parse(path, **layout)          # your code
-    if region is not None or stride != 1:               # optional, cheap
-        from mageometry.io import region_slices
-        sx, sy, sz = region_slices(axes, region, stride)
-        axes = (axes[0][sx], axes[1][sy], axes[2][sz])
-        bx, by, bz = bx[sx, sy, sz], by[sx, sy, sz], bz[sx, sy, sz]
+    sx, sy, sz = region_slices(axes, region, stride)
+    axes = (axes[0][sx], axes[1][sy], axes[2][sz])
+    bx, by, bz = bx[sx, sy, sz], by[sx, sy, sz], bz[sx, sy, sz]
     return GriddedField(*axes, bx, by, bz,
                         metadata={"source": path, "reader": "load_myformat", **layout})
 ```
@@ -420,7 +478,13 @@ writes a small synthetic file and reads it back.
 
 ## Part III — Bundled readers: XDMF + HDF5
 
-### `load_xdmf(path, components=('BX','BY','BZ'), h5_file=None, region=None, stride=1)`
+### XDMF snapshots
+
+```python
+from mageometry import load_xdmf
+
+grid = load_xdmf('snapshot.xmf', components=('BX', 'BY', 'BZ'), stride=1)
+```
 
 The format written by many MHD codes and readable by ParaView/VisIt: an XML
 file (`.xmf`) describing the grid, pointing at heavy data in HDF5. Accepted
@@ -445,14 +509,18 @@ first** (`NZ NY NX`, `Z0 Y0 X0`, `DZ DY DX`), and the HDF5 datasets are
 C-order `(NZ, NY, NX)`. `load_xdmf` transposes to `(NX, NY, NZ)`.
 
 **Data types:** float32/float64, either byte order (big-endian converted on
-load; float32 stays float32 — 600×400×400 × 3 components ≈ 1.1 GB).
+load; float32 stays float32 — field storage uses approximately
+`nx * ny * nz * 3 * 4` bytes for three float32 components).
 
-**Renamed heavy data:** `load_xdmf("run.xmf", h5_file="/archive/run-heavy.h5")`.
+**Paths and renamed heavy data:** referenced HDF5 paths are relative to the
+XDMF file's directory. `load_xdmf('snapshot.xmf', h5_file='field.h5')`
+overrides the heavy file while retaining the referenced dataset paths.
+A relative override is resolved from the working directory.
 
 **Time series:** `load_xdmf` refuses temporal collections; use
 `load_xdmf_series`.
 
-### `load_xdmf_series(path, ...)`
+### XDMF time series
 
 Opens a series **lazily**. Two layouts:
 
@@ -470,102 +538,162 @@ Opens a series **lazily**. Two layouts:
   `<Grid>` per step, each with `<Time Value="..."/>`.
 
 ```python
-series = load_xdmf_series("run.xmf.series", region=((-15, -3), (-5, 5), (-5, 5)))
-series.times; series[3]; series.at(25.0); series[::5]
+from mageometry import load_xdmf_series
+
+series = load_xdmf_series('snapshots.xmf.series')
+print(series.times)
+grid = series[0]                 # reads one step
+every_fifth_step = series[::5]    # still lazy
 ```
 
-Reader options apply to every step.
+`components`, `region`, `stride`, and `metadata` apply to every step.
+This API has no `h5_file` override. `series.at(t)` selects the nearest known
+time without interpolating; index by step when times are unavailable.
+Unknown times are NaN. A new access reloads a step rather than caching it.
 
-### `load_hdf5(path, datasets, origin, spacing, zyx_order=True, region=None, stride=1)`
+### Direct HDF5
 
-For HDF5 datasets without XDMF metadata; you supply the geometry:
+For HDF5 datasets without XDMF metadata, supply the geometry in x/y/z order.
+The values below describe an example layout; replace them with yours:
 
 ```python
-grid = load_hdf5("run.h5", datasets=("BX", "BY", "BZ"),
-                 origin=(x0, y0, z0), spacing=(dx, dy, dz), zyx_order=True)
+from mageometry import load_hdf5
+
+grid = load_hdf5('field.h5', datasets=('BX', 'BY', 'BZ'),
+                 origin=(0, 0, 0), spacing=(1, 1, 1), zyx_order=True)
 ```
+
+`zyx_order=True` reads `(nz, ny, nx)` arrays; `False` reads `(nx, ny, nz)`.
+The API defaults to zero origin and unit spacing. The CLI requires these
+values explicitly to avoid silently assigning coordinates. For cell data,
+pass the coordinate of the first **cell centre** as the origin.
 
 ### Reading part of a large grid
 
-All readers take `region=((xmin, xmax), (ymin, ymax), (zmin, zmax))` (grid
-coordinates, inclusive; `None` per axis = full) and `stride`. The selection
-is an **HDF5 hyperslab**, so only those nodes are read:
+All bundled readers take `region=((xmin, xmax), (ymin, ymax), (zmin, zmax))`
+(grid coordinates, inclusive; `None` per axis = full) and `stride` (positive
+integer or three integers). For XDMF/HDF5 the selection is an **HDF5
+hyperslab**, so only those samples are materialized:
 
 ```python
-tail = load_xdmf("run.xmf", region=((-30, -5), (-10, 10), (-5, 5)))
-coarse = load_xdmf("run.xmf", stride=4)
+from mageometry import load_xdmf
+
+# Choose bounds and stride that leave enough nodes in your file.
+region = load_xdmf('snapshot.xmf', region=((-1, 1), None, None))
+coarse = load_xdmf('snapshot.xmf', stride=2)
 ```
 
-`GriddedField.subvolume(region, stride)` does the same in memory.
+VTK input is read in full, then subset in memory.
+`GriddedField.subvolume(region, stride)` copies selected nodes from an
+already loaded grid. Keep at least two points per axis for `GriddedField`,
+and three for the current/geometry overview. Stride samples nodes; it does
+not average cells or automatically retain the final endpoint.
 
 ### Writing XDMF + HDF5 yourself
 
-If you would rather convert once than write a reader, this writer produces
-files `load_xdmf` accepts (it is the recipe the test suite uses):
+This writer accepts a uniform `GriddedField` and an output filename. It
+writes scalar node data with matching HDF5 dtype and XDMF precision. The
+output geometry follows the same ZYX convention used by the reader tests.
 
 ```python
-import h5py, numpy as np
+from pathlib import Path
+import xml.etree.ElementTree as ET
+import h5py
+import numpy as np
 
-# bx, by, bz: shape (nx, ny, nz); x, y, z: uniform axes
-nx, ny, nz = bx.shape
-origin = (x[0], y[0], z[0]); spacing = (x[1]-x[0], y[1]-y[0], z[1]-z[0])
-with h5py.File("myrun.h5", "w") as f:
-    for name, arr in (("BX", bx), ("BY", by), ("BZ", bz)):
-        f.create_dataset(name, data=arr.transpose(2, 1, 0))     # -> (nz, ny, nx)
-with open("myrun.xmf", "w") as f:
-    f.write(f"""<?xml version="1.0" ?>
-<Xdmf Version="2.0"><Domain>
-<Grid Name="Structured Grid" GridType="Uniform">
-<Topology TopologyType="3DCORECTMesh" NumberOfElements="{nz} {ny} {nx}"/>
-<Geometry GeometryType="ORIGIN_DXDYDZ">
-<DataItem Name="Origin" Dimensions="3" NumberType="Float" Format="XML">{origin[2]} {origin[1]} {origin[0]}</DataItem>
-<DataItem Name="Spacing" Dimensions="3" NumberType="Float" Format="XML">{spacing[2]} {spacing[1]} {spacing[0]}</DataItem>
-</Geometry>""")
-    for name in ("BX", "BY", "BZ"):
-        f.write(f"""
-<Attribute Name="{name}" AttributeType="Scalar" Center="Node">
-<DataItem Dimensions="{nz} {ny} {nx}" NumberType="Float" Precision="4" Format="HDF">myrun.h5:/{name}</DataItem>
-</Attribute>""")
-    f.write("\n</Grid></Domain></Xdmf>\n")
+def write_xdmf(path, grid, dtype=np.float32):
+    path = Path(path)
+    heavy_path = path.with_suffix('.h5')
+    dtype = np.dtype(dtype)
+    if dtype.kind != 'f' or dtype.itemsize not in (4, 8):
+        raise ValueError('Use float32 or float64 output.')
+    axes = (grid.x, grid.y, grid.z)
+    spacing = tuple(axis[1] - axis[0] for axis in axes)
+    if not all(np.allclose(np.diff(axis), step, rtol=1e-8, atol=0)
+               for axis, step in zip(axes, spacing)):
+        raise ValueError('This XDMF writer requires uniform axes.')
+    root = ET.Element('Xdmf', Version='2.0')
+    node = ET.SubElement(ET.SubElement(root, 'Domain'), 'Grid', GridType='Uniform')
+    dimensions = ' '.join(str(n) for n in grid.shape[::-1])
+    ET.SubElement(node, 'Topology', TopologyType='3DCORECTMesh',
+                  NumberOfElements=dimensions)
+    geometry = ET.SubElement(node, 'Geometry', GeometryType='ORIGIN_DXDYDZ')
+    for name, values in (('Origin', [axis[0] for axis in axes]), ('Spacing', spacing)):
+        item = ET.SubElement(geometry, 'DataItem', Name=name, Dimensions='3',
+                             NumberType='Float', Format='XML')
+        item.text = ' '.join(str(value) for value in values[::-1])
+    with h5py.File(heavy_path, 'w') as heavy:
+        for name, values in zip(('BX', 'BY', 'BZ'), (grid.bx, grid.by, grid.bz)):
+            heavy.create_dataset(name, data=values.transpose(2, 1, 0), dtype=dtype)
+            attribute = ET.SubElement(node, 'Attribute', Name=name,
+                                       AttributeType='Scalar', Center='Node')
+            item = ET.SubElement(attribute, 'DataItem', Dimensions=dimensions,
+                                 NumberType='Float', Precision=str(dtype.itemsize),
+                                 Format='HDF')
+            item.text = f'{heavy_path.name}:/{name}'
+    ET.ElementTree(root).write(path, encoding='utf-8', xml_declaration=True)
+```
+
+With the synthetic grid from Part I, check the round trip. Allow a small
+absolute tolerance for roundoff when reconstructing coordinates:
+
+```python
+from mageometry import load_xdmf
+
+write_xdmf('snapshot.xmf', grid, dtype=np.float64)
+restored = load_xdmf('snapshot.xmf')
+for actual, expected in zip((restored.x, restored.y, restored.z), (grid.x, grid.y, grid.z)):
+    np.testing.assert_allclose(actual, expected, atol=1e-12)
+np.testing.assert_allclose(restored.b, grid.b)
 ```
 
 ---
 
 ## Part IV — Validating a new reader
 
-Run these on the first file you load with a new reader. Together they catch
-essentially every assembly mistake.
+Use several independent checks on the first file loaded with a new reader.
+No single diagnostic proves correct layout, units, or handedness.
 
 **1. Shape and axes.** `print(grid)` shows `(nx, ny, nz)` and the axis
 ranges. Do they match what you expect from the run (domain extent, cell
 count per axis)? Note that a transposed load can have a *plausible* shape
 when two axes have equal length — do not stop here.
 
-**2. Divergence (the axis/component detector).**
+**2. Divergence (a diagnostic, not a pass/fail certificate).**
 
 ```python
+import numpy as np
+
 d = grid.divergence()                 # |div B| h / |B|, dimensionless
-print(np.nanmedian(d), np.nanpercentile(d, 90))
+finite = d[np.isfinite(d)]
+if finite.size:
+    print(np.median(finite), np.percentile(finite, 90))
+else:
+    print('No finite divergence samples; inspect the input field and mask.')
 ```
 
-For correctly assembled MHD output the median is ~1e-3–1e-2 (finite
-differences of a discretely divergence-free field). Transposed axes,
-permuted components (`by` where `bx` should be), or a sign-flipped
-component give ~0.1 or more. A wrong grid *spacing* also raises it but less
-dramatically. Exclude the planet/inner boundary and the outer few cells
-when looking at the statistics; those are legitimately noisy.
+`h` is the mean of the three axes' mean spacings; it is a global scale,
+including on stretched grids. `grid.divergence(relative=False)` returns
+signed divergence in field/length units. There is no universal threshold:
+the result depends on resolution, boundary stencils, interpolation, and
+the source field. Some wrong axis/component assignments still have zero
+divergence. Compare with a reference field and spatial maps, and exclude
+known invalid regions when computing statistics. The relative result is
+NaN at zero field and can be large near weak fields.
 
 **3. Where is the planet?** If the run contains a planet with a dipole,
-`np.argmax` of `|B|` on a coarse `subvolume(stride=4)` should land at the
-expected grid position; the `bz` sign near the equator tells you the
-dipole orientation (for Earth-like dipoles the equatorial field points
-south, `bz < 0` at `z = 0` in GSM-like frames).
+compare field magnitude and direction around the expected centre with
+the source model. Masked interiors, boundary conditions, and other current
+systems can move the strongest sample away from the centre. For a dipole
+moment m, the ideal equatorial field points opposite m; check the moment
+and frame conventions rather than assuming a universal sign for `bz`.
 
 **4. Physics you know.** In the inner dipole-dominated region the
 equatorial curvature is `3/r` (with `r` from the planet center). Sample a
 ring of points, evaluate `field_line_curvature`, and check `kappa * r / 3 ≈ 1`.
-Deviations of a few percent are fine at moderate resolution; a factor of 2
-or a wrong trend means a unit or spacing error.
+Compare errors across grid resolutions and derivative steps. Departures
+can reflect interpolation, finite differences, or nondipolar physics as
+well as incorrect units or spacing.
 
 **5. Handedness.** `divergence()` cannot see a single-axis flip. Check
 that the field direction at a known point matches the physical frame (e.g.
@@ -573,11 +701,13 @@ the dipole field at the pole points along the dipole axis in the expected
 sense) — or simply compare against the code's own visualization.
 
 **6. Round trip against a known field (for writers and full pipelines).**
-Sample a Tsyganenko field with `mageometry.geopack_field`, write it with
-*your* writer, read it back with *your* reader, and compare interpolated
-values, curvature, and Frenet frames to direct model evaluation. The test
-suite does exactly this (`TestTsyganenkoFileRoundtrip` in
-`tests/test_io_gridded_field.py`); copy it and swap in your functions.
+Use unequal axis lengths and a field with distinguishable components;
+compare axes and every component at nodes before testing interpolation and
+geometry. The [synthetic round trip above](#writing-xdmf--hdf5-yourself)
+is a starting point. Model-based checks are in `TestTsyganenkoFileRoundtrip`
+in [`tests/test_io_gridded_field.py`](../tests/test_io_gridded_field.py).
+Also compare against an independent file reader or known samples: a writer
+and reader sharing the same ordering mistake can pass a round-trip test.
 
 ---
 
@@ -585,21 +715,27 @@ suite does exactly this (`TestTsyganenkoFileRoundtrip` in
 
 ### Interpolation and the finite-difference step
 
-- `grid.field(method="linear")` is fast and memory-light, but its
-  derivative is piecewise constant: with the geometry functions use
-  `delta` of about **one grid cell**; smaller steps only sample the noise
-  of the interpolant.
-- `method="cubic"` has continuous derivatives: cleaner curvature and
-  torsion, `delta` can be a fraction of a cell, but it is markedly slower
-  on large grids — extract a `subvolume` for detailed regional analysis.
+- `grid.field(method="linear")` uses multilinear interpolation. Its first
+  derivatives generally jump at cell faces; they need not be constant
+  throughout a 3D cell. A step near the local grid spacing is a useful
+  starting point, then compare nearby step sizes. Subcell estimates
+  describe the interpolant, not unresolved structure in the source data.
+- `method="cubic"` can provide smoother derivative estimates. It requires
+  a SciPy version supporting that method, at least four nodes per axis,
+  and finite input values. Construction may use substantially more memory
+  and time; extract a finite subvolume first. Higher-order interpolation
+  does not automatically improve noisy data.
 - `field_line_frame_quality(field, x, y, z, delta)` reports where the
   finite difference is not resolving the curvature; points above
-  `orthogonality_tol` come back as NaN from the frame functions. Weakly
-  curved regions (e.g. tail lobes at κ ~ 1e-3 per cell) are genuinely
-  unresolvable from float32 grid data — that is information, not an error.
+  `orthogonality_tol` have NaN normals/binormals. Weak curvature is sensitive
+  to spacing and input precision; there is no universal float32 curvature
+  cutoff. For transverse diagnostics, compare `gamma` with the
+  frame-dependent `sigma` and `q`.
 - Out-of-domain points return `fill_value` (default NaN), which propagates
-  as NaN through all geometry results; a single `np.isfinite` mask handles
-  them together with the intrinsically undefined points.
+  as NaN through dependent geometry results. Inspect validity separately
+  for each quantity and leave room for neighbouring derivative stencils.
+  `grid.field(fill_value=None)` raises on out-of-domain queries; this
+  wrapper does not use `None` to request extrapolation.
 
 ### Tracing through the data
 
@@ -612,9 +748,16 @@ Use `ds` of about one cell with linear interpolation.
 
 ### Memory
 
-- Keep float32; `GriddedField` preserves the input dtype and stores the
-  three components in one stacked array without duplication.
-- Use `region`/`stride` (readers) or `np.memmap` + slicing (your reader)
-  so that only the region of interest is materialized.
+- Choose a common float32 or float64 component dtype for your accuracy
+  needs. Construction allocates one stacked array; the input arrays still
+  occupy memory while referenced. `grid.bx/by/bz` are views of that array.
+  Coordinates are float64 and many analysis temporaries are float64.
+- Use HDF5 reader `region`/`stride`, or `np.memmap` + slicing in a custom
+  reader, to materialize only the region of interest. VTK reads the full
+  file first. `subvolume` allocates a new grid, and viewer `max_points`
+  limits the preview after loading.
 - Time series: `FieldSeries` loads one step at a time; do not hold steps in
   a list unless you need them simultaneously.
+
+For a full workflow, continue with [geometry analysis](geometry_analysis.md)
+or the [viewer guide](viewer.md).

@@ -1,23 +1,28 @@
 """
 Usage examples from the README.
 
-Demonstrates the six core vectorized capabilities:
+Runs the numerical README examples without plotting or simulation files:
   1. Coordinate transformations
   2. IGRF internal field
   3. Tsyganenko external field models
   4. Field line tracing
   5. Field line geometry (Frenet-Serret frame)
   6. Field line directional derivatives
+  7. Field-magnitude gradients and current density
+  8. Transverse rotation and shear
 """
 
 from mageometry import geopack
 from mageometry import (
     geopack_field,
+    trace_field_lines,
     field_line_curvature, field_line_frenet_frame,
     field_line_directional_derivatives,
+    field_magnitude_derivatives, field_line_current_density,
+    field_line_transverse_geometry,
 )
 from mageometry.geopack import (
-    geogsm_vectorized, igrf_gsm_vectorized, t96_vectorized, trace_vectorized,
+    geogsm_vectorized, igrf_gsm_vectorized, t96_vectorized,
 )
 import numpy as np
 
@@ -82,14 +87,24 @@ x0 = np.array([5.0, 6.0, 7.0, 8.0])
 y0 = np.zeros(4)
 z0 = np.zeros(4)
 
-xf, yf, zf, status = trace_vectorized(
-    x0, y0, z0, dir=-1, rlim=30, parmod=parmod, exname="t96", inname="dip"
+field = geopack_field('t96', 'dip', parmod, ps)
+tr = trace_field_lines(
+    field, x0, y0, z0, direction='both', ds=0.1, r0=1.0, rlim=30.0
 )
-# status: 0 = hit inner boundary, 1 = hit outer boundary, 2 = max steps
+# status: +B end; status_backward: -B end.
+xf, yf, zf = tr.end
 print("\n=== Field Line Tracing (dipole + T96) ===")
-status_labels = {0: "inner boundary", 1: "outer boundary", 2: "max steps"}
+status_labels = {0: "inner boundary", 1: "outer boundary", 2: "max steps",
+                 3: "undefined field", 4: "custom stop"}
 for i in range(len(x0)):
-    print(f"  start ({x0[i]}, {y0[i]}, {z0[i]}) -> end ({xf[i]:.4f}, {yf[i]:.4f}, {zf[i]:.4f})  status: {status_labels.get(int(status[i]), '?')}")
+    print(f"  seed ({x0[i]}, {y0[i]}, {z0[i]}) -> +B end "
+          f"({xf[i]:.4f}, {yf[i]:.4f}, {zf[i]:.4f}); "
+          f"+B: {status_labels[int(tr.status[i])]}, "
+          f"-B: {status_labels[int(tr.status_backward[i])]}")
+x_line, y_line, z_line = tr.path(0)
+s = tr.arc_length(0)
+kappa_line = field_line_curvature(field, x_line, y_line, z_line)
+print(f"  First line: {len(s)} points; seed arc length = {s[tr.start_index[0]]:.1f} Re")
 
 # --- 5. Field Line Geometry (Frenet-Serret Frame) ---
 # Geometry functions take any callable field(x, y, z) -> (bx, by, bz);
@@ -144,3 +159,21 @@ for i in range(len(x)):
     for label, key in labels:
         print(f"    {label} = {derivs[key][i]:+.6f}")
     print()
+
+# --- 7. Field-Magnitude Gradients and Current Density ---
+mag = field_magnitude_derivatives(field, x, y, z, delta=1e-3)
+cur = field_line_current_density(field, x, y, z, delta=1e-3)
+print("=== Field-Magnitude Gradients and Current Density ===")
+for i in range(len(x)):
+    print(f"  r = {x[i]} Re: |B| = {mag['B'][i]:.3f} nT; "
+          f"mu0J (T, n, b) = ({cur['mu0J_T'][i]:+.6f}, "
+          f"{cur['mu0J_n'][i]:+.6f}, {cur['mu0J_b'][i]:+.6f}) nT/Re")
+
+# --- 8. Transverse Rotation and Shear ---
+rates = field_line_transverse_geometry(field, x, y, z, delta=1e-3,
+                                      curvature_tol=1e-8)
+print("\n=== Transverse Geometry (1/Re) ===")
+for i in range(len(x)):
+    print(f"  r = {x[i]} Re: " + ', '.join(
+        f"{key} = {rates[key][i]:+.6f}"
+        for key in ('alpha', 'sigma', 'q', 'gamma', 'omega_c')))

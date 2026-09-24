@@ -1,5 +1,7 @@
 # Release Notes - v2.0.0
 
+> **Historical predecessor release.** These notes describe `geopack-vectorize` / `geopack-vectorized`, not the current Mageometry checkout. For current installation and APIs, use the [documentation index](../README.md). See the [archive context](README.md).
+
 ## Overview
 
 Major release with a complete package reorganization, cleaned-up public API, full English translation, and a renamed PyPI package.

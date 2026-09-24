@@ -15,11 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   current viewer controls and supporting all five transverse distributions.
 
 ### Changed
+- Consolidate runnable examples around the README examples, shared viewer
+  CLIs, and notebooks. The free-plane slice and Frenet-frame example now
+  lives in the [viewer guide](docs/viewer.md#free-slice-plane-and-frenet-frames).
 - Keep a synchronized face-on cross-section visible beside the 3D overview in
   geometry_viewer and fac_viewer; F4 still expands the slice.
 - Viewer alpha uses Cartesian first magnetic derivatives and stays defined
   without a Frenet normal; the legacy current calculation API is unchanged.
 - Remove current arrows from the shear diagnostic `B_twist_diff`.
+
+### Removed
+- Remove redundant standalone basic-usage, field-map, geometry, and
+  directional-derivative examples and their unused shared helpers. See the
+  [runnable scripts](README.md#runnable-scripts) and
+  [notebook index](examples/notebooks/README.md) for the maintained examples.
+- Remove the separate interactive 3D demo, unused directory-tree printer,
+  and PyPI upload configuration template.
 
 ### Breaking
 - **Package inverted: the analysis library is now the top-level package.** The
@@ -110,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the `'fac'` plotting quantity compute Cartesian curl projected along B,
   including straight field lines where a Frenet normal is undefined.
   `examples/fac_viewer.py` opens a model or simulation snapshot and supports
-  off-screen screenshots; the existing 3D demo now opens with the FAC view.
+  off-screen screenshots.
 - **`mageometry.geometry.field_line_current`: |B| gradients along the frame and
   the current density in the Frenet frame.** `field_magnitude_derivatives`
   returns ∂B/∂T, ∂B/∂n, ∂B/∂b — the scalar pieces the frame's directional

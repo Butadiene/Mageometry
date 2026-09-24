@@ -30,9 +30,9 @@ N_REPEATS = 3
 # ---------------------------------------------------------------------------
 # Environment setup
 # ---------------------------------------------------------------------------
-from datetime import datetime
+from datetime import datetime, timezone
 
-ut = datetime(2020, 1, 1, 12, 0, 0).timestamp()
+ut = datetime(2020, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp()
 ps = geopack.recalc(ut)
 
 
@@ -334,8 +334,8 @@ def to_markdown(df, n_points):
         ts = row["Scalar [s]"]
         tv = row["Vectorized [s]"]
         sp = row["Speedup"]
-        ts_s = "N/A" if (isinstance(ts, float) and np.isnan(ts)) else f"{ts:.3f}"
-        tv_s = "N/A" if (isinstance(tv, float) and np.isnan(tv)) else f"{tv:.3f}"
+        ts_s = "N/A" if (isinstance(ts, float) and np.isnan(ts)) else f"{ts:.3g}"
+        tv_s = "N/A" if (isinstance(tv, float) and np.isnan(tv)) else f"{tv:.3g}"
         sp_s = "N/A" if (isinstance(sp, float) and np.isnan(sp)) else _fmt_speedup(sp)
         lines.append(f"| {row['Component']} | {ts_s} | {tv_s} | {sp_s} |")
     return "\n".join(lines)

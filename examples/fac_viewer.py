@@ -48,7 +48,7 @@ def model_snapshot():
                       trace_kwargs={'r0': 2.5, 'ds': 0.15, 'max_steps': 350})
 
 
-def main(default_component="fac", description=None):
+def main(default_component="fac", description=None, require_source=False):
     parser = argparse.ArgumentParser(description=description or __doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sources = parser.add_mutually_exclusive_group()
     sources.add_argument('--xmf', help='XDMF metadata for a simulation snapshot')
@@ -56,7 +56,7 @@ def main(default_component="fac", description=None):
     parser.add_argument('--h5', help='HDF5 data, or heavy-file override with --xmf')
     parser.add_argument('--origin', type=float, nargs=3, help='x y z origin for direct HDF5')
     parser.add_argument('--spacing', type=float, nargs=3, help='dx dy dz for direct HDF5')
-    parser.add_argument('--stride', type=int, default=1, help='read every nth grid node')
+    parser.add_argument('--stride', type=int, default=1, help='read every nth grid node (default: 1)')
     parser.add_argument('--component', default=default_component,
                          choices=tuple(COMPONENTS),
                          help='initial component (switch interactively with F5/F6)')
@@ -76,6 +76,8 @@ def main(default_component="fac", description=None):
         parser.error('--stride must be positive')
     if args.vtk and args.h5:
         parser.error('--h5 cannot be combined with --vtk')
+    if require_source and not (args.xmf or args.vtk or args.h5):
+        parser.error('specify a snapshot file with --xmf, --vtk, or --h5')
     options = {}
     if args.xmf:
         grid = load_xdmf(args.xmf, h5_file=args.h5, stride=args.stride)

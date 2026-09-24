@@ -1,5 +1,7 @@
 # Release v1.0.12
 
+> **Historical predecessor release.** These notes describe `geopack-vectorize` / `geopack-vectorized`, not the current Mageometry checkout. For current installation and APIs, use the [documentation index](../README.md). See the [archive context](README.md).
+
 ## Major Features
 - ✨ **Vectorized Implementations** - All models now have vectorized versions with 20-150x speedup
 - 🚀 **Performance** - Process millions of points per second

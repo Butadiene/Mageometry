@@ -13,7 +13,7 @@ Usage:
 """
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,7 +28,7 @@ X_RANGE = (2.0, -10.0)   # Re  (sunward → tailward)
 Z_RANGE = (6.0, -6.0)    # Re
 R_EARTH = 1.0             # mask radius
 
-ut = datetime(2020, 1, 1, 12, 0, 0).timestamp()
+ut = datetime(2020, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp()
 ps = geopack.recalc(ut)
 parmod = np.array([2.0, -20.0, 0.0, -5.0, 0, 0, 0, 0, 0, 0], dtype=np.float64)
 

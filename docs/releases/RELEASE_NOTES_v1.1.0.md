@@ -1,5 +1,7 @@
 # Release Notes - Version 1.1.0
 
+> **Historical predecessor release.** These notes describe `geopack-vectorize` / `geopack-vectorized`, not the current Mageometry checkout. For current installation and APIs, use the [documentation index](../README.md). See the [archive context](README.md).
+
 ## 🎉 Major Release: Complete Vectorization & Enhanced Organization
 
 ### 🚀 Performance Improvements
@@ -99,4 +101,3 @@ Function names remain the same - only module names changed for clarity.
 
 ### 🙏 Acknowledgments
 This release represents a complete vectorization of the geopack library, making it suitable for modern large-scale space physics computations while maintaining the accuracy of the original Fortran implementations.
-

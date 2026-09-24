@@ -32,7 +32,7 @@ Usage:
 import argparse
 import math
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -49,7 +49,7 @@ POOL = max(SIZES)
 # ---------------------------------------------------------------------------
 # Environment setup
 # ---------------------------------------------------------------------------
-ut = datetime(2020, 1, 1, 12, 0, 0).timestamp()
+ut = datetime(2020, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp()
 ps = geopack.recalc(ut)
 
 

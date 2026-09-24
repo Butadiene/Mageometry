@@ -2,26 +2,28 @@
 
 A magnetic field line geometry toolkit built on a vectorized implementation of the Python [geopack](https://github.com/tsssss/geopack) library, covering the Tsyganenko magnetospheric field models (T89, T96, T01, T04), IGRF, field line tracing, and Frenet-Serret geometry of field lines.
 
-> **⚠️ Project status:** Mageometry is a hard fork of [geopack-vectorize](https://github.com/Butadiene/geopack-vectorize) under heavy development. It is **not published on PyPI**, breaking changes land without deprecation cycles, and no backward compatibility with geopack-vectorize is guaranteed. If you need a stable package, use [geopack-vectorize](https://pypi.org/project/geopack-vectorize/) instead.
+> **Project status:** Mageometry is a hard fork of [geopack-vectorize](https://github.com/Butadiene/geopack-vectorize) under heavy development. It is **not published on PyPI**, breaking changes land without deprecation cycles, and no backward compatibility with geopack-vectorize is guaranteed.
 
 ## Overview
 
-This project builds upon the Python geopack library, which provides faithful implementations of the Tsyganenko magnetospheric field models (T89, T96, T01, T04) and the IGRF geomagnetic field model, originally developed in Fortran by N.A. Tsyganenko.
+This project builds upon the Python geopack library, which implements the Tsyganenko magnetospheric field models (T89, T96, T01, T04), GEOPACK coordinate transforms, and evaluation of the IGRF geomagnetic field.
 
 On top of that foundation it provides:
 
-- **Vectorized Field Models**: NumPy-based implementations of all Tsyganenko models (T89, T96, T01, T04) that process arrays of points simultaneously (20-150x speedup)
-- **Vectorized Field Line Tracing**: Parallel tracing of multiple field lines with improved boundary interpolation
-- **Vectorized Coordinate Transforms**: Array-based transformations between all coordinate systems
-- **Field Line Geometry (`mageometry.geometry`)**: Frenet-Serret frames, curvature, torsion, directional derivatives, |B| gradients along the frame, and the current density μ₀J = ∇×B decomposed in the frame — the main focus of ongoing development
-- **Comprehensive Validation**: Extensive test suite ensuring < 10⁻¹¹ relative error vs original implementations
+- **Field Line Geometry (`mageometry.geometry`)**: Frenet-Serret frames, curvature, torsion, directional derivatives, |B| gradients, current-density decomposition, and transverse rotation/shear diagnostics — the primary analysis API
+- **Vectorized Field Models**: NumPy implementations of T89, T96, T01, T04, and IGRF; speedup depends on model and batch size (see [benchmarks](#performance-benchmarks))
+- **Field Line Tracing**: Batch tracing through any field callable with boundary interpolation, plus a separate tracer that follows the scalar geopack algorithm
+- **Coordinate Transforms**: Array-based transformations between GEI, GEO, GSM, GSE, SM, MAG, and GSW, plus spherical/Cartesian conversions
+- **Simulation Data and Visualization**: Rectilinear field grids, XDMF/HDF5 and VTK readers, optional Matplotlib plots and PyVista viewers
+- **Validation**: Scalar/vectorized comparisons and analytic geometry tests with explicit numerical tolerances
 
 ## Installation
 
 ### Requirements
-- Python 3.7+
-- NumPy
-- SciPy
+
+- Python 3.9+
+- NumPy >= 1.16.0
+- SciPy >= 1.0.0
 
 ### Install from Source
 
@@ -30,14 +32,33 @@ Mageometry is not distributed on PyPI. Install it directly from this repository:
 ```bash
 git clone https://github.com/Butadiene/Mageometry.git
 cd Mageometry
-pip install -e .
+python -m pip install -e .
 ```
 
-To run the tutorial notebooks in `examples/notebooks/`, install the example dependencies instead: `pip install -e .[examples]`.
+Choose optional dependencies for the features you use (run from the repository):
+
+| Feature | Install command |
+| --- | --- |
+| XDMF/HDF5 input (`h5py`) | `python -m pip install -e '.[io]'` |
+| 2D plots (`matplotlib`) | `python -m pip install -e '.[viz]'` |
+| 3D viewers and VTK input (`pyvista >= 0.44`) | `python -m pip install -e '.[viz3d]'` |
+| XDMF/HDF5 in the 3D viewers | `python -m pip install -e '.[io,viz3d]'` |
+| Tutorial notebooks and benchmarks | `python -m pip install -e '.[examples]'` |
+| Tests and optional plotting/input dependencies | `python -m pip install -e '.[dev]'` |
+
+The `examples` extra includes Matplotlib, Jupyter, pandas, psutil, and h5py;
+add `viz3d` for 3D examples. Importing `mageometry` uses bundled IGRF
+coefficients and does not access the network.
 
 ## Usage Examples
 
-All vectorized functions accept both scalars and NumPy arrays. Call `geopack.recalc(ut)` once before using any model or transform. See [`examples/readme_examples.py`](examples/readme_examples.py) for a runnable version of the code below. For detailed function descriptions, please also refer to the [upstream geopack README](https://github.com/tsssss/geopack).
+The model examples through transverse geometry below share their setup and
+can be run in order. [`examples/readme_examples.py`](examples/readme_examples.py)
+runs those numerical examples without plotting or simulation files.
+Field and geometry functions accept scalar coordinates or NumPy arrays.
+Call `geopack.recalc(ut)` before using geopack's internal fields and
+epoch-dependent transforms; repeat it when the epoch or solar-wind direction
+changes. Custom and simulation-data field callables do not need `recalc`.
 
 ```python
 from mageometry import geopack
@@ -48,6 +69,7 @@ ps = geopack.recalc(ut)
 ```
 
 ### Coordinate Transformations
+
 ```python
 from mageometry.geopack import geogsm_vectorized
 
@@ -60,6 +82,7 @@ x_gsm, y_gsm, z_gsm = geogsm_vectorized(x_geo, y_geo, z_geo, j=1)
 ```
 
 ### Internal Field (IGRF and Dipole)
+
 ```python
 from mageometry.geopack import igrf_gsm_vectorized
 
@@ -75,6 +98,7 @@ dx, dy, dz = geopack.dip(x, y, z)
 ```
 
 ### Tsyganenko External Field Models
+
 ```python
 from mageometry.geopack import t96_vectorized
 
@@ -96,6 +120,7 @@ bz_total = bz + bz_int
 ```
 
 ### Field Line Tracing
+
 `trace_field_lines` traces field lines through any `field(x, y, z)` callable — the same Tsyganenko fields and simulation-data fields used by the geometry API — so a traced line can be fed straight back into the geometry functions.
 
 ```python
@@ -109,12 +134,13 @@ tr = trace_field_lines(field, [5.0, 6.0, 7.0, 8.0], [0, 0, 0, 0], [0, 0, 0, 0],
                        direction="both", ds=0.1, r0=1.0, rlim=30.0)
 tr.status            # per line: 0 inner sphere, 1 outer sphere/box, 2 max steps,
                      #           3 field undefined (e.g. left the data domain), 4 custom stop
+tr.status_backward   # termination at the -B end; tr.status describes the +B end
 x, y, z = tr.path(0)             # one line's points (NaN-padded 2D arrays in tr.x, tr.y, tr.z)
 s = tr.arc_length(0)             # arc length, 0 at the seed (tr.start_index[0])
 kappa = field_line_curvature(field, x, y, z)   # curvature along the traced line
 ```
 
-Units are the field's own (Re for geopack fields, grid units for simulation data). For interpolated fields pass `bounds=grid.bounds` to have lines stop cleanly on the data box; a `stop(x, y, z)` callable adds custom termination. The geopack engine's bitwise-faithful port of the scalar `geopack.trace` remains available as `mageometry.geopack.trace_vectorized` (see [Vectorized Components](#field-line-tracing-1)).
+Units are the field's own (Re for geopack fields, grid units for simulation data). `direction=1` follows B, `direction=-1` opposes B, and `"both"` joins the two paths. For interpolated fields pass `bounds=grid.bounds` to have lines stop on the data box; a `stop(x, y, z)` callable adds custom termination. The geopack engine's port of scalar `geopack.trace` remains available as `mageometry.geopack.trace_vectorized`, with a different direction convention (see [Vectorized Components](#field-line-tracing-1)).
 
 ### Field Line Geometry (Frenet-Serret Frame)
 
@@ -143,6 +169,7 @@ tx, ty, tz, nx, ny, nz, bx, by, bz, curvature = \
 Undefined or unreliable quantities are returned as **NaN** — the tangent where |B| is zero or non-finite (magnetic nulls, points outside a simulation grid), the normal/binormal on straight field lines or where the finite difference does not resolve the curvature — so a single `np.isfinite` mask covers every case. The normal is the component of dT/ds perpendicular to T, making the frame orthonormal by construction at any `delta`. `field_line_frame_quality(field, x, y, z, delta)` returns the consistency diagnostic cos θ = |T·dT/ds|/|dT/ds| (grows as δ²); frames with cos θ above `orthogonality_tol` (default 0.1) are reported as NaN, which is the cue to reduce `delta`.
 
 ### Field Line Directional Derivatives
+
 ```python
 from mageometry import field_line_directional_derivatives
 
@@ -194,11 +221,44 @@ cur = field_line_current_density(field, x, y, z, delta=1e-3)
 # For geopack fields: J [A/m²] ≈ μ₀J [nT/Re] × 1.25e-10 (0.125 nA/m² per nT/Re)
 ```
 
-Against a direct finite-difference ∇×B of T96+IGRF, the three assembled components agree to a median relative error ~1e-6 of |∇×B| at `delta=2e-3` (`tests/test_field_line_current.py`; the current-free dipole doubles as the cancellation test Bκ = ∂B/∂n). `verify_divergence_identity(field, x, y, z, delta)` evaluates ∇·B = ∂B/∂T + B(dT_dn_n + dT_db_b) from the same machinery — zero to finite-difference accuracy on solenoidal fields, and a diagnostic for where a field genuinely is not (empirical models: parts of T96's Birkeland-current module reach |∇·B| ~ 1 nT/Re; interpolated data: the interpolant's divergence). See `examples/notebooks/10_current_density_from_geometry.ipynb`.
+[`tests/test_field_line_current.py`](tests/test_field_line_current.py) compares
+the assembled current against Cartesian finite differences of T96+IGRF at
+`delta=2e-3`, requiring a median vector error below `1e-4` and a maximum
+below `1e-3`, normalized by |∇×B| where the reference curl is step-converged
+and the reconstructed current is finite. A current-free dipole tests
+cancellation of Bκ and ∂B/∂n. `verify_divergence_identity` returns
+∂B/∂T + B(dT_dn_n + dT_db_b); tests compare it with a direct Cartesian
+divergence, including nonzero divergence in the sampled empirical field.
+See [notebook 10](examples/notebooks/10_current_density_from_geometry.ipynb).
+
+### Transverse Rotation and Shear
+
+```python
+from mageometry import field_line_transverse_geometry
+
+rates = field_line_transverse_geometry(field, x, y, z, delta=1e-3,
+                                      curvature_tol=1e-8)
+# rates['alpha']: twice the azimuthal mean winding rate
+# rates['sigma'], rates['q']: signed shear components in the Frenet frame
+# rates['gamma']: nonnegative, basis-independent transverse anisotropy
+# rates['omega_c']: signed local coiling rate
+# rates['curvature']: field-line curvature
+```
+
+All returned values have inverse-length units. This API samples first
+Cartesian derivatives of B. `alpha`, `gamma`, and `omega_c` remain defined
+on straight field lines; `sigma` and `q` need a curvature normal and become
+NaN at or below `curvature_tol`. Magnetic nulls and invalid stencils give
+NaN. The `alpha` returned by `field_line_current_density` uses the older
+frame-derivative estimate and requires a valid Frenet frame; the estimates
+need not agree exactly at finite step size. See
+[definitions and interpretation](docs/transverse_geometry.md).
 
 ### Visualization (`mageometry.viz`)
 
-Plots are built from the same objects as the analysis: a field callable, a `FieldLineTrace`, coordinates. Requires matplotlib (`pip install matplotlib` or `pip install -e .[viz]`); import explicitly with `from mageometry import viz`.
+Plots are built from a field callable, a `FieldLineTrace`, and coordinates.
+Install `python -m pip install -e '.[viz]'` and import explicitly with
+`from mageometry import viz`.
 
 ```python
 from mageometry import viz
@@ -213,32 +273,53 @@ viz.plot_line_profiles(tr, field, ("curvature", "torsion"))            # vs arc 
 viz.plot_frenet_frame(field, -6.0, 0.0, 1.0, length=1.5)               # T / n / b arrows
 ```
 
-Colour scales follow each quantity's convention (log for curvature and |B|, symmetric diverging for signed quantities); undefined (NaN) values are left blank. All functions accept an existing `ax` and return the matplotlib artists. See `examples/notebooks/09_visualization.ipynb`.
+Colour scales follow each quantity's convention (log for curvature and |B|,
+symmetric diverging for signed quantities); undefined (NaN) values are left
+blank. The functions accept existing axes and return artists, except
+`plot_line_profiles`, which accepts `axes=` and returns the profile axes.
+Named quantities in these general plotters use the legacy current API's
+`alpha`; transverse `sigma`, `q`, `gamma`, and `omega_c` can be supplied as
+custom quantity callables. See [notebook 9](examples/notebooks/09_visualization.ipynb).
 
 ### Interactive 3D Visualization (`mageometry.viz3d`)
 
-An interactive GPU-rendered companion to `mageometry.viz`, built on PyVista/VTK: rotate/zoom/pan the camera freely with the mouse and slice gridded volumes with drag-able plane widgets. Requires pyvista (`pip install pyvista` or `pip install -e .[viz3d]`); import explicitly with `from mageometry import viz3d`. Works on Linux (including WSL2 with WSLg), Windows, and macOS. On WSL2, if rendering falls back to the llvmpipe software rasterizer, set `GALLIUM_DRIVER=d3d12` to render on the Windows GPU.
+A PyVista/VTK companion to `mageometry.viz`: rotate, zoom, and pan the camera
+and slice gridded volumes with draggable plane widgets. Install
+`python -m pip install -e '.[viz3d]'`; rendering uses the graphics backend
+available to VTK. The example below samples the model field defined above,
+so it needs no simulation file.
 
 ```python
-from mageometry import viz3d
+from mageometry import GriddedField, viz3d
 
-grid = load_xdmf("run000.xmf")                       # any GriddedField
+axes = (np.linspace(-10, -3, 29), np.linspace(-3, 3, 25), np.linspace(-3, 3, 25))
+coords = np.meshgrid(*axes, indexing='ij')
+grid = GriddedField(*axes, *field(*coords))          # same model and units as field
 viz3d.slice_view(grid, "bmag")                       # three drag-able orthogonal slices
 viz3d.slice_view(grid, "curvature", mode="plane")    # one free plane (drag arrow / rotate)
-viz3d.explore(grid, "bmag", seeds=[[3, 0, 0], [5, 0, 0]],
+viz3d.explore(grid, "bmag", seeds=[[-5, 0, 0], [-7, 0, 0]],
               line_color="curvature")                # slices + traced field lines
 ```
 
 By default each slice is also shown face-on in a companion panel beside the 3D view (three stacked panels in `'ortho'` mode; in `'plane'` mode the panel's camera follows the widget normal as you rotate the plane). The panels update live while dragging, use an orthographic projection, and can be zoomed/panned independently; pass `front_view=False` for a single full-window 3D view.
 
-`add_field_lines` (traced lines as polylines or tubes, coloured by a quantity along the line), `add_frenet_frame` (T/n/b arrow glyphs), and the converters `to_rectilinear_grid` / `trace_polydata` compose custom scenes on any `pyvista.Plotter`. Quantities and colour scales follow the same conventions as `mageometry.viz`; NaN stays blank. Derivative quantities on large grids are expensive to evaluate on every node — coarsen with `grid.subvolume(stride=...)` first. In Jupyter, PyVista's notebook backends also work (`pv.set_jupyter_backend("trame")`), but the desktop window is the primary target. A runnable demo is in `examples/interactive_3d_demo.py`.
+`add_field_lines` (traced lines as polylines or tubes), `add_frenet_frame`
+(T/n/b arrows), and the converters `to_rectilinear_grid` / `trace_polydata`
+compose custom scenes on a `pyvista.Plotter`. The general slice and line
+plotters share the named quantities and colour conventions of `mageometry.viz`.
+Derivative quantities are expensive on large grids; coarsen with
+`grid.subvolume(stride=...)` first. The desktop window is the primary target;
+Jupyter rendering needs an appropriate PyVista backend and its additional
+dependencies. A complete example combining a free slice plane with Frenet
+arrows is in the [viewer guide](docs/viewer.md#free-slice-plane-and-frenet-frames).
 
 #### Comparing current components (notebook 10)
 
 [General magnetic geometry viewing](docs/transverse_geometry.md) adds `alpha`,
 `sigma`, `q`, `gamma`, and `omega_c` through `viz3d.geometry_view` and
 `python examples/geometry_viewer.py --component sigma --slice x --slice-only`.
-The calculation is also available as `geometry.field_line_transverse_geometry`.
+The calculation is also available as `mageometry.geometry.field_line_transverse_geometry`
+and the top-level `mageometry.field_line_transverse_geometry`.
 
 `viz3d.current_view` extends the FAC layout with a **component selector**.
 Click the top **dropdown** to choose a named component, or use **F5 / F6**
@@ -280,12 +361,16 @@ in native units. The selectable quantities follow
 | `mu0J_b` | Binormal current: \|B\|κ − ∂\|B\|/∂n | b (T × n, not B) |
 | `mu0J_x/y/z` | Cartesian components of the Frenet reconstruction | x / y / z |
 | `alpha` | Cartesian μ₀j∥ / \|B\| | None (scalar, not current density) |
+| `sigma` | Signed transverse shear a+c in the Frenet frame | None |
+| `q` | Transverse normal-strain difference u−v | None |
+| `gamma` | Basis-independent anisotropy √(sigma²+q²) | None |
+| `omega_c` | Signed local coiling rate | None |
 | `B_kappa` | Curvature contribution to μ₀J_b: +\|B\|κ | b |
 | `minus_dB_dn` | Pressure contribution to μ₀J_b: −∂\|B\|/∂n | b |
 
 Red/blue mean positive/negative **in the selected basis**, not always along/
-against B. `alpha` keeps inverse-length units and is never multiplied by
-`current_scale`. `current_unit` labels scaled currents; it does not perform
+against B. All five transverse rates keep inverse-length units and are never
+multiplied by `current_scale`. `current_unit` labels scaled currents; it does not perform
 conversion. The legacy `current_label` overrides only the `fac` label.
 
 The two entries immediately below `J_T` in the dropdown split its parallel
@@ -317,11 +402,13 @@ python examples/fac_viewer.py --component B_twist_diff --slice x --slice-origin 
 
 See the [parallel-term difference distribution](docs/images/parallel-current-difference.png).
 
-The notebook's geometry APIs are evaluated and cached together on first use;
-subsequent component changes and slice drags reuse those values. Magnetic
+The transverse rates are evaluated and cached as one group; selecting a
+legacy current component also computes the Frenet-frame current group.
+Subsequent component changes and slice drags reuse those values. Magnetic
 context lines stay fixed for comparison. Each component remembers its own
 threshold and uses its own fixed, symmetric 98th-percentile colour scale:
 **equal colours across different components need not mean equal amplitudes**.
+Nonnegative `gamma` uses only the positive half of that diverging scale.
 Compare the numeric legends when inspecting cancellation of `B_kappa` and
 `minus_dB_dn` in `mu0J_b`.
 
@@ -336,6 +423,10 @@ when delta is omitted. Smooth, fully finite grids can instead supply
 interpolation affect derivatives; do not interpret preview structure without
 resolution and step-size checks.
 
+The CLI viewers also enable a face-on slice panel beside the main view
+(`slice_panel=True`). In the Python API this extra panel is disabled by
+default; the draggable 3D slice starts hidden unless requested.
+
 #### Finding field-aligned currents
 
 ![FAC overview for a T96 plus dipole field: signed 3D regions and peak maps](docs/images/fac-overview.png)
@@ -348,10 +439,9 @@ the view, `l` toggles magnetic lines, `a` toggles current arrows, and `s`
 toggles the translucent regions to reveal the arrows inside them.
 
 ```python
-from mageometry import load_xdmf, viz3d
+from mageometry import viz3d
 
-grid = load_xdmf("run000.xmf", stride=4)
-plotter = viz3d.fac_view(grid)   # automatic seeds and threshold
+plotter = viz3d.fac_view(grid)   # model grid above; native nT/Re, automatic threshold
 # Or: viz3d.fac_view(grid, threshold=0.05, max_points=None)
 ```
 
@@ -422,7 +512,7 @@ shown in the window. Use `max_points=None` for the full grid, and reader-side
 `region`/`stride` to control the memory needed to load large snapshots.
 
 Run `python examples/fac_viewer.py` for T96 + dipole, or
-`python examples/fac_viewer.py --xmf run000.xmf --stride 4` for simulation data.
+`python examples/fac_viewer.py --xmf snapshot.xmf --stride 4` for your data.
 `--h5` can override the XDMF heavy-data file; direct HDF5 input requires
 `--origin` and `--spacing`. Use `--screenshot /tmp/fac.png` for an off-screen PNG.
 Add `--slice y` (XZ plane), or `--slice x --slice-origin -6 0 0`, to start
@@ -430,24 +520,73 @@ with a cross-section visible.
 
 ### Simulation Data (`mageometry.io`)
 
-Gridded magnetic fields from simulation output plug into the same geometry API. `GriddedField` holds a rectilinear grid plus the three field components and builds an interpolating `field(x, y, z)` callable; readers for specific file formats are thin adapters that construct a `GriddedField`. Currently provided: `load_xdmf` (XDMF-described uniform grids with HDF5 heavy data, as written by many MHD codes), `load_xdmf_series` (time series of such grids), `load_hdf5` (plain HDF5 datasets with caller-supplied grid geometry), and `load_vtk` (VTK ImageData / RectilinearGrid files, `.vti`/`.vtr`). The XDMF/HDF5 readers require the optional `h5py` dependency (`pip install h5py`); `load_vtk` requires `pyvista`.
+Gridded magnetic fields plug into the same geometry API. `GriddedField`
+requires three strictly increasing Cartesian axes, each with at least two
+points, and field components shaped `(nx, ny, nz)`. It builds an
+interpolating `field(x, y, z)` callable, with NaN outside the grid by default.
+The current/geometry overview viewers require at least three nodes per axis.
+
+| Reader | Supported input | Default magnetic data |
+| --- | --- | --- |
+| `load_xdmf` | Uniform XDMF (`3DCORECTMesh` + `ORIGIN_DXDYDZ`) with HDF5 heavy data | Scalar attributes `BX`, `BY`, `BZ`; override with `components=` |
+| `load_xdmf_series` | XDMF temporal collection or ParaView `.xmf.series` | Same grid convention as `load_xdmf` |
+| `load_hdf5` | HDF5 arrays plus caller-supplied origin and spacing | Datasets `BX`, `BY`, `BZ`; override with `datasets=` |
+| `load_vtk` | VTK ImageData / RectilinearGrid (`.vti` / `.vtr`) | Vector `B`; override with `name=` or a tuple of three scalar names |
+
+XDMF/HDF5 input requires `h5py`; VTK input requires `pyvista`. Direct HDF5
+assumes stored `(nz, ny, nx)` arrays by default; pass `zyx_order=False` for
+`(nx, ny, nz)` arrays. XDMF supplies grid coordinates; plain HDF5 does not.
+
+#### Open a snapshot in the viewer
+
+```bash
+python examples/geometry_viewer_simulation.py --xmf snapshot.xmf
+python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --h5 field.h5 --stride 4
+python examples/geometry_viewer_simulation.py --vtk snapshot.vti --component sigma --slice x --slice-only
+python examples/geometry_viewer_simulation.py --h5 field.h5 --origin 0 0 0 --spacing 1 1 1
+```
+
+Replace the filenames and direct-HDF5 grid coordinates with your own values.
+Relative paths are resolved from the working directory. This entry point
+requires `--xmf`, `--vtk`, or `--h5`: no simulation name, snapshot path, or
+grid size is built in. It starts with `alpha`, reads all nodes by default
+(`--stride 1`), and retains the input units. XDMF's referenced HDF5 paths
+are resolved relative to the XDMF file; `--h5` overrides the heavy-data path.
+The CLI uses the reader's default magnetic array names; use the Python
+reader options above for other names or layouts.
+
+`geometry_viewer.py` and `fac_viewer.py` accept the same file options but
+default to a T96 + dipole demonstration when no file is supplied, starting
+with `alpha` and `fac`, respectively. See
+[viewer controls and geometry definitions](docs/transverse_geometry.md).
+
+#### Analyze a snapshot in Python
 
 ```python
+import numpy as np
 from mageometry import load_xdmf, field_line_curvature, trace_field_lines
 
-grid = load_xdmf("run000.xmf")        # uniform grid + BX/BY/BZ heavy data
+grid = load_xdmf("snapshot.xmf")      # replace with your own file
 field = grid.field(method="linear")   # field(x, y, z) -> (bx, by, bz)
 
-dx = grid.x[1] - grid.x[0]
-kappa = field_line_curvature(field, x, y, z, delta=dx)  # [1/grid-unit]
+# Example seed at the domain centre; choose valid interior points for your data.
+x, y, z = [0.5 * (axis[0] + axis[-1]) for axis in (grid.x, grid.y, grid.z)]
+step = min(np.min(np.diff(axis)) for axis in (grid.x, grid.y, grid.z))
+kappa = field_line_curvature(field, x, y, z, delta=step)  # [1/grid-unit]
 
 # Field lines through the data, stopping on the grid box
-tr = trace_field_lines(field, x, y, z, direction="both", ds=dx, bounds=grid.bounds)
+tr = trace_field_lines(field, x, y, z, direction="both", ds=step, bounds=grid.bounds)
 ```
 
 Positions and results are in the simulation's own grid units (curvature in 1/grid-unit); rescale the axes or field arrays when constructing the `GriddedField` if you need physical units. For any other format, build the arrays yourself and call `GriddedField(x, y, z, bx, by, bz)` directly.
 
-Large runs: every reader takes `region=((xmin, xmax), (ymin, ymax), (zmin, zmax))` and `stride` to read only a sub-box or a coarsened grid (as an HDF5 hyperslab, so the full array never enters memory); `GriddedField.subvolume` does the same in memory. Node- and cell-centered attributes are both accepted. Time series — XDMF temporal collections or ParaView `.xmf.series` indexes — open lazily with `load_xdmf_series(path)`: `series.times`, `series[i]`, `series.at(t)`, or iterate one step at a time.
+Every reader accepts `region=((xmin, xmax), (ymin, ymax), (zmin, zmax))` and
+`stride`. XDMF/HDF5 readers apply these as HDF5 hyperslabs during loading;
+`load_vtk` reads the full file before selecting the subvolume in memory.
+`GriddedField.subvolume` also operates in memory. XDMF and VTK accept node-
+or cell-centered data. Time series open lazily with `load_xdmf_series(path)`:
+inspect `series.times`, access `series[i]`, or use `series.at(t)` to load
+the nearest available time (no temporal interpolation).
 
 **Your own format.** Most simulation output is not XDMF, and that is fine: the only contract is `GriddedField(x, y, z, bx, by, bz)`. [`docs/simulation_data_formats.md`](docs/simulation_data_formats.md) is a hands-on guide to getting there from raw binaries (C/Fortran order, endianness, headers), Fortran unformatted dumps (`mageometry.io.read_fortran_records`), per-rank chunk files, VTK/NetCDF/HDF5 with your own layout, cell-centered and staggered grids, non-uniform axes, unit and coordinate conversions, and per-step files as a lazy series (`FieldSeries.from_files`). `GriddedField.divergence()` catches the classic mistakes (transposed axes, permuted or sign-flipped components) before you analyze anything.
 
@@ -459,7 +598,12 @@ The exact accepted formats and the guide to adapting your own data are in [`docs
 
 ### Coordinate Transformations
 
-All vectorized transforms accept scalar or NumPy array inputs. Each pairwise transform uses a direction flag `j`: `j=1` for the forward direction, `j=-1` for the inverse. All coordinate values are in Earth radii (Re); angles in radians. See [SPENVIS Coordinate Transformations](https://www.spenvis.oma.be/help/background/coortran/coortran.html) for coordinate system definitions.
+These transforms are exported by `mageometry.geopack` and accept scalar or
+NumPy array inputs. Each pairwise transform uses `j=1` for the forward
+direction and `j=-1` for the inverse. Cartesian rotations preserve the
+input units; geopack field-model positions use Earth radii (Re). Spherical
+angles are in radians. See [SPENVIS Coordinate Transformations](https://www.spenvis.oma.be/help/background/coortran/coortran.html)
+for coordinate system definitions.
 
 | Function | Arguments | Forward (j=1) | Inverse (j=-1) |
 |----------|-----------|---------------|-----------------|
@@ -472,13 +616,20 @@ All vectorized transforms accept scalar or NumPy array inputs. Each pairwise tra
 | `gswgsm_vectorized` | `(x, y, z, j)` | GSW → GSM | GSM → GSW |
 
 Spherical/Cartesian and field-vector transforms:
+
 - `sphcar_vectorized(r, theta, phi, j)` — Spherical ↔ Cartesian (j=1: Sph→Cart, j=-1: Cart→Sph)
 - `bspcar_vectorized(theta, phi, br, btheta, bphi)` — B-field components: Spherical → Cartesian
 - `bcarsp_vectorized(x, y, z, bx, by, bz)` — B-field components: Cartesian → Spherical
 
 ### Internal Field (IGRF and Dipole)
 
-Vectorized IGRF and dipole field functions. All return magnetic field components in nanotesla (nT). IGRF covers years 1900–2025 with extrapolation beyond.
+Vectorized IGRF and dipole functions return magnetic field components in nT.
+The bundled default is IGRF-14: main-field epochs span 1900–2025, with
+secular variation used through 2030. The loader extrapolates outside its
+tabulated interval; that is not an accuracy guarantee for those dates.
+`geopack.init_igrf(version='13')` selects another bundled generation;
+call `recalc` afterwards to set its epoch. Coefficient downloads occur only
+when `geopack.update_igrf()` is explicitly called.
 
 - `igrf_geo_vectorized(r, theta, phi)` — IGRF in spherical GEO coordinates (r in Re, angles in radians); returns `(br, btheta, bphi)`
 - `igrf_gsm_vectorized(x, y, z)` — IGRF in GSM Cartesian coordinates (Re); returns `(bx, by, bz)`
@@ -489,7 +640,7 @@ Vectorized IGRF and dipole field functions. All return magnetic field components
 
 Tsyganenko magnetospheric field models. All take positions in **GSM coordinates** (Re) and return `(bx, by, bz)` in nanotesla (nT, GSM). `ps` is the dipole tilt angle (radians) returned by `recalc()`.
 
-- `t89_vectorized(iopt, ps, x, y, z)` — T89 model; `iopt` is the Kp index (1–7)
+- `t89_vectorized(iopt, ps, x, y, z)` — T89 model; `iopt` is a disturbance-bin number (1–7), corresponding approximately to Kp 0, 1, 2, 3, 4, 5, and ≥6
 - `t96_vectorized(parmod, ps, x, y, z)` — T96 model; `parmod = [Pdyn, Dst, ByIMF, BzIMF, 0, 0, 0, 0, 0, 0]`
 - `t01_vectorized(parmod, ps, x, y, z)` — T01 model; `parmod = [Pdyn, Dst, ByIMF, BzIMF, G1, G2, 0, 0, 0, 0]`
 - `t04_vectorized(parmod, ps, x, y, z)` — T04 model; `parmod = [Pdyn, Dst, ByIMF, BzIMF, W1, W2, W3, W4, W5, W6]`
@@ -510,10 +661,21 @@ bz_total = bz_int + bz_ext
 
 ### Field Line Tracing
 
-`trace_vectorized` is the geopack engine's port of the scalar `geopack.trace()`, kept bitwise-faithful to it (including its Earth-specific step control and stopping rules) as a validation reference. For general use — any field callable, both directions, arc length along the path — prefer the top-level `mageometry.trace_field_lines` shown in [Usage Examples](#field-line-tracing).
+`trace_vectorized` follows scalar `geopack.trace()` step control and
+Earth-specific stopping rules. By default it evaluates scalar field models
+point by point to minimize numerical differences; bitwise equality is not
+guaranteed across platforms. Pass `strict_scalar_models=False` to use the
+vectorized field models. For a generic field callable, both directions,
+and arc length, use [`mageometry.trace_field_lines`](#field-line-tracing).
 
 ```python
-trace_vectorized(xi, yi, zi, dir, rlim, r0, parmod, exname, inname, ...)
+from mageometry.geopack import trace_vectorized
+
+xf, yf, zf, xx, yy, zz, status, nsteps = trace_vectorized(
+    [5.0, 6.0], [0.0, 0.0], [0.0, 0.0], dir=-1,
+    parmod=parmod, exname='t96', inname='dip',
+    return_full_path=True, return_nsteps=True,
+)
 ```
 
 | Parameter | Type | Default | Description |
@@ -521,39 +683,73 @@ trace_vectorized(xi, yi, zi, dir, rlim, r0, parmod, exname, inname, ...)
 | `xi, yi, zi` | float or array | *(required)* | Starting positions in GSM coordinates (Re) |
 | `dir` | float | `1.0` | Tracing direction: `+1` antiparallel to **B**, `-1` parallel to **B** |
 | `rlim` | float | `10.0` | Outer boundary radius (Re); tracing stops when r >= rlim |
-| `r0` | float | `1.0` | Inner boundary sphere radius (Re); tracing stops when r <= r0 |
-| `parmod` | array | `2` | Model parameters (scalar Kp for T89; 10-element array for T96/T01/T04) |
+| `r0` | float | `1.0` | Inner sphere radius (Re); stops after crossing inside while moving inward |
+| `parmod` | int or array | `2` | T89 disturbance bin, or a 10-element array for T96/T01/T04 |
 | `exname` | str | `"t89"` | External field model: `"t89"`, `"t96"`, `"t01"`, or `"t04"` |
 | `inname` | str | `"igrf"` | Internal field model: `"igrf"` or `"dip"` |
 | `maxloop` | int | `1000` | Maximum number of integration steps per trace |
-| `return_full_path` | bool | `False` | If `True`, returns full field line trajectories as masked arrays |
-| `strict_scalar_models` | bool | `True` | If `True`, evaluates field models point-by-point for bitwise match with scalar `trace()` |
+| `return_full_path` | bool | `False` | If `True`, returns trajectories (masked 2D arrays for array inputs; trimmed 1D arrays for scalar inputs) |
+| `strict_scalar_models` | bool | `True` | If `True`, evaluates field models point by point to follow scalar `trace()` closely |
 | `return_nsteps` | bool | `False` | If `True`, also returns the number of integration steps per trace |
 
-**Returns:** `(xf, yf, zf, status)` — final positions (Re, GSM) and integer status codes:
-- `0` — reached inner boundary (r <= r0)
-- `1` — reached outer boundary (r >= rlim)
+**Returns:** `(xf, yf, zf, status)` by default, with final positions in GSM Re:
+
+- `0` — crossed inside `r0` while moving inward (the scalar endpoint convention is retained)
+- `1` — reached `r >= rlim`, `x >= 20`, or `y² + z² >= 1600`
 - `2` — exceeded maximum integration steps
 
-Optional returns (appended when the corresponding flag is `True`):
-- `xx, yy, zz` — full path arrays (`return_full_path`)
-- `nsteps` — per-trace step counts (`return_nsteps`)
+With `return_full_path=True`, the order is
+`(xf, yf, zf, xx, yy, zz, status)`: the path arrays precede `status`.
+`return_nsteps=True` appends `nsteps` to either form.
 
 Related functions for field line analysis:
+
 - Field line geometry (curvature, torsion, Frenet-Serret frame) — see [Usage Examples](#field-line-geometry-frenet-serret-frame)
 - Directional derivatives along field lines — see [Usage Examples](#field-line-directional-derivatives)
 
 ## Documentation and Examples
 
-Example notebooks are available in `examples/notebooks/` (index: [`examples/notebooks/README.md`](examples/notebooks/README.md)). Install the example dependencies to run them: `pip install -e .[examples]` (matplotlib, jupyter, pandas, h5py).
+Start with the [documentation index](docs/README.md), then choose
+[geometry analysis](docs/geometry_analysis.md),
+[simulation input](docs/simulation_data_formats.md), or the
+[viewer guide](docs/viewer.md). Historical predecessor releases are
+identified in the [release archive](docs/releases/README.md).
+
+### Runnable Scripts
+
+Run these scripts from the repository root after an editable installation.
+The numerical examples need the base package; viewers need `.[viz3d]`,
+and XDMF/HDF5 input needs `.[io]`.
+
+| Script | Purpose |
+| --- | --- |
+| [`examples/readme_examples.py`](examples/readme_examples.py) | Numerical examples without plotting or input files |
+| [`examples/geometry_viewer.py`](examples/geometry_viewer.py) | General geometry viewer; model demonstration when no file is supplied |
+| [`examples/geometry_viewer_simulation.py`](examples/geometry_viewer_simulation.py) | Geometry viewer requiring an explicit snapshot file |
+| [`examples/fac_viewer.py`](examples/fac_viewer.py) | Shared viewer CLI implementation; starts with FAC when run directly |
+| [`examples/python_code_samples/mhd_gridded_field_example.py`](examples/python_code_samples/mhd_gridded_field_example.py) | Dipole-oriented diagnostics for a supplied XDMF/HDF5 snapshot |
+
+For slice widgets and Frenet-frame arrows, use the standalone example in
+the [viewer guide](docs/viewer.md#free-slice-plane-and-frenet-frames).
+Scripts under `benchmark/` regenerate the performance tables and accuracy
+figures described [below](#performance-benchmarks).
 
 ### Tutorial Notebooks
+
+Example notebooks are available in `examples/notebooks/` (index:
+[`examples/notebooks/README.md`](examples/notebooks/README.md)). Install
+their dependencies with `python -m pip install -e '.[examples]'`; add
+`viz3d` to the extra list for interactive 3D examples.
+
 Start with the analysis library:
+
 - `07_fieldline_geometry_and_derivatives` — Field line geometry with Mageometry: field callables, Frenet-Serret frame, the nine directional derivatives, validity/NaN conventions, choosing δ, geometry along traced lines, maps
 - `08_simulation_data_geometry` — Simulation data pipeline: write a compatible XDMF/HDF5 file, load it, interpolate, compute curvature, trace through the data, Frenet frame and directional derivatives on gridded data vs the model
 - `09_visualization` — `mageometry.viz`: geometry maps on planes, field lines coloured by a quantity (2D/3D), profiles along lines, Frenet frames, custom quantities, the same plots on gridded data
+- `10_current_density_from_geometry` — |B| gradients, current-density decomposition, Cartesian-curl validation, dipole cancellation, and divergence diagnostics
 
 The geopack field engine:
+
 - `01_coordinate_transformations_guide` — Coordinate system transforms
 - `02_magnetic_field_models_guide` — Field model usage (T89, T96, T01, T04)
 - `03_performance_comparison` — Scalar vs vectorized benchmarks
@@ -562,104 +758,158 @@ The geopack field engine:
 - `06_field_line_tracing_validation` — Tracing accuracy validation
 
 ### Advanced Examples (`examples/notebooks/directional_derivatives_maps/`)
+
 - `dipole_field_directional_derivatives` — Dipole field directional derivative maps
 - `t96_field_directional_derivatives` — T96 model directional derivative and FAC maps
 
+## Development and Tests
+
+```bash
+python -m pip install -e '.[dev]'
+python -m unittest discover tests/
+python tests/test_vectorized_models.py
+```
+
+Tests use `unittest` and skip optional-dependency checks when the dependency
+is unavailable. Field-model comparisons default to `GEOPACK_FIELD_RTOL=1e-10`
+and `GEOPACK_FIELD_ATOL=1e-6` nT. Strict tracing comparisons use an
+epsilon-scaled tolerance controlled by `GEOPACK_MAXULP` (default 32) and
+report ULP differences above `GEOPACK_WARNULP` (default 8); a ULP warning
+alone does not imply a test failure.
+
+To build a local wheel and source distribution, install `build` and run
+`python -m build`. The package retains `Private :: Do Not Upload` and is
+not intended for PyPI publication.
+
 ## Performance Benchmarks
 
-Regenerate this table with [`benchmark/readme_benchmarks.py`](benchmark/readme_benchmarks.py) (`--plain` for plain text output).
+Regenerate the tables with `python benchmark/readme_benchmarks.py`
+(`--plain` for plain text), after installing `.[examples]`. These are
+measurements on one machine, not speedup guarantees. The tracer rows use
+`trace_vectorized(strict_scalar_models=False, maxloop=200,
+return_full_path=True)`; scalar time is extrapolated from 50 lines, and
+the vectorized time measures the full batch. They do not benchmark
+`trace_field_lines` or the default scalar-model tracing mode.
+
+Tables and accuracy figures were regenerated on 2026-09-24 with Python
+3.14.4, NumPy 2.5.2, SciPy 1.18.1, and bundled IGRF-14 on Linux x86_64
+(Intel Core Ultra 5 225U). The performance tables take the best of three
+timings; the accuracy script times each implementation once.
 
 | Component | Scalar (100 pts) [s] | Vectorized [s] | Speedup |
 |-----------|--------------------:|---------------------:|--------:|
-| Coordinate Transforms (subset) | 0.000 | 0.000 | **6.3x** |
-| IGRF (GSW) | 0.006 | 0.002 | **3.2x** |
-| T89 Model | 0.005 | 0.000 | **22.1x** |
-| T96 Model | 0.127 | 0.023 | **5.6x** |
-| T01 Model | 0.205 | 0.027 | **7.5x** |
-| T04 Model | 0.200 | 0.025 | **7.9x** |
-| Field Line Tracing (vectorized field models) [scalar extrap from 50] | 2.343 | 2.225 | **1.1x** |
+| Coordinate Transforms (subset) | 0.000213 | 2.1e-05 | **10.1x** |
+| IGRF (GSW) | 0.00308 | 0.00115 | **2.7x** |
+| T89 Model | 0.00262 | 0.000151 | **17.3x** |
+| T96 Model | 0.0396 | 0.0171 | **2.3x** |
+| T01 Model | 0.0839 | 0.0136 | **6.2x** |
+| T04 Model | 0.0776 | 0.0122 | **6.4x** |
+| Field Line Tracing (vectorized field models) [scalar extrap from 50] | 1.35 | 1 | **1.3x** |
 
 | Component | Scalar (1000 pts) [s] | Vectorized [s] | Speedup |
 |-----------|---------------------:|---------------------:|--------:|
-| Coordinate Transforms (subset) | 0.004 | 0.000 | **48.9x** |
-| IGRF (GSW) | 0.068 | 0.006 | **11.3x** |
-| T89 Model | 0.045 | 0.000 | **116x** |
-| T96 Model | 1.046 | 0.036 | **29.2x** |
-| T01 Model | 1.815 | 0.039 | **46.0x** |
-| T04 Model | 1.820 | 0.042 | **43.5x** |
-| Field Line Tracing (vectorized field models) [scalar extrap from 50] | 21.607 | 3.050 | **7.1x** |
+| Coordinate Transforms (subset) | 0.0022 | 3.29e-05 | **66.9x** |
+| IGRF (GSW) | 0.0311 | 0.00407 | **7.6x** |
+| T89 Model | 0.0233 | 0.000291 | **80.2x** |
+| T96 Model | 0.39 | 0.0226 | **17.3x** |
+| T01 Model | 0.755 | 0.0285 | **26.5x** |
+| T04 Model | 0.753 | 0.0284 | **26.5x** |
+| Field Line Tracing (vectorized field models) [scalar extrap from 50] | 11.6 | 1.67 | **7.0x** |
 
 ### Where Does the Speedup Come From?
 
-The speedup is not simply a function-call-count effect. Modeling the time of one vectorized call on an n-element array as `t_vec(n) ≈ a + b·n` separates a fixed per-call overhead `a` from the marginal cost per point `b`:
+Fitting `t_vec(n) ≈ a + b·n` separates the vectorized function's per-call
+overhead `a` from its marginal cost per point `b`. The script fits the
+slope at n ≥ 128 and estimates overhead from residuals at n ≤ 16; the
+break-even size is interpolated from measured scalar/vectorized timings:
 
 | Component | Overhead a [ms/call] | Marginal b [µs/point] | Scalar [µs/point] | Per-point ratio | Break-even n* |
 |-----------|---------------------:|----------------------:|------------------:|----------------:|--------------:|
-| T89 | 0.26 | 0.57 | 46.9 | **82x** | 2 |
-| T96 | 11 | 8.9 | 1090 | **123x** | 14 |
-| T01 | 16 | 21.2 | 1828 | **86x** | 10 |
-| T04 | 15 | 29.1 | 1870 | **64x** | 8 |
-| IGRF (GSW) | 1.3 | 3.6 | 57.9 | **16x** | 42 |
+| T89 | 0.14 | 0.12 | 23.9 | **198x** | 6 |
+| T96 | 6.1 | 8.5 | 391 | **46x** | 28 |
+| T01 | 8.9 | 19.8 | 716 | **36x** | 12 |
+| T04 | 8.9 | 19.3 | 735 | **38x** | 12 |
+| IGRF (GSW) | 0.70 | 2.5 | 31.2 | **12x** | 43 |
 
-- **A vectorized call with n = 1 is slower than a scalar call** (the fixed overhead `a` is paid on every call), so the gain does not come from merely reducing the number of function calls. Below the break-even size n\* the scalar functions are faster.
-- **The overhead `a` scales with model complexity** (T89 ≪ T96/T01/T04): it is the accumulated per-array-operation cost (NumPy dispatch, temporaries, both branches of `np.where`), not a constant per-call cost.
-- **The per-point cost ratio far exceeds the SIMD width** for float64 (4 lanes AVX2 / 8 lanes AVX-512), so SIMD alone cannot explain it. The dominant mechanism is amortizing the Python interpreter's per-operation overhead across array elements in NumPy's compiled loops.
+- Single-point vectorized calls are slower in this measurement because they
+  still pay the array-operation overhead.
+- Larger batches amortize Python dispatch and temporary-array costs across
+  NumPy's compiled loops. The fitted costs depend on the model, point
+  distribution, NumPy build, and machine.
+- The fitted slope ratio estimates large-batch throughput; it is not the
+  end-to-end speedup at every array size, and small-array timing is not
+  strictly linear.
 
 Regenerate this table with [`benchmark/readme_overhead_decomposition.py`](benchmark/readme_overhead_decomposition.py) (`--plain` for plain text output). A step-by-step version with figures is in [`examples/notebooks/03_performance_comparison.ipynb`](examples/notebooks/03_performance_comparison.ipynb), Section 3c.
 
 ## Accuracy Validation
 
-The vectorized implementations are validated against the original scalar functions across a 100 × 100 grid in the X-Z meridian plane (Y = 0, X: 2 to −10 Re, Z: 6 to −6 Re) using the combined IGRF + T96 total field. Relative error is defined as (B_scalar − B_vector) / |B_scalar|.
+[`benchmark/readme_validation.py`](benchmark/readme_validation.py) compares
+the IGRF + T96 total-field **magnitude** on a 100 × 100 X-Z meridian grid
+(Y = 0, X: 2 to −10 Re, Z: 6 to −6 Re), excluding r < 1 Re. The epoch is
+2020-01-01 12:00 UTC, with `parmod=[2, -20, 0, -5, 0, 0, 0, 0, 0, 0]`.
+The signed relative error is
+`(|B_scalar| - |B_vectorized|) / |B_scalar|`; this measures magnitude
+agreement, while the unit tests also compare individual components.
 
 Regenerate these figures with [`benchmark/readme_validation.py`](benchmark/readme_validation.py).
 
 | Metric | Value |
 |--------|------:|
 | Points evaluated | 9,792 |
-| Max \|relative error\| | 9.56 × 10⁻¹² |
-| Mean \|relative error\| | 6.72 × 10⁻¹⁴ |
-| Median \|relative error\| | 2.54 × 10⁻¹⁶ |
-| Scalar computation | 23.72 s |
-| Vectorized computation | 0.21 s |
-| Speedup | **116x** |
+| Max \|relative error\| | 3.830 × 10⁻¹¹ |
+| Mean \|relative error\| | 5.372 × 10⁻¹³ |
+| Median \|relative error\| | 2.585 × 10⁻¹⁶ |
+| Scalar computation | 5.79 s |
+| Vectorized computation | 0.0931 s |
+| Speedup | **62.2x** |
 
-The median error is near double-precision machine epsilon (~1.1 × 10⁻¹⁶), confirming that the vectorized path reproduces the scalar results to floating-point precision.
+The median magnitude error is near double-precision machine epsilon
+(`np.finfo(float).eps`, about 2.22 × 10⁻¹⁶). The maximum and timing values
+describe this sampled grid and runtime environment, not every model or
+input domain.
 
 **Error distribution** — Most points cluster below 10⁻¹⁵; the tail extends to ~10⁻¹¹.
 
 ![Relative error histogram](benchmark/readme_validation_histogram.png)
 
-**Spatial error map** — The largest errors concentrate near the magnetopause/cusp boundary where T96 current-sheet gradients are steepest, but remain negligible everywhere.
+**Spatial error map** — Signed relative magnitude error across the sampled
+meridian plane; the Earth interior is masked.
 
 ![Relative error colormap](benchmark/readme_validation_colormap.png)
 
 ## Technical Details
 
 ### Vectorization Approach
-- Full NumPy broadcasting support
-- Elimination of all Python loops
-- Optimized conditional logic using `np.where`
-- Safe numerical operations with proper edge case handling
-- Memory-efficient implementations
 
-### Accuracy Guarantees
-- Maximum relative error < 10⁻¹¹ vs scalar implementations (IGRF + T96 total field)
-- Median relative error at machine epsilon (~10⁻¹⁶)
-- Validated across 9,792 grid points in the X-Z meridian plane
-- Comprehensive test suite with configurable tolerances
-- Proper handling of boundary conditions
+- Coordinates are broadcast across NumPy arrays by field and geometry APIs;
+  model parameters and epochs are normally shared across a batch.
+- Array operations replace many loops over points. Loops over harmonics,
+  model terms, and integration steps remain; the strict engine tracer also
+  loops over points for scalar-model evaluations.
+- Conditional branches use array masks and `np.where` where appropriate.
+- Geometry APIs preserve scalar outputs for scalar coordinates and return
+  NaN for undefined geometry. Field-model singularities still require
+  suitable domains and masks.
 
-### Performance Optimization
-- Batch processing capabilities for millions of points
-- Linear memory scaling with input size
-- GPU-ready array operations
-- Minimal Python overhead
+### Numerical Scope and Memory
+
+- Scalar/vectorized agreement is checked at sampled points with explicit
+  tolerances; the accuracy figure above is one IGRF + T96 magnitude test.
+- Geometry uses finite differences: grid resolution, interpolation, and
+  derivative step affect accuracy independently of model vectorization.
+- Computation uses CPU NumPy/SciPy arrays; GPU array execution is not
+  implemented. PyVista/VTK rendering uses its available graphics backend.
+- Field batches allocate intermediate arrays. Trace storage scales with
+  both the number of lines and maximum steps; large grids and batches may
+  need chunking or reader-side subsetting.
 
 ## Attribution and Acknowledgments
 
 This project extends the excellent Python [geopack](https://github.com/tsssss/geopack) implementation by Sheng Tian, which has been invaluable to the space physics community. The original geopack provides a robust, well-tested foundation that faithfully reproduces the Fortran implementations.
 
 The original Fortran GEOPACK code and Tsyganenko models were developed by N.A. Tsyganenko and are available at:
+
 - https://geo.phys.spbu.ru/~tsyganenko/modeling.html
 - https://ccmc.gsfc.nasa.gov/models/
 
