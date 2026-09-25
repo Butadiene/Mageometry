@@ -43,10 +43,12 @@ from .field_line_current import (
     verify_divergence_identity,
 )
 
-from .field_line_transverse import field_line_transverse_geometry
+from .field_line_transverse import (field_line_transverse_geometry,
+                                    field_line_transverse_decomposition)
 
 __all__ = [
     "field_line_transverse_geometry",
+    "field_line_transverse_decomposition",
     "field_line_geometry",
     "field_line_directional_derivatives",
     "field_line_current",

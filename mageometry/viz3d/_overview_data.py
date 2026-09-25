@@ -119,6 +119,9 @@ class _OverviewData:
         self.selection = None
         self.thresholds = {}
 
+    def metadata(self, case):
+        return self.cases[case].metadata
+
     def get(self, case):
         if case not in self.cases:
             raise ValueError(f'Unknown case {case!r}.')

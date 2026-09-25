@@ -13,6 +13,7 @@ Examples (run from the repository after an editable install):
     python examples/fac_viewer.py --component mu0J_b --geometry-delta 0.002
     python examples/fac_viewer.py --component B_dT_dn_b --slice x --slice-only
     python examples/fac_viewer.py --component B_twist_diff --slice x --slice-only
+    python examples/fac_viewer.py --background dipole --contribution residual --component eta
     python examples/fac_viewer.py --screenshot /tmp/fac-preview.png
 
 Choose a component with the top dropdown or F5/F6 (previous/next).
@@ -28,7 +29,7 @@ import argparse
 
 import numpy as np
 
-from mageometry.viz3d._current import COMPONENTS, _component_name
+from mageometry.viz3d._current import COMPONENTS, TRANSVERSE_COMPONENTS, _component_name
 
 from mageometry import GriddedField, geopack, geopack_field, load_hdf5, load_vtk, load_xdmf, viz3d
 
@@ -64,10 +65,17 @@ def main(default_component="fac", description=None, require_source=False):
     parser.add_argument('--origin', type=float, nargs=3, help='x y z origin for direct HDF5')
     parser.add_argument('--spacing', type=float, nargs=3, help='dx dy dz for direct HDF5')
     parser.add_argument('--stride', type=int, default=1, help='read every nth grid node (default: 1)')
-    parser.add_argument('--component', default=default_component,
+    parser.add_argument('--component',
                          type=_component_name,
                          choices=tuple(COMPONENTS),
                          help='initial component (F5/F6)')
+    backgrounds = parser.add_mutually_exclusive_group()
+    backgrounds.add_argument('--background', choices=('dipole',),
+                             help='dipole background for the built-in model demo')
+    backgrounds.add_argument('--background-xmf', help='background XDMF snapshot on the same axes')
+    backgrounds.add_argument('--background-vtk', help='background VTK snapshot on the same axes')
+    parser.add_argument('--contribution', choices=('total', 'background', 'residual'),
+                         help='initial gradient contribution (requires a background)')
     parser.add_argument('--threshold', type=float, help='absolute cutoff for the initial component')
     parser.add_argument('--geometry-delta', type=float,
                          help='derivative step for geometry diagnostics')
@@ -86,6 +94,14 @@ def main(default_component="fac", description=None, require_source=False):
         parser.error('--h5 cannot be combined with --vtk')
     if require_source and not (args.xmf or args.vtk or args.h5):
         parser.error('specify a snapshot file with --xmf, --vtk, or --h5')
+    has_background = bool(args.background or args.background_xmf or args.background_vtk)
+    if args.contribution and not has_background:
+        parser.error('--contribution requires a background')
+    if args.background and (args.xmf or args.vtk or args.h5):
+        parser.error('--background dipole is only for the built-in model; supply a background snapshot')
+    args.component = args.component or ('eta' if has_background else default_component)
+    if has_background and args.component not in TRANSVERSE_COMPONENTS:
+        parser.error('background contributions require a transverse diagnostic')
     options = {}
     if args.xmf:
         grid = load_xdmf(args.xmf, h5_file=args.h5, stride=args.stride)
@@ -99,11 +115,26 @@ def main(default_component="fac", description=None, require_source=False):
     else:
         print('Model: T96 + dipole; native nT/Re converted to nA/m^2.', flush=True)
         grid, options = model_snapshot()
+    viewer = viz3d.geometry_view
+    if has_background:
+        if args.background:
+            tilt = grid.metadata['parameters']['Dipole tilt [rad]']
+            background = geopack_field(None, 'dip', ps=tilt)
+            label = 'Dipole'
+        elif args.background_xmf:
+            background = load_xdmf(args.background_xmf, stride=args.stride)
+            label = args.background_xmf
+        else:
+            background = load_vtk(args.background_vtk, stride=args.stride)
+            label = args.background_vtk
+        viewer = viz3d.transverse_contribution_view
+        options.update(background=background, background_label=label,
+                       contribution=args.contribution or 'total')
     if args.screenshot:
         import pyvista as pv
         pv.OFF_SCREEN = True
     print(f'Preparing magnetic geometry ({args.component}): {grid}', flush=True)
-    plotter = viz3d.geometry_view(grid, component=args.component,
+    plotter = viewer(grid, component=args.component,
                             threshold=args.threshold, max_points=args.max_points,
                             geometry_delta=args.geometry_delta,
                             slice_normal=args.slice_normal, slice_origin=args.slice_origin,

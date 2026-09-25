@@ -173,7 +173,7 @@ class _SliceFocus:
         key = self.owner.scalar_name
         message = f'All {key} strengths / fixed colour scale' if has_data else f'No valid {key} on this plane'
         if self.owner.case_label is not None and has_data:
-            message = f'All {key} strengths / colour scale shared across datasets'
+            message = f'All {key} strengths / shared colour scale'
         self.plotter.add_text(message, position=(0.035, 0.835), viewport=True,
                              font_size=10, color='#64748b', name='fac-focus-status', render=False)
         self.hide_overview()

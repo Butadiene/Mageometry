@@ -256,18 +256,87 @@ $$
 The β_g statement applies where the Frenet normal is defined; on the
 straight dipole axis β_g is undefined even though Γ = 0.
 
-Consequently Γ is not exclusively an effect of FAC. Compare the total
-field and a specified background. A scalar difference Γ_total−Γ_background
-is not the norm of a background-subtracted strain tensor; specify a common
-coordinate/basis convention and perform tensor subtraction when that is
-the intended quantity.
+Consequently Γ is not exclusively an effect of FAC. Away from zeros of
+Γ, the current-free dipole has η = −1: negative η alone does not demonstrate
+a current-driven deformation. Background attribution must operate on
+magnetic gradients or tensors before taking norms and ratios.
 
-For **B** = Σ_k **B**_k, fix **T**, **n**, **b** from the total field
-and define 𝒟_k = **b**·G_k**n** + **n**·G_k**b**. Then
-𝒟 = Σ_k 𝒟_k. Recomputing a separate frame for each source destroys
-this additive interpretation. Γ is a tensor norm and is not additive.
-Turning a model current source on/off is a sensitivity experiment, not a
-guarantee of a new self-consistent equilibrium.
+### Background attribution in the total-field frame
+
+For **B** = **B**₀ + **B**ᵣ, choose a specified background **B**₀ (for example
+a dipole), and define G₀ = ∇**B**₀ and Gᵣ = G − G₀. Keep B = |**B**|,
+**T**, P = I − **T****T**ᵀ and, when defined, **n**, **b** from the **total**
+field. For k ∈ {0, r}, define
+
+$$
+L_k=\frac{P G_k P}{B},\qquad
+S_k=\frac{L_k+L_k^{\mathsf T}}{2}
+       -\frac{\operatorname{tr}L_k}{2}P,\qquad
+\alpha_k=\frac{\mathbf T\cdot(\nabla\times\mathbf B_k)}{B},
+$$
+
+$$
+\beta_{g,k}=\frac{\mathbf b\cdot G_k\mathbf n+
+                         \mathbf n\cdot G_k\mathbf b}{B},\qquad
+\delta_{g,k}=\frac{\mathbf n\cdot G_k\mathbf n-
+                          \mathbf b\cdot G_k\mathbf b}{B},
+$$
+
+$$
+\Gamma_k=\sqrt{2\operatorname{tr}(S_k^2)},\qquad
+\eta_k=\frac{\alpha_k^2-\Gamma_k^2}{\alpha_k^2+\Gamma_k^2}.
+$$
+
+These are linear projections followed by the same scalar constructions as
+in sections 2–4. Thus G = G₀ + Gᵣ, L = L₀ + Lᵣ, S = S₀ + Sᵣ and
+α = α₀ + αᵣ. The same additive identities hold for β_g, δ_g and 𝒟 = Bβ_g
+where the common Frenet frame exists. The shear norm instead obeys
+
+$$
+\Gamma^2=\Gamma_0^2+\Gamma_r^2+
+                  4\operatorname{tr}(S_0 S_r).
+$$
+
+The cross term permits enhancement or cancellation. Neither Γᵣ = Γ − Γ₀
+nor ηᵣ = η − η₀ is an identity. A vanishing residual gradient gives Γᵣ = 0
+and αᵣ = 0, hence **undefined** ηᵣ, not ηᵣ = 0 or −1. A current-free
+background contributes zero α₀ analytically, but generally nonzero S₀;
+finite differences may leave a small numerical α₀.
+
+The implementation is
+`geometry.field_line_transverse_decomposition(total, background, x, y, z)`.
+It exposes the common reference frame and the total, background and residual
+G, L, S, transverse trace, divergence, and six diagnostics. Derivative steps
+are identical for both inputs. Invalid background samples invalidate only
+the background/residual branches. Background nulls are allowed because the
+normalization is B, not |**B**₀|. Total nulls or invalid total stencils
+invalidate all projected results. A total Frenet normal is needed only for
+β_g and δ_g.
+
+This answers **which gradient contributes to the observed transverse
+operator**. It removes the explicit background gradient while retaining
+background dependence in the total-field frame and normalization. A uniform
+added field has zero gradient contribution but can still change **T**, P, B
+and the observed Γ and η. It therefore does not quantify every geometric
+response to adding that field.
+
+Computing the geometry of **B**ᵣ with its **own** direction and magnitude
+answers a different question. Its field lines may have different
+connectivity and nulls, and its diagnostics cannot be added to total-field
+ones. Contribution η and the formal
+ω_c,k = sign(α_k)√max(α_k²−Γ_k², 0)/2 describe projected operators; they are
+not field-line winding rates of **B**ᵣ or **B**₀. Only the total branch keeps
+the actual total-field interpretation of sections 2–3. Attribution to a
+specified background also does not identify a particular FAC source unless
+that source decomposition has been independently established.
+
+Use `viz3d.transverse_contribution_view` to compare these three branches
+with common colour limits, thresholds, slices and **total-field** tracing.
+For matched simulation snapshots supply an explicit background in the same
+coordinates and units; do not assume a dipole without establishing that
+convention. See the [API example](transverse_geometry.md#background-gradient-contributions).
+Turning a model current source on/off remains a sensitivity experiment,
+not a guarantee of a new self-consistent equilibrium.
 
 ## 6. Along-line connections and finite-distance maps
 
@@ -334,8 +403,9 @@ from particle-pressure anisotropy and from the shape of a current-density
 map. Validating the proposed interpretations requires independent model
 or observational evidence.
 
-The current code implements the local diagnostics and viewer comparison,
-not R1/R2 labelling, source-resolved tensors, ψ_S/A outputs, current-closure
+The current code implements local diagnostics, explicit background-gradient
+attribution and viewer comparisons. It does not implement R1/R2 labelling,
+automatic physical-source identification, ψ_S/A outputs, current-closure
 diagnostics, or finite-distance F integration. Extensions should state the
 additional assumptions and tests rather than treating this research plan
 as already validated behavior.

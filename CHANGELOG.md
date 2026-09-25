@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Add `field_line_transverse_decomposition` with total-frame gradient and
+  shear tensors for total, background and residual contributions. Preserve
+  additive signed rates while computing gamma/eta from each tensor.
+- Add `viz3d.transverse_contribution_view` and viewer CLI background options,
+  retaining total magnetic lines, slices and shared scales across contributions.
+  Accept explicit callable/grid backgrounds; document the distinction from
+  standalone residual-field geometry with reproducible screenshots.
 - Document the baseline FAC-anisotropy theory with self-contained definitions,
   sign conventions, applicability limits, analytic examples, and a separate
   R1/R2 research plan. Link it from repository guidance.

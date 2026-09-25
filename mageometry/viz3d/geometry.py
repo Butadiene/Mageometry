@@ -116,3 +116,56 @@ def compare_geometry(cases, component='alpha', *, initial_case=None,
         comparison=dict(cases=cases, initial_case=initial_case,
                         color_limits=color_limits, cache_size=cache_size,
                         fields=fields), **kwargs)
+
+
+def transverse_contribution_view(gridded_field, background, component='eta', *,
+                                 contribution='total', background_label='Background',
+                                 color_limits=None, **kwargs):
+    """Compare total, background and residual gradients in a common frame.
+
+    Parameters
+    ----------
+    gridded_field : GriddedField
+        Total magnetic field defining the display coordinates and valid nodes.
+    background : callable or GriddedField
+        Background in identical coordinates and units. Background grids must
+        have identical axes and compatible declared units. Both grids use the
+        same preview sampling; callables use the total geometry difference step.
+    component : str, optional
+        One of alpha, beta_g, delta_g, gamma, omega_c or eta (default).
+    contribution : {'total', 'background', 'residual'}, optional
+        Initial contribution. F7/F8 or the left dropdown changes it.
+    background_label : str, optional
+        Declared background identity shown in source metadata.
+    color_limits : mapping of str to float, optional
+        Shared symmetric limits, as in :func:`compare_geometry`.
+    **kwargs
+        :func:`geometry_view` options. ``field`` optionally supplies the total
+        evaluator; ``geometry_delta`` controls both gradient stencils. Without
+        evaluators, derivatives use linear preview-grid interpolation.
+
+    Returns
+    -------
+    pyvista.Plotter
+        Viewer retaining total field lines, cameras, slices and per-diagnostic
+        thresholds across contributions. Scales cover all three contributions;
+        eta defaults to [-1, 1]. Default thresholds and seeds use the total.
+
+    Notes
+    -----
+    Uses :func:`mageometry.geometry.field_line_transverse_decomposition`.
+    The residual is formed before projection and scalar diagnostics. Its frame
+    and normalization still contain the background through the total field.
+    Contribution eta and omega_c characterize projected gradient operators,
+    not the actual field-line geometry of a standalone residual field.
+    """
+    from ._contribution_data import CONTRIBUTIONS, _transverse_component
+
+    _transverse_component(component)
+    if contribution not in CONTRIBUTIONS:
+        raise ValueError(f'Unknown contribution {contribution!r}.')
+    return _overview_view(gridded_field, component=component,
+                          contributions=dict(background=background,
+                                             background_label=background_label,
+                                             initial_case=contribution,
+                                             color_limits=color_limits), **kwargs)

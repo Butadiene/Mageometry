@@ -420,10 +420,41 @@ interface. See [source information](docs/viewer.md#source-information).
 ![Eta in the current viewer: source parameters, 3D regions, face-on slice, and signed peak maps](docs/images/viewer-eta-overview.png)
 
 This T96 + dipole example shows `eta` with its fixed [−1, 1] colour scale.
-Positive values indicate local rotation and negative values indicate local
-anisotropic stretching; neither establishes finite-distance winding.
+Positive values indicate rotation-dominated geometry and negative values
+indicate shear-dominated geometry; neither establishes finite-distance winding.
 The [enlarged slice](docs/images/viewer-eta-focus.png) retains the same
 source parameters and colour scale.
+
+To remove an explicit dipole **gradient** contribution, launch the shared-frame
+comparison:
+
+```bash
+python examples/geometry_viewer.py --background dipole --component eta --contribution residual --slice x --slice-origin -6 0 0
+```
+
+![Residual-gradient eta in the total-field frame, with shared scale and total magnetic lines](docs/images/contribution-eta-residual.png)
+
+F7/F8 switches total, background and residual gradients; F5/F6 switches the
+six transverse diagnostics. The magnetic lines, slice, camera and scales
+stay shared. Compare the captured views:
+
+| Diagnostic | Total field | Dipole gradient | Residual gradient |
+| --- | --- | --- | --- |
+| eta | [Total](docs/images/contribution-eta-total.png) | [Background](docs/images/contribution-eta-background.png) | [Residual](docs/images/contribution-eta-residual.png) |
+| gamma | [Total](docs/images/contribution-gamma-total.png) | [Background](docs/images/contribution-gamma-background.png) | [Residual](docs/images/contribution-gamma-residual.png) |
+
+A current-free dipole can already have nonzero gamma and eta = −1. This view
+subtracts gradients before forming tensors and scalar diagnostics; it does
+not subtract scalar gamma or eta. All contributions use the **total field's
+frame and magnitude**. Residual eta describes that projected gradient
+contribution, not the standalone residual field's winding. A zero residual
+has undefined eta. The API is
+`geometry.field_line_transverse_decomposition(total, background, x, y, z)`;
+`viz3d.transverse_contribution_view` accepts callable or gridded backgrounds.
+For simulations, supply matching background data with `--background-xmf`
+or `--background-vtk`. See the [derivation and API guide](docs/transverse_geometry.md#background-gradient-contributions).
+Regenerate these six images with
+`python benchmark/transverse_contribution_screenshots.py`.
 
 The two entries immediately below `J_T` in the dropdown split its parallel
 current: **`B_dT_dn_b + B_dn_db_T = mu0J_T`** to round-off. Here B is the

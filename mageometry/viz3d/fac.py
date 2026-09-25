@@ -255,7 +255,8 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
                    planet_center=(0.0, 0.0, 0.0), front_view=None,
                    plotter=None, show=True, slice_normal=None, slice_origin=None,
                    slice_only=False, component=None, current_unit=None,
-                   geometry_delta=None, slice_panel=False, comparison=None):
+                   geometry_delta=None, slice_panel=False, comparison=None,
+                   contributions=None):
     pv = require_pyvista()
     owned_plotter = plotter is None
     slice_controller = None
@@ -289,19 +290,31 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
             or not np.isfinite(geometry_delta) or geometry_delta <= 0):
         raise ValueError("geometry_delta must be a positive finite scalar.")
 
-    settings = comparison or {}
-    data = _OverviewData(settings.get('cases', {'Snapshot': gridded_field}),
-                         comparison=comparison is not None, field=field, delta=delta,
-                         fields=settings.get('fields'),
-                         max_points=max_points, mask=mask, geometry_delta=geometry_delta,
-                         current_scale=current_scale, percentile=percentile,
-                         color_limits=settings.get('color_limits'),
-                         cache_size=settings.get('cache_size', 1))
+    settings = contributions or comparison or {}
+    multiple = contributions is not None or comparison is not None
+    common = dict(field=field, delta=delta, max_points=max_points, mask=mask,
+                  geometry_delta=geometry_delta, current_scale=current_scale,
+                  percentile=percentile, color_limits=settings.get('color_limits'))
+    if contributions is not None:
+        from ._contribution_data import _ContributionData, CONTRIBUTIONS
+        from ._current import TRANSVERSE_COMPONENTS
+        data = _ContributionData(gridded_field, settings['background'],
+                                 background_label=settings['background_label'], **common)
+        case_labels = CONTRIBUTIONS
+        component_labels = {key: COMPONENT_LABELS[key] for key in COMPONENTS
+                            if key in TRANSVERSE_COMPONENTS}
+        component_labels['alpha'] = 'alpha - Projected rotation'
+    else:
+        data = _OverviewData(settings.get('cases', {'Snapshot': gridded_field}),
+                             comparison=comparison is not None, fields=settings.get('fields'),
+                             cache_size=settings.get('cache_size', 1), **common)
+        case_labels = {label: label for label in data.labels}
+        component_labels = COMPONENT_LABELS
     case = settings.get('initial_case', data.reference)
     initial = data.prepare(case, component)
     data.commit(initial)
     from ._source_info import _SourceInfo, _source_lines
-    reserve_info = any(_source_lines(grid.metadata) for grid in data.cases.values())
+    reserve_info = any(_source_lines(data.metadata(label)) for label in data.labels)
     preview = initial.prepared.preview
     spacing = initial.prepared.spacing
     fac_label = current_label
@@ -309,7 +322,7 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
 
     def display_label(key):
         label = _component_label(key, current_unit, length_unit, fac_label)
-        return label + ' / shared scale' if comparison is not None else label
+        return label + ' / shared scale' if multiple else label
 
     values, basis = initial.values, initial.basis
     current_label = display_label(component)
@@ -344,7 +357,7 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
         plotter.subplot(*main_location)
 
     plotter.set_background(_BACKGROUND, all_renderers=False)
-    if comparison is None:
+    if not multiple:
         plotter.add_text('MAGNETIC FIELD GEOMETRY' if selectable else 'FIELD-ALIGNED CURRENT',
                          position=(0.035, 0.94), viewport=True,
                          font_size=17 if selectable else 19, color=_INK, name='fac-title')
@@ -359,12 +372,16 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
         plotter.add_text(negative, position=(0.24, 0.885), viewport=True,
                          font_size=12, color=_NEGATIVE, name='fac-sign-negative')
         if selectable:
-            plotter.add_text(COMPONENTS[component][2], position=(0.035, 0.845),
+            description = COMPONENTS[component][2]
+            if contributions is not None and case != 'total':
+                description = f'{component}: gradient contribution in total-field frame; not standalone field geometry'
+            plotter.add_text(description, position=(0.035, 0.845),
                              viewport=True, font_size=10, color=_INK,
                              name='fac-component-description', render=False)
 
     describe_component()
-    plotter.add_text('Grey: magnetic field lines', position=(0.47, 0.885),
+    plotter.add_text('Grey: total magnetic field lines' if contributions is not None
+                     else 'Grey: magnetic field lines', position=(0.47, 0.885),
                      viewport=True, font_size=10, color='#64748b', name='fac-sign-context')
     plotter.add_mesh(mesh.outline(), color='#c0cbd6', line_width=1,
                      name='fac-outline', pickable=False)
@@ -427,7 +444,7 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
     flat = values.ravel(order='F')
     if seeds is None:
         seed_values = flat
-        if comparison is not None and case != data.reference:
+        if multiple and case != data.reference:
             seed_values = data.values(data.get(data.reference), component)[0].ravel(order='F')
         selected = _region_seeds(mesh.points, seed_values, threshold, n_lines, 0.12 * mesh.length)
         seeds = mesh.points[selected]
@@ -565,12 +582,12 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
               overview_widgets=(threshold_widget, main_renderer.axes_widget),
               expand=owned_plotter, scalar_name=scalar_name)
 
-    slice_controller.case_label = case if comparison is not None else None
+    slice_controller.case_label = case_labels[case] if multiple else None
     if slice_panel:
         from ._slice_panel import _SlicePanel
         slice_controller.panel = _SlicePanel(slice_controller, 4)
     slice_controller.focus.reserve_info = reserve_info
-    source_info = _SourceInfo(plotter, slice_controller.focus, data.cases[case].metadata)
+    source_info = _SourceInfo(plotter, slice_controller.focus, data.metadata(case))
 
     selector = None
     dataset_selector = None
@@ -605,7 +622,7 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
             new_mesh.point_data[key] = new_values.ravel(order='F')
             new_volume = _valid_volume(new_mesh, new_values)
             projections = [_peak_projection(new_values, axis).ravel(order='F') for axis in range(3)]
-            case_changed = target_case != case
+            case_changed = target_case != case and contributions is None
             new_lines = prepare_lines(selection.prepared) if case_changed else None
         except Exception:
             if selector is not None:
@@ -652,25 +669,26 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
         if case_changed:
             replace_lines(new_lines)
         update(cutoff)
-        slice_controller.case_label = case if comparison is not None else None
+        slice_controller.case_label = case_labels[case] if multiple else None
         slice_controller.set_component(volume, limit, current_label, scalar_name)
-        source_info.update(data.cases[case].metadata)
+        source_info.update(data.metadata(case))
         data.commit(selection)
         plotter.render()
 
     if selectable:
-        selector = _Dropdown(plotter, COMPONENT_LABELS, component, select)
+        selector = _Dropdown(plotter, component_labels, component, select)
         slice_controller.focus.layout_callbacks.append(selector.layout)
         # The selector must remain interactive in the isolated slice mode.
         slice_controller.focus.props.update(selector.props)
-        keys = tuple(COMPONENTS)
+        keys = tuple(component_labels)
         plotter.add_key_event('F5', lambda: select(keys[(keys.index(component) - 1) % len(keys)]))
         plotter.add_key_event('F6', lambda: select(keys[(keys.index(component) + 1) % len(keys)]))
-    if comparison is not None:
+    if multiple:
         dataset_selector = _Dropdown(
-            plotter, {label: label for label in data.labels}, case,
+            plotter, case_labels, case,
             lambda label: select(component, label), name='geometry-dataset',
-            caption='DATASET   /   F7: previous   F8: next', x_range=(0.035, 0.49))
+            caption=('CONTRIBUTION' if contributions is not None else 'DATASET')
+                    + '   /   F7: previous   F8: next', x_range=(0.035, 0.49))
         selector.link(dataset_selector)
         slice_controller.focus.layout_callbacks.append(dataset_selector.layout)
         slice_controller.focus.props.update(dataset_selector.props)

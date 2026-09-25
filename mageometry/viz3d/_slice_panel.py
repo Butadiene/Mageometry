@@ -71,7 +71,7 @@ class _SlicePanel:
                        color='#263546', name='fac-panel-title', render=False)
             status = 'All strengths / fixed colour scale' if has_data else 'No valid data on this plane'
             if owner.case_label is not None and has_data:
-                status = 'All strengths / colour scale shared across datasets'
+                status = 'All strengths / shared colour scale'
             p.add_text(status + '\nF1/F2/F3: YZ/XZ/XY  |  F4: enlarge',
                        position=(0.04, 0.025), viewport=True, font_size=9,
                        color='#64748b', name='fac-panel-status', render=False)

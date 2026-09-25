@@ -137,3 +137,76 @@ and grid resolution too; increasing `curvature_tol` masks unresolved normals
 but does not repair their values. The viewer currently does not expose
 `curvature_tol` as a CLI option. See
 [step-size and validity guidance](geometry_analysis.md#undefined-geometry-and-step-size).
+
+
+## Background gradient contributions
+
+A current-free dipole can have nonzero gamma and eta = −1. To separate a
+specified background gradient from total-field geometry, use the shared-frame
+API; subtracting scalar gamma or eta does not perform this decomposition.
+
+```python
+import numpy as np
+from mageometry import geopack, geopack_field
+from mageometry.geometry import field_line_transverse_decomposition
+
+ps = geopack.recalc(100.)
+parmod = [2., -20., 0., -5., 0, 0, 0, 0, 0, 0]
+total = geopack_field('t96', 'dip', parmod, ps)
+background = geopack_field(None, 'dip', ps=ps)
+parts = field_line_transverse_decomposition(total, background, -6., 2., 2., delta=.002)
+np.testing.assert_allclose(parts['total']['shear'],
+                           parts['background']['shear'] + parts['residual']['shear'],
+                           atol=1e-13)
+print(parts['total']['eta'], parts['residual']['eta'])
+```
+
+`reference` holds the total magnetic field, magnitude, tangent, normal,
+binormal, projection and curvature. Each of `total`, `background`, `residual`
+holds `gradient`, `transverse`, `shear`, `trace`, `divergence` and the six
+transverse diagnostics. `gradient` uses component/derivative-direction order:
+G_ij = ∂B_i/∂x_j. Vector/tensor dimensions follow the broadcast point dimensions;
+scalar coordinates give vectors `(3,)`, tensors `(3, 3)` and scalar diagnostics.
+Gradient and divergence have field/length units; transverse, shear, trace and
+the five rates have inverse-length units, while eta is dimensionless.
+
+Residual gradients are G_total − G_background. Both are projected with the
+total P and divided by |B_total|. Tensors and signed alpha/beta_g/delta_g are
+additive; norms, eta and omega_c are not. A background null is allowed, but
+invalid background samples/stencils invalidate background and residual.
+All projected results require valid total geometry. A zero residual gradient
+has zero gamma and undefined eta. See the
+[full derivation and limitations](fac_anisotropy_theory.md#background-attribution-in-the-total-field-frame).
+
+This attribution retains background dependence through the total frame and
+magnitude. In particular, a uniform perturbation has zero residual gradient
+but can change total geometry. Residual eta/omega_c characterize the projected
+gradient contribution, not the actual winding of residual-field lines. Call
+`field_line_transverse_geometry` on an explicitly constructed residual field
+if its own geometry is the intended question.
+
+Open the corresponding comparison with:
+
+```bash
+python examples/geometry_viewer.py --background dipole --component eta --contribution residual --slice x --slice-origin -6 0 0
+python examples/geometry_viewer_simulation.py --xmf total.xmf --background-xmf background.xmf --component gamma
+```
+
+The second command needs your own matching files; `--background-vtk` accepts
+a VTK background. Dipole background selection is restricted to the built-in
+model demo. The Python entry point
+`viz3d.transverse_contribution_view(total_grid, background, ...)` accepts a
+callable or `GriddedField` as background, including data loaded from HDF5.
+Declare it with `background_label`; optionally pass `field=total_callable`
+for direct total evaluation, and `geometry_delta` for the shared difference
+step. Grid-only inputs use equally coarsened preview interpolants; check
+stride, preview resolution and step convergence for both inputs.
+
+F7/F8 switches **Total field**, **Background gradient**, **Residual gradient**;
+F5/F6 switches the six diagnostics. Magnetic lines remain those of the total
+field, and switching contributions preserves cameras, slices, thresholds
+and shared colour limits. Default thresholds and seeds use the total branch.
+Eta defaults to [−1, 1]; other limits use the largest per-branch 98th percentile
+of absolute values. `color_limits={'gamma': value}` overrides a shared limit.
+Current arrows are absent. This comparison does not combine the dataset
+selector of `compare_geometry` with the contribution selector.

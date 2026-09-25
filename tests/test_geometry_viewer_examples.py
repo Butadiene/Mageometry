@@ -131,6 +131,50 @@ class TestGeometryViewerExamples(unittest.TestCase):
             'IMF By [nT]': parmod[2], 'IMF Bz [nT]': parmod[3],
             'Dipole tilt [rad]': ps, 'Epoch [Unix s]': recalc.call_args.args[0]})
 
+    def test_model_background_uses_declared_dipole_tilt(self):
+        from types import SimpleNamespace
+        grid = SimpleNamespace(metadata={'parameters': {'Dipole tilt [rad]': .123}})
+        with patch.object(self.viewer, 'model_snapshot', return_value=(grid, {})), \
+                patch.object(self.viewer, 'geopack_field') as background, \
+                patch.object(self.viewer.viz3d, 'transverse_contribution_view') as render:
+            self.run_viewer('geometry_viewer.py', '--background', 'dipole',
+                            '--contribution', 'residual')
+        background.assert_called_once_with(None, 'dip', ps=.123)
+        self.assertIs(render.call_args.kwargs['background'], background.return_value)
+        self.assertEqual(render.call_args.kwargs['background_label'], 'Dipole')
+        self.assertEqual(render.call_args.kwargs['component'], 'eta')
+        self.assertEqual(render.call_args.kwargs['contribution'], 'residual')
+
+    def test_background_snapshot_loading(self):
+        for extension, loader in (('xmf', 'load_xdmf'), ('vtk', 'load_vtk')):
+            total, background = object(), object()
+            with self.subTest(extension=extension), \
+                    patch.object(self.viewer, loader, side_effect=[total, background]) as load, \
+                    patch.object(self.viewer.viz3d, 'transverse_contribution_view') as render:
+                self.run_viewer('geometry_viewer_simulation.py',
+                                '--' + extension, 'total.' + extension,
+                                '--background-' + extension, 'background.' + extension,
+                                '--stride', '3', '--component', 'gamma')
+            self.assertEqual(load.call_args.kwargs, {'stride': 3})
+            self.assertIs(render.call_args.args[0], total)
+            self.assertIs(render.call_args.kwargs['background'], background)
+            self.assertEqual(render.call_args.kwargs['component'], 'gamma')
+            self.assertEqual(render.call_args.kwargs['contribution'], 'total')
+
+    def test_invalid_background_options_rejected_before_loading(self):
+        for args in (['--contribution', 'residual'],
+                     ['--background', 'dipole', '--component', 'fac'],
+                     ['--background', 'dipole', '--vtk', 'total.vti']):
+            with self.subTest(args=args), \
+                    patch.object(self.viewer, 'model_snapshot') as model, \
+                    patch.object(self.viewer, 'load_vtk') as load, \
+                    patch.object(sys, 'stderr', new_callable=io.StringIO):
+                with self.assertRaises(SystemExit) as error:
+                    self.run_viewer('geometry_viewer.py', *args)
+                self.assertEqual(error.exception.code, 2)
+                model.assert_not_called()
+                load.assert_not_called()
+
     def test_simulation_cli_accepts_eta(self):
         with patch.object(self.viewer, 'load_vtk'), \
                 patch.object(self.viewer.viz3d, 'geometry_view') as render:
