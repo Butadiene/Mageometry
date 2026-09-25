@@ -8,6 +8,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
+import numpy as np
 
 EXAMPLES = Path(__file__).resolve().parents[1] / 'examples'
 
@@ -55,9 +56,9 @@ class TestGeometryViewerExamples(unittest.TestCase):
                 patch.object(self.viewer.viz3d, 'geometry_view') as render:
             self.run_viewer('geometry_viewer_simulation.py', '--xmf', 'step.xmf',
                             '--h5', 'heavy.h5', '--stride', '4',
-                            '--component', 'sigma', '--slice', 'x', '--slice-only')
+                            '--component', 'beta_g', '--slice', 'x', '--slice-only')
         load.assert_called_once_with('step.xmf', h5_file='heavy.h5', stride=4)
-        self.assertEqual(render.call_args.kwargs['component'], 'sigma')
+        self.assertEqual(render.call_args.kwargs['component'], 'beta_g')
         self.assertEqual(render.call_args.kwargs['slice_normal'], 'x')
         self.assertTrue(render.call_args.kwargs['slice_only'])
 
@@ -115,6 +116,45 @@ class TestGeometryViewerExamples(unittest.TestCase):
                 model.assert_called_once_with()
                 self.assertIs(render.call_args.args[0], grid)
                 self.assertEqual(render.call_args.kwargs['component'], component)
+
+    def test_model_metadata_matches_evaluated_parameters(self):
+        field = lambda x, y, z: (np.ones_like(x), np.ones_like(y), np.ones_like(z))
+        with patch.object(self.viewer.geopack, 'recalc', return_value=0.123) as recalc, \
+                patch.object(self.viewer, 'geopack_field', return_value=field) as model:
+            grid, options = self.viewer.model_snapshot()
+        external, internal, parmod, ps = model.call_args.args
+        self.assertEqual((external, internal), ('t96', 'dip'))
+        self.assertIs(options['field'], field)
+        self.assertEqual(grid.metadata['model'], 'T96 + dipole')
+        self.assertEqual(grid.metadata['parameters'], {
+            'Pdyn [nPa]': parmod[0], 'Dst [nT]': parmod[1],
+            'IMF By [nT]': parmod[2], 'IMF Bz [nT]': parmod[3],
+            'Dipole tilt [rad]': ps, 'Epoch [Unix s]': recalc.call_args.args[0]})
+
+    def test_simulation_cli_accepts_eta(self):
+        with patch.object(self.viewer, 'load_vtk'), \
+                patch.object(self.viewer.viz3d, 'geometry_view') as render:
+            self.run_viewer('geometry_viewer_simulation.py', '--vtk', 'step.vti', '--component', 'eta')
+        self.assertEqual(render.call_args.kwargs['component'], 'eta')
+
+    def test_simulation_cli_accepts_shear_names(self):
+        for name in ('beta_g', 'delta_g'):
+            with self.subTest(name=name), patch.object(self.viewer, 'load_vtk'), \
+                    patch.object(self.viewer.viz3d, 'geometry_view') as render:
+                self.run_viewer('geometry_viewer_simulation.py', '--vtk', 'step.vti', '--component', name)
+            self.assertEqual(render.call_args.kwargs['component'], name)
+
+    def test_simulation_cli_rejects_removed_names_before_loading(self):
+        for name in ('sigma', 'q'):
+            with self.subTest(name=name), patch.object(self.viewer, 'load_vtk') as load, \
+                    patch.object(self.viewer.viz3d, 'geometry_view') as render, \
+                    patch.object(sys, 'stderr', new_callable=io.StringIO):
+                with self.assertRaises(SystemExit) as error:
+                    self.run_viewer('geometry_viewer_simulation.py', '--vtk', 'step.vti',
+                                    '--component', name)
+                self.assertEqual(error.exception.code, 2)
+                load.assert_not_called()
+                render.assert_not_called()
 
 
 if __name__ == '__main__':

@@ -2,16 +2,16 @@
 
 import numpy as np
 
-from ..geometry import field_aligned_current_density
-from ..io import GriddedField
 from ..tracing import trace_field_lines
 from ._pv import get_plotter, require_pyvista
 from .mesh import to_rectilinear_grid, trace_polydata
 from .slicer import _face_camera
 from ._fac_slice import _FACSlice, _slice_settings
-from ._current import (COMPONENTS, COMPONENT_LABELS, RATE_COMPONENTS, _CurrentPreview,
+from ._current import (COMPONENTS, COMPONENT_LABELS,
                        _component_label, _component_name)
 from ._dropdown import _Dropdown
+from ._preview import _masked_field, _preview_indices, _sample_fac
+from ._overview_data import _OverviewData
 
 __all__ = ['fac_view', 'current_view']
 
@@ -19,87 +19,6 @@ _POSITIVE = '#c94343'
 _NEGATIVE = '#2877ba'
 _INK = '#263546'
 _BACKGROUND = '#f5f7fa'
-
-
-def _masked_field(field, mask):
-    """Skip excluded regions and undefined frame/stencil coordinates."""
-    def evaluate(x, y, z):
-        coords = np.broadcast_arrays(x, y, z)
-        keep = np.all(np.isfinite(coords), axis=0)
-        if mask is not None:
-            keep &= ~np.broadcast_to(np.asarray(mask(*coords), dtype=bool), coords[0].shape)
-        result = tuple(np.full(coords[0].shape, np.nan) for _ in range(3))
-        if np.any(keep):
-            components = field(*(c[keep] for c in coords))
-            for out, component in zip(result, components):
-                out[keep] = component
-        return result
-
-    return evaluate
-
-
-def _preview_indices(shape, max_points):
-    """Bound preview size while preserving domain endpoints on every axis."""
-    counts = np.asarray(shape, dtype=int)
-    if np.any(counts < 3):
-        raise ValueError("FAC requires at least three grid nodes on every axis.")
-    if max_points is not None:
-        if not np.isscalar(max_points) or not np.isfinite(max_points) or max_points < 27:
-            raise ValueError("max_points must be an integer >= 27 or None.")
-        if int(max_points) != max_points:
-            raise ValueError("max_points must be an integer >= 27 or None.")
-        if np.prod(counts) > max_points:
-            ratio = (max_points / np.prod(counts)) ** (1 / 3)
-            counts = np.maximum(3, np.floor((counts - 1) * ratio).astype(int) + 1)
-            while np.prod(counts) > max_points:
-                axis = int(np.argmax(counts))
-                counts[axis] -= 1
-    return tuple(np.linspace(0, n - 1, k, dtype=int) for n, k in zip(shape, counts))
-
-
-def _sample_fac(data, field=None, delta=None, max_points=120000, mask=None):
-    """Sample a preview and compute FAC without constructing any VTK objects."""
-    indices = _preview_indices(data.shape, max_points)
-    axes = tuple(a[i] for a, i in zip((data.x, data.y, data.z), indices))
-    b = data.b[np.ix_(*indices)].astype(float, copy=True)
-    coords = np.meshgrid(*axes, indexing='ij')
-    if mask is not None:
-        b[np.broadcast_to(np.asarray(mask(*coords), dtype=bool), b.shape[:-1])] = np.nan
-
-    if field is not None:
-        if delta is None:
-            delta = tuple(np.min(np.diff(a)) / 2 for a in axes)
-
-        masked_field = _masked_field(field, mask)
-        fac = field_aligned_current_density(masked_field, *coords, delta=delta)
-        valid = np.all(np.isfinite(b), axis=-1)
-        b = np.stack(np.broadcast_arrays(*masked_field(*coords), coords[0])[:3], axis=-1)
-        b = np.where(valid[..., None], b, np.nan)
-        fac = np.where(valid, fac, np.nan)
-    else:
-        if delta is not None:
-            raise ValueError("delta requires field; grid FAC uses the preview's axis spacing.")
-        # Nonuniform Cartesian central differences, with no extrapolated
-        # boundary values. Require all six neighbouring samples to be valid.
-        dx = np.gradient(b, axes[0], axis=0, edge_order=2)
-        dy = np.gradient(b, axes[1], axis=1, edge_order=2)
-        dz = np.gradient(b, axes[2], axis=2, edge_order=2)
-        curl = np.stack((dy[..., 2] - dz[..., 1], dz[..., 0] - dx[..., 2],
-                         dx[..., 1] - dy[..., 0]), axis=-1)
-        valid = np.all(np.isfinite(b), axis=-1)
-        stencil_valid = valid.copy()
-        for axis in range(3):
-            stencil_valid &= np.roll(valid, 1, axis) & np.roll(valid, -1, axis)
-            boundary = [slice(None)] * 3
-            boundary[axis] = [0, -1]
-            stencil_valid[tuple(boundary)] = False
-        magnitude = np.linalg.norm(b, axis=-1)
-        with np.errstate(divide='ignore', invalid='ignore'):
-            fac = np.sum(curl * (b / magnitude[..., None]), axis=-1)
-        fac = np.where(stencil_valid & (magnitude > 0), fac, np.nan)
-
-    preview = GriddedField(*axes, *np.moveaxis(b, -1, 0))
-    return preview, fac
 
 
 def _peak_projection(values, axis):
@@ -163,8 +82,8 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
         Magnetic field snapshot in consistent Cartesian coordinates.
     component : str, optional
         Initial quantity: ``mu0J_T`` (default), ``mu0J_n``, ``mu0J_b``,
-        ``mu0J_x``, ``mu0J_y``, ``mu0J_z``, ``alpha``, ``sigma``, ``q``,
-        ``gamma``, ``omega_c``, ``B_kappa``,
+        ``mu0J_x``, ``mu0J_y``, ``mu0J_z``, ``alpha``, ``beta_g``, ``delta_g``,
+        ``gamma``, ``omega_c``, ``eta``, ``B_kappa``,
         ``minus_dB_dn``, the parallel terms ``B_dT_dn_b`` / ``B_dn_db_T``,
         their signed difference ``B_twist_diff``, or the independent
         Cartesian ``fac`` diagnostic.
@@ -172,7 +91,9 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
     **kwargs
         All :func:`fac_view` options, including slices, masks, and tracing.
         ``current_unit`` labels scaled currents; transverse rates are never scaled
-        by ``current_scale`` and have inverse-length units. ``current_label``
+        by ``current_scale`` and have inverse-length units. Eta is also
+        unscaled, dimensionless, and defaults to a fixed [-1, 1] colour scale.
+        ``current_label``
         overrides only the FAC label. ``geometry_delta`` is a positive scalar
         step for the notebook APIs: by default min(delta) for an explicit
         field, otherwise the smallest preview spacing. Grid geometry uses
@@ -186,7 +107,7 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
         selection. Camera, slice position, and magnetic context lines stay
         fixed; each component remembers its threshold and has its own fixed
         symmetric colour scale. Arrows follow its signed T/n/b or Cartesian
-        basis. Transverse rates and ``B_twist_diff`` have no current arrows.
+        basis. Transverse diagnostics and ``B_twist_diff`` have no current arrows.
 
     Notes
     -----
@@ -231,6 +152,11 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
     ----------
     gridded_field : GriddedField
         Grid and magnetic field, in any consistent coordinate system.
+        Optional metadata keys ``model``, ``source``, ``time``,
+        ``coordinate_system``, ``length_unit`` and ``field_unit`` describe
+        the data on screen. ``parameters`` is a mapping of arbitrary labels
+        (including units) to values. The caller supplies this provenance;
+        the viewer neither infers model settings nor changes the field.
     field : callable, optional
         Analytic field for direct Cartesian finite differences and tracing.
         Default: compute curl directly on the preview grid with nonuniform
@@ -310,6 +236,26 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         c toggles the slice; F1/F2/F3 align it with the YZ/XZ/XY planes.
         F4 switches between the overview and the isolated, face-on slice.
     """
+    return _overview_view(
+        gridded_field, field=field, delta=delta, threshold=threshold,
+        percentile=percentile, max_points=max_points, mask=mask, seeds=seeds,
+        n_lines=n_lines, trace_kwargs=trace_kwargs, current_scale=current_scale,
+        current_label=current_label, length_unit=length_unit,
+        planet_radius=planet_radius, planet_center=planet_center,
+        front_view=front_view, plotter=plotter, show=show,
+        slice_normal=slice_normal, slice_origin=slice_origin,
+        slice_only=slice_only, component=component, current_unit=current_unit,
+        geometry_delta=geometry_delta, slice_panel=slice_panel)
+
+
+def _overview_view(gridded_field, field=None, delta=None, threshold=None,
+                   percentile=90.0, max_points=120000, mask=None, seeds=None,
+                   n_lines=10, trace_kwargs=None, current_scale=1.0,
+                   current_label=None, length_unit='grid unit', planet_radius=None,
+                   planet_center=(0.0, 0.0, 0.0), front_view=None,
+                   plotter=None, show=True, slice_normal=None, slice_origin=None,
+                   slice_only=False, component=None, current_unit=None,
+                   geometry_delta=None, slice_panel=False, comparison=None):
     pv = require_pyvista()
     owned_plotter = plotter is None
     slice_controller = None
@@ -343,37 +289,42 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
             or not np.isfinite(geometry_delta) or geometry_delta <= 0):
         raise ValueError("geometry_delta must be a positive finite scalar.")
 
-    preview, fac = _sample_fac(gridded_field, field, delta, max_points, mask)
-    spacing = min(float(np.min(np.diff(a))) for a in (preview.x, preview.y, preview.z))
-    if geometry_delta is None:
-        geometry_delta = float(np.min(delta)) if field is not None and delta is not None else spacing
-    geometry_field = _masked_field(preview.field() if field is None else field, mask)
-    cache = _CurrentPreview(preview, fac, geometry_field, geometry_delta)
+    settings = comparison or {}
+    data = _OverviewData(settings.get('cases', {'Snapshot': gridded_field}),
+                         comparison=comparison is not None, field=field, delta=delta,
+                         fields=settings.get('fields'),
+                         max_points=max_points, mask=mask, geometry_delta=geometry_delta,
+                         current_scale=current_scale, percentile=percentile,
+                         color_limits=settings.get('color_limits'),
+                         cache_size=settings.get('cache_size', 1))
+    case = settings.get('initial_case', data.reference)
+    initial = data.prepare(case, component)
+    data.commit(initial)
+    from ._source_info import _SourceInfo, _source_lines
+    reserve_info = any(_source_lines(grid.metadata) for grid in data.cases.values())
+    preview = initial.prepared.preview
+    spacing = initial.prepared.spacing
     fac_label = current_label
     scalar_name = component
 
-    def display_values(key):
-        raw, basis = cache.get(key)
-        return raw * (1.0 if key in RATE_COMPONENTS else current_scale), basis
-
     def display_label(key):
-        return _component_label(key, current_unit, length_unit, fac_label)
+        label = _component_label(key, current_unit, length_unit, fac_label)
+        return label + ' / shared scale' if comparison is not None else label
 
-    values, basis = display_values(component)
+    values, basis = initial.values, initial.basis
     current_label = display_label(component)
     mesh = to_rectilinear_grid(preview, quantities=())
     mesh.point_data[scalar_name] = values.ravel(order='F')
     volume = _valid_volume(mesh, values)
     magnitude = np.abs(values[np.isfinite(values)])
-    peak = float(magnitude.max()) if magnitude.size else 0.0
-    limit = float(np.percentile(magnitude, 98)) if magnitude.size else 1.0
-    limit = limit if limit > 0 else peak or 1.0
+    peak, limit = initial.scale.peak, initial.scale.limit
     if threshold is None:
-        threshold = float(np.percentile(magnitude, percentile)) if magnitude.size else 0.0
+        threshold = initial.scale.threshold
     # Zero means retain every nonzero current, not the current-free volume.
     floor = np.nextafter(0.0, 1.0)
     threshold = max(threshold, floor)
-    thresholds = {component: threshold}
+    thresholds = data.thresholds
+    thresholds[component] = threshold
 
     if front_view:
         plotter = get_plotter(shape='1|4' if slice_panel else '1|3', splitting_position=0.7,
@@ -393,9 +344,10 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         plotter.subplot(*main_location)
 
     plotter.set_background(_BACKGROUND, all_renderers=False)
-    plotter.add_text('MAGNETIC FIELD GEOMETRY' if selectable else 'FIELD-ALIGNED CURRENT',
-                     position=(0.035, 0.94), viewport=True,
-                     font_size=17 if selectable else 19, color=_INK, name='fac-title')
+    if comparison is None:
+        plotter.add_text('MAGNETIC FIELD GEOMETRY' if selectable else 'FIELD-ALIGNED CURRENT',
+                         position=(0.035, 0.94), viewport=True,
+                         font_size=17 if selectable else 19, color=_INK, name='fac-title')
 
     def describe_component():
         direction = COMPONENTS[component][1]
@@ -413,7 +365,7 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
 
     describe_component()
     plotter.add_text('Grey: magnetic field lines', position=(0.47, 0.885),
-                     viewport=True, font_size=10, color='#64748b')
+                     viewport=True, font_size=10, color='#64748b', name='fac-sign-context')
     plotter.add_mesh(mesh.outline(), color='#c0cbd6', line_width=1,
                      name='fac-outline', pickable=False)
     plotter.show_bounds(bounds=mesh.bounds, color='#64748b', grid=False,
@@ -442,10 +394,12 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
                                  lighting=False, show_scalar_bar=False,
                                  name='fac-projection')
         if axis == 2:
-            plotter.add_scalar_bar(title=current_label, mapper=actor.mapper,
+            bar = plotter.add_scalar_bar(title=current_label, mapper=actor.mapper,
                                    color=_INK, title_font_size=10, label_font_size=9,
-                                   vertical=False, width=0.85, height=0.1,
-                                   position_x=0.08, position_y=0.02, fmt='%.2g')
+                                   vertical=False, width=0.85, height=0.16,
+                                   position_x=0.08, position_y=0.02, fmt='%.2g', n_labels=3)
+            bar.SetVerticalTitleSeparation(6)
+            bar.SetTitle(_component_label(component, current_unit, length_unit, fac_label))
         plane = ('YZ', 'XZ', 'XY')[axis]
         plotter.add_text(f'{plane} / peak along {"xyz"[axis]}', font_size=11,
                          color=_INK, position='upper_left')
@@ -457,7 +411,7 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         h0, h1 = preview.bounds[horizontal]
         v0, v1 = preview.bounds[vertical]
         plotter.add_text(f'{h}: {h0:g} to {h1:g}  /  {v}: {v0:g} to {v1:g} [{length_unit}]',
-                         position=(0.045, 0.145), viewport=True,
+                         position=(0.045, 0.205), viewport=True,
                          font_size=9, color='#64748b')
         plotter.add_mesh(panel.outline(), color='#d7e0e8', line_width=1, pickable=False)
         direction = np.eye(3)[axis]
@@ -465,28 +419,42 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         plotter.camera_position = [position, panel.center, up]
         plotter.enable_parallel_projection()
         plotter.reset_camera()
-        plotter.camera.parallel_scale *= 1.4
+        plotter.camera.parallel_scale *= 1.5
         panels.append([panel, projected, actor])
     if front_view:
         plotter.subplot(0)
 
     flat = values.ravel(order='F')
     if seeds is None:
-        selected = _region_seeds(mesh.points, flat, threshold, n_lines, 0.12 * mesh.length)
+        seed_values = flat
+        if comparison is not None and case != data.reference:
+            seed_values = data.values(data.get(data.reference), component)[0].ravel(order='F')
+        selected = _region_seeds(mesh.points, seed_values, threshold, n_lines, 0.12 * mesh.length)
         seeds = mesh.points[selected]
-    if len(seeds):
-        line_field = preview.field() if field is None else field
+    seeds = np.array(seeds, dtype=float, copy=True).reshape(-1, 3)
 
-        trace_field = _masked_field(line_field, mask)
+    def prepare_lines(prepared):
+        if not len(seeds):
+            return None
         tk = dict(direction='both', ds=spacing / 2, bounds=preview.bounds, max_steps=600)
         tk.update(trace_kwargs or {})
-        trace = trace_field_lines(trace_field, *np.asarray(seeds).T, **tk)
-        lines = trace_polydata(trace)
-        if lines.n_points:
-            plotter.add_mesh(lines, color='#778999', line_width=1.4,
-                             opacity=0.45, name='fac-lines', pickable=False)
+        trace = trace_field_lines(prepared.field, *seeds.T, **tk)
+        return trace_polydata(trace)
 
-    visibility = {'arrows': True, 'regions': True}
+    visibility = {'arrows': True, 'regions': True, 'lines': True}
+
+    def replace_lines(lines):
+        activate_main()
+        plotter.remove_actor('fac-lines', reset_camera=False, render=False)
+        if lines is not None and lines.n_points:
+            plotter.add_mesh(lines, color='#778999', line_width=1.4,
+                             opacity=0.45, name='fac-lines', pickable=False,
+                             reset_camera=False, render=False)
+            main_renderer.actors['fac-lines'].visibility = visibility['lines']
+
+    replace_lines(prepare_lines(initial.prepared))
+    # Do not retain the initial case outside the bounded cache/current selection.
+    del initial
 
     def update(cutoff):
         cutoff = max(float(cutoff), floor)
@@ -542,12 +510,14 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
                               title_height=0.017, fmt='%.2g', interaction_event='end')
     preview_shape = ' x '.join(map(str, preview.shape))
     plotter.add_text(f'Preview {preview_shape}  |  x/y/z: view  r: reset  l: lines  a: arrows  s: regions',
-                     position=(0.035, 0.015), viewport=True, font_size=9, color='#64748b')
+                     position=(0.035, 0.015), viewport=True, font_size=9, color='#64748b',
+                     name='fac-help')
     main_renderer.view_isometric()
     main_renderer.enable_parallel_projection()
     main_renderer.reset_camera()
-    main_renderer.camera.zoom(0.62)
-    main_renderer.camera.SetWindowCenter(0, -0.1)
+    overview_zoom = 0.34 if reserve_info else 0.62
+    main_renderer.camera.zoom(overview_zoom)
+    main_renderer.camera.SetWindowCenter(0, 0.08 if reserve_info else -0.1)
     initial_camera = main_renderer.camera_position
 
     def toggle(name):
@@ -562,7 +532,7 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
             plotter.render()
             return
         actor = main_renderer.actors.get(f'fac-{name}')
-        if name == 'arrows':
+        if name in ('arrows', 'lines'):
             visibility[name] = not visibility[name]
         if actor is not None:
             actor.visibility = not actor.visibility
@@ -575,7 +545,7 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
             return
         main_renderer.camera_position = initial_camera
         main_renderer.reset_camera()
-        main_renderer.camera.zoom(0.62)
+        main_renderer.camera.zoom(overview_zoom)
         plotter.render()
 
     def change_view(view):
@@ -595,53 +565,75 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
               overview_widgets=(threshold_widget, main_renderer.axes_widget),
               expand=owned_plotter, scalar_name=scalar_name)
 
+    slice_controller.case_label = case if comparison is not None else None
     if slice_panel:
         from ._slice_panel import _SlicePanel
         slice_controller.panel = _SlicePanel(slice_controller, 4)
+    slice_controller.focus.reserve_info = reserve_info
+    source_info = _SourceInfo(plotter, slice_controller.focus, data.cases[case].metadata)
 
     selector = None
+    dataset_selector = None
 
-    def select(key):
+    def select(key, case_key=None):
         nonlocal component, scalar_name, values, basis, flat, volume
-        nonlocal magnitude, limit, peak, current_label
-        if key == component:
+        nonlocal magnitude, limit, peak, current_label, mesh, preview, case
+        target_case = case if case_key is None else case_key
+        if key == component and target_case == case:
             if selector is not None:
                 selector.set_selected(key)
+            if dataset_selector is not None:
+                dataset_selector.set_selected(case)
             return
         activate_main()
-        # Compute before modifying the scene so a failed calculation cannot
-        # leave the old component labelled as the newly requested one.
-        if key not in cache.values:
-            plotter.add_text('Computing notebook components (cached after first use)...',
-                             position=(0.035, 0.83), viewport=True, font_size=10,
+
+        def progress(message):
+            message_actor = plotter.add_text(message,
+                             position=(0.035, 0.30), viewport=True, font_size=10,
                              color=_INK, name='fac-focus-loading', render=False)
+            message_actor.GetTextProperty().SetBackgroundColor(0.94, 0.96, 0.98)
+            message_actor.GetTextProperty().SetBackgroundOpacity(1.)
             plotter.render()
+
+        # Complete numerical work and VTK data preparation before committing
+        # labels or scene data. A failed case keeps the old scene selected.
         try:
-            new_values, new_basis = display_values(key)
+            progress(f'Preparing {key} - {target_case}')
+            selection = data.prepare(target_case, key, progress)
+            new_values, new_basis = selection.values, selection.basis
+            new_mesh = to_rectilinear_grid(selection.prepared.preview, quantities=())
+            new_mesh.point_data[key] = new_values.ravel(order='F')
+            new_volume = _valid_volume(new_mesh, new_values)
+            projections = [_peak_projection(new_values, axis).ravel(order='F') for axis in range(3)]
+            case_changed = target_case != case
+            new_lines = prepare_lines(selection.prepared) if case_changed else None
         except Exception:
-            selector.set_selected(component)
+            if selector is not None:
+                selector.set_selected(component)
+            if dataset_selector is not None:
+                dataset_selector.set_selected(case)
             raise
         finally:
             plotter.remove_actor('fac-focus-loading', reset_camera=False, render=False)
         old_label, old_name = current_label, scalar_name
+        case = target_case
         component = scalar_name = key
+        mesh, volume = new_mesh, new_volume
+        preview = selection.prepared.preview
         values, basis = new_values, new_basis
         current_label = display_label(key)
         flat = values.ravel(order='F')
-        del mesh.point_data[old_name]
-        mesh.point_data[scalar_name] = flat
-        volume = _valid_volume(mesh, values)
         magnitude = np.abs(flat[np.isfinite(flat)])
-        peak = float(magnitude.max()) if magnitude.size else 0.0
-        limit = float(np.percentile(magnitude, 98)) if magnitude.size else 1.0
-        limit = limit if limit > 0 else peak or 1.0
-        cutoff = thresholds.get(key, float(np.percentile(magnitude, percentile)) if magnitude.size else 0.0)
+        peak, limit = selection.scale.peak, selection.scale.limit
+        cutoff = thresholds.get(key, selection.scale.threshold)
         rep = threshold_widget.GetRepresentation()
         rep.SetMaximumValue(max(peak * 1.01, cutoff * 1.1, floor) if peak or cutoff > floor else 1.)
         rep.SetValue(cutoff)
         selector.set_selected(key)
+        if dataset_selector is not None:
+            dataset_selector.set_selected(case)
         for axis, (panel, projected, actor) in enumerate(panels):
-            panels[axis][1] = _peak_projection(values, axis).ravel(order='F')
+            panels[axis][1] = projections[axis]
             del panel.point_data[old_name]
             panel.point_data[scalar_name] = panels[axis][1].copy()
             actor.mapper.array_name = scalar_name
@@ -649,14 +641,21 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         if panels:
             plotter.remove_scalar_bar(old_label, render=False)
             plotter.subplot(3)
-            plotter.add_scalar_bar(title=current_label, mapper=panels[-1][2].mapper,
+            bar = plotter.add_scalar_bar(title=current_label, mapper=panels[-1][2].mapper,
                                    color=_INK, title_font_size=10, label_font_size=9,
-                                   vertical=False, width=0.85, height=0.1,
-                                   position_x=0.08, position_y=0.02, fmt='%.2g', render=False)
+                                   vertical=False, width=0.85, height=0.16,
+                                   position_x=0.08, position_y=0.02, fmt='%.2g', n_labels=3, render=False)
+            bar.SetVerticalTitleSeparation(6)
+            bar.SetTitle(_component_label(component, current_unit, length_unit, fac_label))
             activate_main()
         describe_component()
+        if case_changed:
+            replace_lines(new_lines)
         update(cutoff)
+        slice_controller.case_label = case if comparison is not None else None
         slice_controller.set_component(volume, limit, current_label, scalar_name)
+        source_info.update(data.cases[case].metadata)
+        data.commit(selection)
         plotter.render()
 
     if selectable:
@@ -667,6 +666,35 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         keys = tuple(COMPONENTS)
         plotter.add_key_event('F5', lambda: select(keys[(keys.index(component) - 1) % len(keys)]))
         plotter.add_key_event('F6', lambda: select(keys[(keys.index(component) + 1) % len(keys)]))
+    if comparison is not None:
+        dataset_selector = _Dropdown(
+            plotter, {label: label for label in data.labels}, case,
+            lambda label: select(component, label), name='geometry-dataset',
+            caption='DATASET   /   F7: previous   F8: next', x_range=(0.035, 0.49))
+        selector.link(dataset_selector)
+        slice_controller.focus.layout_callbacks.append(dataset_selector.layout)
+        slice_controller.focus.props.update(dataset_selector.props)
+        for key, offset in (('F7', -1), ('F8', 1)):
+            plotter.add_key_event(key, lambda offset=offset: select(
+                component, data.labels[(data.labels.index(case) + offset) % len(data.labels)]))
+    from ._text_layout import _TextLayout
+    text_layout = _TextLayout(plotter, main_renderer, {
+        'fac-title': (0.48 if selectable else 0.93, 0.05),
+        'fac-sign-positive': (0.19, 0.035), 'fac-sign-negative': (0.21, 0.035),
+        'fac-sign-context': (0.49, 0.035), 'fac-component-description': (0.93, 0.035),
+        'fac-slice-status': (0.93, 0.05), 'fac-status': (0.93, 0.035),
+        'fac-cutoff': (0.93, 0.035), 'fac-help': (0.93, 0.025),
+        'fac-focus-title': (0.48 if selectable else 0.93, 0.05),
+        'fac-focus-location': (0.93, 0.04), 'fac-focus-status': (0.93, 0.025),
+        'fac-focus-coordinates': (0.93, 0.025), 'fac-focus-help': (0.93, 0.025),
+        'fac-focus-loading': (0.93, 0.03),
+    })
+    slice_controller.focus.layout_callbacks.append(text_layout.refresh)
+    if slice_panel:
+        panel_text = _TextLayout(plotter, plotter.renderers[4], {
+            'fac-panel-title': (0.92, 0.095), 'fac-panel-status': (0.92, 0.05),
+        })
+        slice_controller.focus.layout_callbacks.append(panel_text.refresh)
     if slice_only:
         slice_controller.focus.enter()
     if show:

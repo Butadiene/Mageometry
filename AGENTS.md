@@ -19,6 +19,16 @@ Install `.[examples]` instead when working on notebooks. The package is private 
 
 Target Python 3.9+ and use four-space indentation. Follow `snake_case` for modules, functions, and variables; `PascalCase` for classes; and `UPPER_SNAKE_CASE` for constants. No formatter or linter is configured, so match nearby code and keep imports and functions readable. Write comments, docstrings, and documentation in English; public scientific APIs use NumPy-style `Parameters` and `Returns` sections. Vectorized code should preserve NumPy broadcasting and scalar-in/scalar-out behavior, guard division safely, and return `NaN` for undefined geometry rather than zero sentinels.
 
+## Scientific Notation and Theory
+
+Use [docs/fac_anisotropy_theory.md](docs/fac_anisotropy_theory.md) as the
+baseline for FAC/transverse-geometry notation and interpretation. Use
+`beta_g` and `delta_g` consistently in numerical variables, public APIs,
+viewers, CLIs, tests, and documentation, without alternative diagnostic
+names. The symbol q denotes only a transverse matrix entry. Keep the
+theory self-contained and distinguish mathematical identities, assumptions,
+and proposed R1/R2 research hypotheses.
+
 ## Testing Guidelines
 
 Tests use `unittest`: name files `test_<feature>.py`, classes `Test*`, and methods `test_*`. Use `np.testing.assert_allclose` for numerical comparisons and `skipUnless` for optional dependencies. Add focused regression coverage beside every behavior change. There is no configured coverage threshold. Field-model tolerances can be adjusted with `GEOPACK_FIELD_RTOL`, `GEOPACK_FIELD_ATOL`, and `GEOPACK_MAXULP`.

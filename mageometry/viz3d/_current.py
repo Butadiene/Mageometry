@@ -12,8 +12,8 @@ COMPONENTS = {
     'mu0J_T': ('J_T', 'T', 'J_T: field-line twist (notebook 10)'),
     'B_dT_dn_b': ('parallel term 1', 'T', 'J_T term 1: B (dT/dn) dot b'),
     'B_dn_db_T': ('parallel term 2', 'T', 'J_T term 2: B (dn/db) dot T'),
-    'B_twist_diff': ('parallel terms: 1 - 2', None,
-                     'B(dT/dn).b - B(dn/db).T: signed difference, not total J_T'),
+    'B_twist_diff': ('D', None,
+                     'D = B beta_g = B(dT/dn).b - B(dn/db).T: signed shear, not total J_T'),
     'mu0J_n': ('J_n', 'n', 'J_n: d|B|/db (magnetic-pressure term)'),
     'mu0J_b': ('J_b', 'b', 'J_b: |B| kappa - d|B|/dn (curvature + pressure)'),
     'mu0J_x': ('J_x', 'x', 'J_x: Cartesian x component of the Frenet reconstruction'),
@@ -24,13 +24,15 @@ COMPONENTS = {
     'minus_dB_dn': ('pressure term', 'b', 'Binormal contribution: -d|B|/dn'),
 }
 
-RATE_COMPONENTS = frozenset(('alpha', 'sigma', 'q', 'gamma', 'omega_c'))
+RATE_COMPONENTS = frozenset(('alpha', 'beta_g', 'delta_g', 'gamma', 'omega_c'))
+TRANSVERSE_COMPONENTS = RATE_COMPONENTS | {'eta'}
 
 COMPONENTS.update({
-    'sigma': ('sigma', None, 'sigma = a+c: signed transverse shear in the Frenet frame'),
-    'q': ('q', None, 'q = u-v: transverse normal-strain difference'),
-    'gamma': ('Gamma', None, 'Gamma = sqrt(sigma^2+q^2): basis-independent anisotropy'),
+    'beta_g': ('beta_g', None, 'beta_g = p+q = D/B: signed transverse shear in the Frenet frame'),
+    'delta_g': ('delta_g', None, 'delta_g = a-d: transverse normal-strain difference'),
+    'gamma': ('Gamma', None, 'Gamma = sqrt(beta_g^2+delta_g^2): basis-independent anisotropy'),
     'omega_c': ('omega_c', None, 'Signed local coiling rate; zero for shear-dominated structure'),
+    'eta': ('eta', None, 'eta = (alpha^2-Gamma^2)/(alpha^2+Gamma^2): rotation / shear balance'),
 })
 
 COMPONENT_LABELS = {
@@ -38,7 +40,7 @@ COMPONENT_LABELS = {
     'mu0J_T': 'J_T - Parallel / twist',
     'B_dT_dn_b': 'J_T term 1: B(dT/dn).b',
     'B_dn_db_T': 'J_T term 2: B(dn/db).T',
-    'B_twist_diff': 'J_T terms: 1 - 2 (difference)',
+    'B_twist_diff': 'D = B beta_g - Signed shear',
     'mu0J_n': 'J_n - Normal current',
     'mu0J_b': 'J_b - Binormal current',
     'mu0J_x': 'J_x - Cartesian x',
@@ -51,7 +53,7 @@ COMPONENT_LABELS = {
 
 
 COMPONENT_LABELS.update({key: COMPONENTS[key][0] + ' - Transverse geometry'
-                         for key in COMPONENTS if key in RATE_COMPONENTS and key != 'alpha'})
+                         for key in COMPONENTS if key in TRANSVERSE_COMPONENTS and key != 'alpha'})
 
 
 def _component_name(component):
@@ -61,11 +63,16 @@ def _component_name(component):
 
 
 def _component_label(component, current_unit, length_unit, fac_label=None):
+    component = _component_name(component)
+    if component == 'eta':
+        return 'eta [dimensionless]'
     if component in RATE_COMPONENTS:
         return f'{COMPONENTS[component][0]} [1 / {length_unit}]'
     if component == 'fac' and fac_label is not None:
         return fac_label
     symbol = COMPONENTS[component][0]
+    if component == 'B_twist_diff' and current_unit is not None:
+        symbol = 'D / mu0'
     if current_unit is None and (component == 'fac' or component.startswith('mu0J_')):
         symbol = f'mu0 {symbol}'
     return f'{symbol} [{current_unit or "field unit / length unit"}]'
@@ -88,9 +95,9 @@ class _CurrentPreview:
             self.bases = {'T': preview.b / magnitude[..., None]}
 
     def get(self, component):
-        _component_name(component)
+        component = _component_name(component)
         if component not in self.values:
-            if component in RATE_COMPONENTS:
+            if component in TRANSVERSE_COMPONENTS:
                 self._transverse()
             else:
                 self._geometry()
@@ -102,7 +109,7 @@ class _CurrentPreview:
         valid = np.all(np.isfinite(self.preview.b), axis=-1)
         rates = field_line_transverse_geometry(
             self.field, *(c[valid] for c in coords), delta=self.delta) if np.any(valid) else {}
-        for key in RATE_COMPONENTS:
+        for key in TRANSVERSE_COMPONENTS:
             values = np.full(self.preview.shape, np.nan)
             if key in rates:
                 values[valid] = rates[key]
@@ -125,7 +132,7 @@ class _CurrentPreview:
         else:
             current, frame = {}, None
         for key in COMPONENTS:
-            if key == 'fac' or key in RATE_COMPONENTS:
+            if key == 'fac' or key in TRANSVERSE_COMPONENTS:
                 continue
             values = np.full(shape, np.nan)
             if key in current:

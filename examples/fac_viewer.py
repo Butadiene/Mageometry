@@ -28,21 +28,28 @@ import argparse
 
 import numpy as np
 
-from mageometry.viz3d._current import COMPONENTS
+from mageometry.viz3d._current import COMPONENTS, _component_name
 
 from mageometry import GriddedField, geopack, geopack_field, load_hdf5, load_vtk, load_xdmf, viz3d
 
 
 def model_snapshot():
     """A T96 + dipole magnetosphere; coordinates in Re and field in nT."""
-    ps = geopack.recalc(100)
-    field = geopack_field('t96', 'dip', [2., -20., 0., -5., 0, 0, 0, 0, 0, 0], ps)
+    epoch = 100.
+    ps = geopack.recalc(epoch)
+    parmod = [2., -20., 0., -5., 0, 0, 0, 0, 0, 0]
+    field = geopack_field('t96', 'dip', parmod, ps)
     axes = (np.linspace(-15, 5, 65), np.linspace(-8, 8, 49), np.linspace(-8, 8, 49))
     coords = np.meshgrid(*axes, indexing='ij')
     mask = lambda x, y, z: x * x + y * y + z * z < 2.5 ** 2
     with np.errstate(divide='ignore', invalid='ignore'):
         b = tuple(np.where(mask(*coords), np.nan, c) for c in field(*coords))
-    grid = GriddedField(*axes, *b)
+    metadata = dict(model='T96 + dipole', coordinate_system='GSM',
+                    length_unit='Re', field_unit='nT',
+                    parameters={'Pdyn [nPa]': parmod[0], 'Dst [nT]': parmod[1],
+                                'IMF By [nT]': parmod[2], 'IMF Bz [nT]': parmod[3],
+                                'Dipole tilt [rad]': float(ps), 'Epoch [Unix s]': epoch})
+    grid = GriddedField(*axes, *b, metadata=metadata)
     return grid, dict(field=field, delta=0.002, mask=mask, planet_radius=1.,
                       length_unit='Re', current_scale=0.125, current_unit='nA/m^2',
                       trace_kwargs={'r0': 2.5, 'ds': 0.15, 'max_steps': 350})
@@ -58,8 +65,9 @@ def main(default_component="fac", description=None, require_source=False):
     parser.add_argument('--spacing', type=float, nargs=3, help='dx dy dz for direct HDF5')
     parser.add_argument('--stride', type=int, default=1, help='read every nth grid node (default: 1)')
     parser.add_argument('--component', default=default_component,
+                         type=_component_name,
                          choices=tuple(COMPONENTS),
-                         help='initial component (switch interactively with F5/F6)')
+                         help='initial component (F5/F6)')
     parser.add_argument('--threshold', type=float, help='absolute cutoff for the initial component')
     parser.add_argument('--geometry-delta', type=float,
                          help='derivative step for geometry diagnostics')

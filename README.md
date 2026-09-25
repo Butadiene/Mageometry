@@ -204,7 +204,14 @@ Writing B = B·T with T the unit tangent, ∇×B closes in the Frenet-Serret fra
         └── twist = μ₀ j∥ ──┘
 ```
 
-The parallel current is pure field-line twist — B·T·(∇×T), carried entirely by the frame's directional derivatives — while the curvature and the transverse |B| gradients drive only the perpendicular components. `field_magnitude_derivatives` supplies the |B| gradients missing from the frame derivatives; `field_line_current_density` assembles μ₀J.
+The parallel current is B·T·(∇×T), carried entirely by the frame's
+directional derivatives. The ratio μ₀j∥/B fixes twice the azimuthal mean
+winding rate; shear can contribute to this mean without neighboring lines
+making full turns. Curvature and transverse |B| gradients drive the
+perpendicular components. `field_magnitude_derivatives` supplies the |B|
+gradients missing from the frame derivatives; `field_line_current_density`
+assembles μ₀J. See the [baseline theory](docs/fac_anisotropy_theory.md)
+for the distinction between current, shear, and coiling.
 
 ```python
 from mageometry import field_magnitude_derivatives, field_line_current_density
@@ -217,7 +224,7 @@ cur = field_line_current_density(field, x, y, z, delta=1e-3)
 # cur['mu0J_T'], cur['mu0J_n'], cur['mu0J_b']  μ₀J on the frame [nT/Re]
 # cur['B_dT_dn_b'] + cur['B_dn_db_T']         the two terms of μ₀J_T
 # cur['mu0J_x'], cur['mu0J_y'], cur['mu0J_z']  the same vector in GSM
-# cur['alpha']  μ₀ j∥ / B = T·(∇×T), twist per unit length [1/Re]
+# cur['alpha']  μ₀ j∥ / B = T·(∇×T), twice the azimuthal mean winding rate [1/Re]
 # For geopack fields: J [A/m²] ≈ μ₀J [nT/Re] × 1.25e-10 (0.125 nA/m² per nT/Re)
 ```
 
@@ -239,20 +246,26 @@ from mageometry import field_line_transverse_geometry
 rates = field_line_transverse_geometry(field, x, y, z, delta=1e-3,
                                       curvature_tol=1e-8)
 # rates['alpha']: twice the azimuthal mean winding rate
-# rates['sigma'], rates['q']: signed shear components in the Frenet frame
+# rates['beta_g'], rates['delta_g']: signed shear components in the Frenet frame
 # rates['gamma']: nonnegative, basis-independent transverse anisotropy
 # rates['omega_c']: signed local coiling rate
+# rates['eta']: (alpha**2-gamma**2)/(alpha**2+gamma**2), dimensionless
 # rates['curvature']: field-line curvature
 ```
 
-All returned values have inverse-length units. This API samples first
-Cartesian derivatives of B. `alpha`, `gamma`, and `omega_c` remain defined
-on straight field lines; `sigma` and `q` need a curvature normal and become
+All returned values except dimensionless `eta` have inverse-length units.
+Eta is NaN when alpha and gamma are both zero. This API samples first
+Cartesian derivatives of B. `alpha`, `gamma`, `omega_c`, and `eta` do not require
+curved field lines; `beta_g` and `delta_g` need a curvature normal and become
 NaN at or below `curvature_tol`. Magnetic nulls and invalid stencils give
 NaN. The `alpha` returned by `field_line_current_density` uses the older
 frame-derivative estimate and requires a valid Frenet frame; the estimates
 need not agree exactly at finite step size. See
-[definitions and interpretation](docs/transverse_geometry.md).
+[definitions and interpretation](docs/transverse_geometry.md) and the
+[baseline FAC anisotropy theory](docs/fac_anisotropy_theory.md).
+The numerical implementation, analysis API, viewers, and CLIs consistently
+use `beta_g` (β_g) and `delta_g` (δ_g). The finite-difference argument `delta`
+is a numerical step length, separate from the physical diagnostic `delta_g`.
 
 ### Visualization (`mageometry.viz`)
 
@@ -278,7 +291,7 @@ symmetric diverging for signed quantities); undefined (NaN) values are left
 blank. The functions accept existing axes and return artists, except
 `plot_line_profiles`, which accepts `axes=` and returns the profile axes.
 Named quantities in these general plotters use the legacy current API's
-`alpha`; transverse `sigma`, `q`, `gamma`, and `omega_c` can be supplied as
+`alpha`; transverse `beta_g`, `delta_g`, `gamma`, and `omega_c` can be supplied as
 custom quantity callables. See [notebook 9](examples/notebooks/09_visualization.ipynb).
 
 ### Interactive 3D Visualization (`mageometry.viz3d`)
@@ -313,11 +326,35 @@ Jupyter rendering needs an appropriate PyVista backend and its additional
 dependencies. A complete example combining a free slice plane with Frenet
 arrows is in the [viewer guide](docs/viewer.md#free-slice-plane-and-frenet-frames).
 
+#### Comparing datasets
+
+`viz3d.compare_geometry(cases, ...)` accepts labelled `GriddedField` snapshots
+on identical axes. Separate **DATASET** (F7/F8) and **COMPONENT** (F5/F6)
+dropdowns retain the camera, slice plane, and absolute threshold. Colour
+limits are shared across cases per diagnostic; magnetic lines are retraced
+from fixed seeds. Model generation and file loading stay outside the viewer.
+Optional `fields={label: callable, ...}` with an explicit shared `delta`
+uses direct magnetic evaluations for derivatives and tracing; omitting
+`fields` uses grid interpolation.
+
+```bash
+python examples/compare_t96_by.py
+python examples/compare_t96_by.py --by -10 -5 0 5 10 --component gamma
+python examples/compare_t96_by.py --evaluation grid
+```
+
+The first command generates six independent T96 + dipole grids with IMF By
+`[-5, -3, -1, 1, 3, 5]` nT; other conditions stay fixed. No input data file
+is needed. The default directly evaluates the model with a 0.002 Re
+difference step and a 65 × 49 × 49 display grid, matching the single-case
+model example's numerical settings. See the [comparison guide](docs/data_comparison.md) for Python
+and file-input recipes, units, shared scales, memory limits, and screenshots.
+
 #### Comparing current components (notebook 10)
 
 [General magnetic geometry viewing](docs/transverse_geometry.md) adds `alpha`,
-`sigma`, `q`, `gamma`, and `omega_c` through `viz3d.geometry_view` and
-`python examples/geometry_viewer.py --component sigma --slice x --slice-only`.
+`beta_g`, `delta_g`, `gamma`, `omega_c`, and `eta` through `viz3d.geometry_view` and
+`python examples/geometry_viewer.py --component beta_g --slice x --slice-only`.
 The calculation is also available as `mageometry.geometry.field_line_transverse_geometry`
 and the top-level `mageometry.field_line_transverse_geometry`.
 
@@ -356,22 +393,37 @@ in native units. The selectable quantities follow
 | `mu0J_T` | Parallel current from field-line twist | T |
 | `B_dT_dn_b` | Parallel term 1: B(∂T/∂n)·b | T |
 | `B_dn_db_T` | Parallel term 2: B(∂n/∂b)·T | T |
-| `B_twist_diff` | Signed difference: B(∂T/∂n)·b − B(∂n/∂b)·T | None (shear diagnostic) |
+| `B_twist_diff` | D = Bβ_g = B(∂T/∂n)·b − B(∂n/∂b)·T | None (shear diagnostic) |
 | `mu0J_n` | Normal current: ∂\|B\|/∂b | n (principal normal) |
 | `mu0J_b` | Binormal current: \|B\|κ − ∂\|B\|/∂n | b (T × n, not B) |
 | `mu0J_x/y/z` | Cartesian components of the Frenet reconstruction | x / y / z |
 | `alpha` | Cartesian μ₀j∥ / \|B\| | None (scalar, not current density) |
-| `sigma` | Signed transverse shear a+c in the Frenet frame | None |
-| `q` | Transverse normal-strain difference u−v | None |
-| `gamma` | Basis-independent anisotropy √(sigma²+q²) | None |
+| `beta_g` | Signed transverse shear p+q = D/B in the Frenet frame | None |
+| `delta_g` | Transverse normal-strain difference a−d | None |
+| `gamma` | Basis-independent anisotropy √(beta_g²+delta_g²) | None |
 | `omega_c` | Signed local coiling rate | None |
+| `eta` | (alpha²−gamma²)/(alpha²+gamma²), dimensionless | None |
 | `B_kappa` | Curvature contribution to μ₀J_b: +\|B\|κ | b |
 | `minus_dB_dn` | Pressure contribution to μ₀J_b: −∂\|B\|/∂n | b |
 
 Red/blue mean positive/negative **in the selected basis**, not always along/
 against B. All five transverse rates keep inverse-length units and are never
-multiplied by `current_scale`. `current_unit` labels scaled currents; it does not perform
+multiplied by `current_scale`. Eta is also unscaled and defaults to a fixed
+[−1, 1] colour range. `current_unit` labels scaled currents; it does not perform
 conversion. The legacy `current_label` overrides only the `fac` label.
+
+Both viewing modes show declared source metadata and parameters. The T96
+examples include the model, Pdyn, Dst, IMF By/Bz, tilt and epoch; simulations
+can supply their own labelled conditions through the same generic metadata
+interface. See [source information](docs/viewer.md#source-information).
+
+![Eta in the current viewer: source parameters, 3D regions, face-on slice, and signed peak maps](docs/images/viewer-eta-overview.png)
+
+This T96 + dipole example shows `eta` with its fixed [−1, 1] colour scale.
+Positive values indicate local rotation and negative values indicate local
+anisotropic stretching; neither establishes finite-distance winding.
+The [enlarged slice](docs/images/viewer-eta-focus.png) retains the same
+source parameters and colour scale.
 
 The two entries immediately below `J_T` in the dropdown split its parallel
 current: **`B_dT_dn_b + B_dn_db_T = mu0J_T`** to round-off. Here B is the
@@ -388,7 +440,7 @@ python examples/fac_viewer.py --component B_dT_dn_b --slice x --slice-origin -6 
 
 See the [first parallel-current contribution on a slice](docs/images/parallel-current-terms.png).
 
-Choose **`J_T terms: 1 - 2 (difference)`** to view
+Choose **`D = B beta_g - Signed shear`** to view
 `B_twist_diff = B_dT_dn_b - B_dn_db_T`. This subtracts the signed terms,
 not their absolute values; the total parallel current remains their **sum**.
 The difference uses the same units, masks, and current conversion as the
@@ -429,7 +481,18 @@ default; the draggable 3D slice starts hidden unless requested.
 
 #### Finding field-aligned currents
 
-![FAC overview for a T96 plus dipole field: signed 3D regions and peak maps](docs/images/fac-overview.png)
+![Current T96 plus dipole viewer with FAC selected: source parameters, signed 3D regions, YZ slice, and peak maps](docs/images/fac-overview.png)
+
+Viewer screenshots were regenerated on 2026-09-25 using the current
+`geometry_view` UI and the `fac_viewer.py` model setup: T96 + dipole,
+Pdyn = 2 nPa, Dst = −20 nT, IMF By = 0 nT, IMF Bz = −5 nT, epoch = 100
+Unix seconds, a 65 × 49 × 49 grid, and a 0.002 Re derivative step.
+The default 120,000-node budget produces the displayed 59 × 44 × 44
+preview. The screenshots use the CLI's companion slice panel and a YZ
+plane at x = −6 Re. Regenerate the FAC, current-component, dropdown, and
+eta images with `python benchmark/readme_screenshots.py` after installing
+`.[viz3d]`. The [viewer guide](docs/viewer.md#regenerate-the-readme-screenshots)
+describes the capture sequence.
 
 `fac_view` opens a FAC overview: red regions carry current **along B**, blue
 regions **against B**, and arrows show the parallel-current direction. Thin
@@ -542,7 +605,7 @@ assumes stored `(nz, ny, nx)` arrays by default; pass `zyx_order=False` for
 ```bash
 python examples/geometry_viewer_simulation.py --xmf snapshot.xmf
 python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --h5 field.h5 --stride 4
-python examples/geometry_viewer_simulation.py --vtk snapshot.vti --component sigma --slice x --slice-only
+python examples/geometry_viewer_simulation.py --vtk snapshot.vti --component beta_g --slice x --slice-only
 python examples/geometry_viewer_simulation.py --h5 field.h5 --origin 0 0 0 --spacing 1 1 1
 ```
 
@@ -726,6 +789,7 @@ and XDMF/HDF5 input needs `.[io]`.
 | [`examples/readme_examples.py`](examples/readme_examples.py) | Numerical examples without plotting or input files |
 | [`examples/geometry_viewer.py`](examples/geometry_viewer.py) | General geometry viewer; model demonstration when no file is supplied |
 | [`examples/geometry_viewer_simulation.py`](examples/geometry_viewer_simulation.py) | Geometry viewer requiring an explicit snapshot file |
+| [`examples/compare_t96_by.py`](examples/compare_t96_by.py) | Six-case IMF By comparison with a dataset selector and shared scales |
 | [`examples/fac_viewer.py`](examples/fac_viewer.py) | Shared viewer CLI implementation; starts with FAC when run directly |
 | [`examples/python_code_samples/mhd_gridded_field_example.py`](examples/python_code_samples/mhd_gridded_field_example.py) | Dipole-oriented diagnostics for a supplied XDMF/HDF5 snapshot |
 

@@ -176,4 +176,4 @@ print("\n=== Transverse Geometry (1/Re) ===")
 for i in range(len(x)):
     print(f"  r = {x[i]} Re: " + ', '.join(
         f"{key} = {rates[key][i]:+.6f}"
-        for key in ('alpha', 'sigma', 'q', 'gamma', 'omega_c')))
+        for key in ('alpha', 'beta_g', 'delta_g', 'gamma', 'omega_c')))

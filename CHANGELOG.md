@@ -8,13 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Add `geometry.field_line_transverse_geometry` for first-gradient alpha, sigma,
-  q, gamma and signed local coiling rate, including invariant diagnostics on
+- Document the baseline FAC-anisotropy theory with self-contained definitions,
+  sign conventions, applicability limits, analytic examples, and a separate
+  R1/R2 research plan. Link it from repository guidance.
+- Add the dimensionless transverse diagnostic `eta = (alpha²-gamma²) /
+  (alpha²+gamma²)` to the analysis API and viewer, with NaN at a zero
+  denominator, no current scaling, and a default [-1, 1] colour range.
+- Show generic source metadata and labelled parameters in both viewer modes,
+  synchronized with dataset selection. T96 examples declare their model,
+  solar-wind inputs, tilt and epoch; simulation sources use the same display.
+- Add `viz3d.compare_geometry` for labelled grids with independent dataset
+  and diagnostic selectors, shared scales and thresholds, fixed trace seeds,
+  preserved camera/slice state, and bounded case-preview caches. Add a
+  six-case T96 IMF By example and a [comparison guide](docs/data_comparison.md).
+- Support per-case direct magnetic callables in `viz3d.compare_geometry`
+  with an explicit shared derivative step. The T96 comparison defaults to
+  direct evaluation at 0.002 Re with the original 65 × 49 × 49 display grid;
+  `--evaluation grid` retains interpolation. Case callables retain independent
+  parameters and re-establish the model epoch for serial evaluation.
+- Add `geometry.field_line_transverse_geometry` for first-gradient alpha, beta_g,
+  delta_g, gamma and signed local coiling rate, including invariant diagnostics on
   straight lines.
 - Add `viz3d.geometry_view` and `examples/geometry_viewer.py`, sharing the
-  current viewer controls and supporting all five transverse distributions.
+  current viewer controls and supporting all six transverse distributions.
 
 ### Changed
+- Use `beta_g` and `delta_g` for signed shear and normal-strain difference
+  throughout numerical variables, analysis APIs, viewers, CLIs, and colour
+  limits. Menus and labels use the same names, and identify the native
+  `B_twist_diff` diagnostic as D = B beta_g.
+- Fit viewer header text and dropdown labels to their available space and
+  reserve room for source information above the plot.
 - Consolidate runnable examples around the README examples, shared viewer
   CLIs, and notebooks. The free-plane slice and Frenet-frame example now
   lives in the [viewer guide](docs/viewer.md#free-slice-plane-and-frenet-frames).
@@ -24,7 +48,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without a Frenet normal; the legacy current calculation API is unchanged.
 - Remove current arrows from the shear diagnostic `B_twist_diff`.
 
+### Fixed
+- Restore overview slider visibility and renderer ownership after F4 slice
+  scanning, including the companion panel's position slider.
+
 ### Removed
+- Remove the transverse diagnostic names `sigma` and `q`, including
+  compatibility aliases. Callers must use `beta_g` and `delta_g`, respectively.
 - Remove redundant standalone basic-usage, field-map, geometry, and
   directional-derivative examples and their unused shared helpers. See the
   [runnable scripts](README.md#runnable-scripts) and

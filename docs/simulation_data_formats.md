@@ -730,7 +730,7 @@ and reader sharing the same ordering mistake can pass a round-trip test.
   `orthogonality_tol` have NaN normals/binormals. Weak curvature is sensitive
   to spacing and input precision; there is no universal float32 curvature
   cutoff. For transverse diagnostics, compare `gamma` with the
-  frame-dependent `sigma` and `q`.
+  frame-dependent `beta_g` and `delta_g`.
 - Out-of-domain points return `fill_value` (default NaN), which propagates
   as NaN through dependent geometry results. Inspect validity separately
   for each quantity and leave room for neighbouring derivative stencils.

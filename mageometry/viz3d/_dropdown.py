@@ -2,6 +2,7 @@
 
 import weakref
 
+from ._text_layout import _fit_text
 
 class _Dropdown:
     """Clickable labelled choices that do not pass menu gestures to the camera.
@@ -10,7 +11,10 @@ class _Dropdown:
     Interactor observers have priority over both trackball and image styles.
     """
 
-    def __init__(self, plotter, options, selected, callback):
+    def __init__(self, plotter, options, selected, callback, *,
+                 name='current-component',
+                 caption='COMPONENT   /   F5: previous   F6: next',
+                 x_range=(0.55, 0.96)):
         from vtkmodules.vtkCommonCore import vtkPoints
         from vtkmodules.vtkCommonDataModel import vtkCellArray, vtkPolyData
         from vtkmodules.vtkRenderingCore import (vtkActor2D, vtkCoordinate,
@@ -26,6 +30,8 @@ class _Dropdown:
         self.highlight = self.keys.index(selected)
         self.pressed = False
         self.props = set()
+        self.peers = weakref.WeakSet()
+        self.x_range = x_range
         self._layout_state = None
 
         def rectangle(name, color, layer):
@@ -62,14 +68,14 @@ class _Dropdown:
             self._add(actor, name)
             return actor
 
-        self.header = rectangle('current-component-button', (0.88, 0.92, 0.96), 20)
-        self.value = label('current-component-value', '', 22)
-        self.arrow = label('current-component-arrow', 'v', 22)
-        self.caption = label('current-component-caption', 'COMPONENT   /   F5: previous   F6: next', 22)
+        self.header = rectangle(f'{name}-button', (0.88, 0.92, 0.96), 20)
+        self.value = label(f'{name}-value', '', 22)
+        self.arrow = label(f'{name}-arrow', 'v', 22)
+        self.caption = label(f'{name}-caption', caption, 22)
         self.rows = []
         for key, text in self.options.items():
-            background = rectangle(f'current-component-row-{key}', (1., 1., 1.), 30)
-            text_actor = label(f'current-component-option-{key}', text, 32)
+            background = rectangle(f'{name}-row-{key}', (1., 1., 1.), 30)
+            text_actor = label(f'{name}-option-{key}', text, 32)
             self.rows.append((background, text_actor))
         self.layout()
         self._refresh()
@@ -131,7 +137,7 @@ class _Dropdown:
         font = max(9, min(17, int(width * 0.017)))
         row_height = min(font + 14, height * 0.065) / height
         header_height = min(42, height * 0.055) / height
-        self.bounds = (0.55, 0.965 - header_height, 0.96, 0.965)
+        self.bounds = (self.x_range[0], 0.965 - header_height, self.x_range[1], 0.965)
         x0, y0, x1, y1 = self.bounds
         row_height = min(row_height, (y0 - 0.04) / len(self.rows))
         self._rectangle(self.header, self.bounds)
@@ -143,6 +149,10 @@ class _Dropdown:
         self.value.GetTextProperty().SetFontSize(font)
         self.arrow.GetTextProperty().SetFontSize(font)
         self.caption.GetTextProperty().SetFontSize(max(8, font - 5))
+        _fit_text(self.value, self.renderer, (x1 - x0) * width - 42,
+                  header_height * height, font)
+        _fit_text(self.caption, self.renderer, (x1 - x0) * width,
+                  20, max(8, font - 5))
         self.row_bounds = []
         for index, (background, text) in enumerate(self.rows):
             top = y0 - index * row_height
@@ -151,6 +161,8 @@ class _Dropdown:
             self._rectangle(background, bounds)
             text.SetPosition(x0 + inset, top - row_height / 2)
             text.GetTextProperty().SetFontSize(font)
+            _fit_text(text, self.renderer, (x1 - x0) * width - 24,
+                      row_height * height, font)
 
     def _refresh(self):
         self.value.SetInput(self.options[self.selected])
@@ -170,6 +182,13 @@ class _Dropdown:
         self.highlight = self.keys.index(key)
         self.opened = False
         self._refresh()
+        self._layout_state = None
+        self.layout()
+
+    def link(self, peer):
+        """Allow one-click transfer between menus without a camera gesture."""
+        self.peers.add(peer)
+        peer.peers.add(self)
 
     def _choose(self, index):
         # The callback commits selection only after successful computation.
@@ -192,7 +211,16 @@ class _Dropdown:
             return consumed
         position = interactor.GetEventPosition()
         if event == 'LeftButtonPressEvent':
+            for peer in self.peers:
+                peer.layout()
+                if self.opened and peer._hit(position, peer.bounds):
+                    self.opened = False
+                    self._refresh()
+                    return False
             if self._hit(position, self.bounds):
+                for peer in self.peers:
+                    peer.opened = False
+                    peer._refresh()
                 self.opened = not self.opened
                 self.highlight = self.keys.index(self.selected)
             elif self.opened:

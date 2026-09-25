@@ -1,6 +1,6 @@
 """Explore magnetic geometry; shares loading and controls with fac_viewer.
 
-    python examples/geometry_viewer.py --component sigma --slice x --slice-only
+    python examples/geometry_viewer.py --component beta_g --slice x --slice-only
     python examples/geometry_viewer.py --xmf run000.xmf --component gamma
 """
 

@@ -18,10 +18,12 @@ class _SliceFocus:
         self.overview_widgets = overview_widgets
         self.expand = expand
         self.active = False
+        self.reserve_info = False
         self.slider = None
         self.props = set()
         self.layout_callbacks = []
         self.saved_visibility = {}
+        self.widget_props = set()
         self.bar_title = f'{owner.scalar_name} cross-section: {owner.label}'
         self.bar_visible = False
         self.corners = np.array(list(product(*np.asarray(owner.bounds).reshape(3, 2))))
@@ -41,11 +43,20 @@ class _SliceFocus:
         self.owner.activate_main()
         self.was_enabled = self.owner.enabled
         self.saved_camera = self.renderer.camera.copy()
+        # PyVista's copy omits VTK properties such as WindowCenter, which
+        # would shift the restored scene into the header after an F4 round trip.
+        self.saved_camera.DeepCopy(self.renderer.camera)
         self.saved_viewport = self.renderer.GetViewport()
         self.saved_background = self.renderer.background_color
         self.saved_style = self.plotter.iren.style
         self.saved_panels = [(p, p.GetDraw(), p.GetInteractive()) for p in self.panels]
-        self.saved_widgets = [(w, w.GetEnabled()) for w in self.overview_widgets if w is not None]
+        self.saved_widgets = [(w, w.GetEnabled(), w.GetCurrentRenderer())
+                              for w in self.overview_widgets if w is not None]
+        # Widget representations belong to the widgets, not to the scene's
+        # actor visibility machinery. Off() removes them from the renderer,
+        # so restoring actors by name cannot restore their visibility.
+        self.widget_props = {w.GetRepresentation() for w, _, _ in self.saved_widgets
+                             if hasattr(w, 'GetRepresentation')}
         self.saved_visibility = {}
         self.owner.enabled = True
         self.owner._ensure_widget()
@@ -60,7 +71,7 @@ class _SliceFocus:
             self.renderer.SetViewport(0, 0, 1, 1)
         for callback in self.layout_callbacks:
             callback()
-        for widget, _ in self.saved_widgets:
+        for widget, _, _ in self.saved_widgets:
             widget.Off()
         self.renderer.background_color = '#eef2f6'
         self.plotter.enable_image_style()
@@ -85,7 +96,8 @@ class _SliceFocus:
         if not self.active:
             return
         for name, actor in self.renderer.actors.items():
-            if name == 'fac-slice' or name.startswith('fac-focus-') or actor in self.props:
+            if (name == 'fac-slice' or name.startswith('fac-focus-')
+                    or actor in self.props or actor in self.widget_props):
                 continue
             self.saved_visibility.setdefault(name, actor.GetVisibility())
             actor.SetVisibility(False)
@@ -102,10 +114,11 @@ class _SliceFocus:
         if not self.active:
             return
         self.owner.activate_main()
-        self.plotter.add_text(f'{self.owner.scalar_name} / CROSS-SECTION',
-                             position=(0.035, 0.935), viewport=True,
-                             font_size=17, color='#263546',
-                             name='fac-focus-title', render=False)
+        if self.owner.case_label is None:
+            self.plotter.add_text(f'{self.owner.scalar_name} / CROSS-SECTION',
+                                 position=(0.035, 0.935), viewport=True,
+                                 font_size=17, color='#263546',
+                                 name='fac-focus-title', render=False)
         normal, origin = self.owner.normal, self.owner.origin
         changed = self.last_normal is None or not np.allclose(normal, self.last_normal)
         if changed:
@@ -115,8 +128,9 @@ class _SliceFocus:
             # in-plane pan and zoom when scanning neighbouring sections.
             shift = normal * np.dot(origin - self.last_origin, normal)
             camera = self.renderer.camera
-            camera.position = np.asarray(camera.position) + shift
-            camera.focal_point = np.asarray(camera.focal_point) + shift
+            if np.any(shift):
+                camera.position = np.asarray(camera.position) + shift
+                camera.focal_point = np.asarray(camera.focal_point) + shift
         self.last_normal, self.last_origin = normal.copy(), origin.copy()
 
         lo, hi = np.min(self.corners @ normal), np.max(self.corners @ normal)
@@ -127,7 +141,7 @@ class _SliceFocus:
                 before = set(self.renderer.GetViewProps())
                 self.slider = self.plotter.add_slider_widget(
                     self._move, rng=(lo, hi), value=value, title=f'Plane offset [{self.owner.unit}]',
-                    pointa=(0.18, 0.08), pointb=(0.82, 0.08), color='#263546',
+                    pointa=(0.18, 0.10), pointb=(0.82, 0.10), color='#263546',
                     title_height=0.018, fmt='%.3g', interaction_event='always')
                 self.props.update(set(self.renderer.GetViewProps()) - before)
             rep = self.slider.GetRepresentation()
@@ -137,6 +151,7 @@ class _SliceFocus:
             axis = int(np.argmax(np.abs(normal)))
             title = f'{"xyz"[axis]} [{self.owner.unit}]' if normal[axis] > 0.999999 else f'Plane offset [{self.owner.unit}]'
             rep.SetTitleText(title)
+            self.slider.SetCurrentRenderer(self.renderer)
             self.slider.On()
         finally:
             self._setting_slider = False
@@ -149,6 +164,7 @@ class _SliceFocus:
                 title_font_size=13, label_font_size=12, vertical=False,
                 width=0.60, height=0.06, position_x=0.20, position_y=0.17,
                 fmt='%.3g', render=False)
+            bar.SetVerticalTitleSeparation(6)
             self.props.add(bar)
             self.bar_visible = True
         self.plotter.add_text(self.owner.location(), position=(0.035, 0.875),
@@ -156,6 +172,8 @@ class _SliceFocus:
                              name='fac-focus-location', render=False)
         key = self.owner.scalar_name
         message = f'All {key} strengths / fixed colour scale' if has_data else f'No valid {key} on this plane'
+        if self.owner.case_label is not None and has_data:
+            message = f'All {key} strengths / colour scale shared across datasets'
         self.plotter.add_text(message, position=(0.035, 0.835), viewport=True,
                              font_size=10, color='#64748b', name='fac-focus-status', render=False)
         self.hide_overview()
@@ -186,11 +204,12 @@ class _SliceFocus:
         camera.position = center + 2 * self.length * direction
         camera.up = up
         camera.parallel_projection = True
-        camera.SetWindowCenter(0, -0.10)
+        camera.SetWindowCenter(0, 0.03 if self.reserve_info else -0.10)
         x0, y0, x1, y1 = self.renderer.GetViewport()
         width, height = self.plotter.window_size
         aspect = width * (x1 - x0) / (height * (y1 - y0))
-        camera.parallel_scale = max((v1 - v0) / 0.54, (h1 - h0) / (aspect * 0.88),
+        available_height = 0.39 if self.reserve_info else 0.54
+        camera.parallel_scale = max((v1 - v0) / available_height, (h1 - h0) / (aspect * 0.88),
                                     self.length * 1e-6) / 2
         camera.clipping_range = (0.01 * self.length, 10 * self.length)
         names = ('x', 'y', 'z')
@@ -226,7 +245,10 @@ class _SliceFocus:
         self.renderer.background_color = self.saved_background
         self.focus_style.RemoveObserver(self.char_observer)
         self.plotter.iren.style = self.saved_style
-        for widget, enabled in self.saved_widgets:
+        for widget, enabled, renderer in self.saved_widgets:
+            # Off() clears CurrentRenderer. Without restoring it, VTK picks
+            # a renderer under the mouse and moves companion sliders there.
+            widget.SetCurrentRenderer(renderer)
             widget.SetEnabled(enabled)
         self.renderer.camera.DeepCopy(self.saved_camera)
         if restore_slice and not self.was_enabled:

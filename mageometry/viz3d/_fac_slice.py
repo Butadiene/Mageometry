@@ -39,6 +39,7 @@ class _FACSlice:
         self.bounds = bounds
         self.limit = limit
         self.label = current_label
+        self.case_label = None
         self.scalar_name = scalar_name
         self.unit = length_unit
         self.activate_main = activate_main
@@ -71,8 +72,8 @@ class _FACSlice:
             name='fac-slice-status', render=False)
 
     def _ensure_widget(self):
+        self.activate_main()
         if self.widget is None:
-            self.activate_main()
             renderer = self.plotter.renderer
             existing_props = set(renderer.GetViewProps())
             # Use only valid cells: a slice must not interpolate through a
@@ -90,6 +91,7 @@ class _FACSlice:
         if self.focus is not None and self.focus.active:
             self.widget.Off()
         else:
+            self.widget.SetCurrentRenderer(self.plotter.renderer)
             self.widget.On()
         self._update(self.widget.GetNormal(), self.widget.GetOrigin())
 

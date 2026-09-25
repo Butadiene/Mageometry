@@ -53,6 +53,37 @@ class TestFACSlice(unittest.TestCase):
     def tearDown(self):
         pv.close_all()
 
+    def test_focus_scan_restores_visible_sliders_in_their_own_renderers(self):
+        p = viz3d.geometry_view(grid(), component='fac', slice_panel=True,
+                               slice_normal='z', n_lines=0, show=False)
+        p.screenshot()
+        overview = list(_widget_state(p).slider_widgets)
+        renderers = [w.GetCurrentRenderer() for w in overview]
+        window_center = p.camera.GetWindowCenter()
+        for offset in (0.5, -0.5, 1.0):
+            press(p, 'F4')
+            slider = _widget_state(p).slider_widgets[-1]
+            self.assertIs(slider.GetCurrentRenderer(), p.renderers[0])
+            slider.GetRepresentation().SetValue(offset)
+            slider.InvokeEvent('InteractionEvent')
+            # Returning with the cursor over a different panel must not
+            # reassign either slider to the renderer under the cursor.
+            p.iren.interactor.SetEventPosition(1800, 800)
+            press(p, 'F4')
+            p.render()
+            for widget, renderer in zip(overview, renderers):
+                self.assertTrue(widget.GetEnabled())
+                self.assertTrue(widget.GetRepresentation().GetVisibility())
+                self.assertIs(widget.GetCurrentRenderer(), renderer)
+                self.assertIn(widget.GetRepresentation(), set(renderer.GetViewProps()))
+            self.assertAlmostEqual(overview[1].GetRepresentation().GetValue(), offset)
+            self.assertIs(_widget_state(p).plane_widgets[-1].GetCurrentRenderer(), p.renderers[0])
+            self.assertEqual(p.camera.GetWindowCenter(), window_center)
+        overview[1].GetRepresentation().SetValue(-1.)
+        overview[1].InvokeEvent('InteractionEvent')
+        np.testing.assert_allclose(
+            p.renderers[4].actors['fac-panel-slice'].mapper.dataset.points[:, 2], -1.)
+
     def test_persistent_panel_tracks_slice_component_and_focus(self):
         p = viz3d.geometry_view(grid(), component='fac', slice_panel=True,
                                slice_normal='z', n_lines=0, show=False)
@@ -209,6 +240,7 @@ class TestSliceOnly(unittest.TestCase):
         p.camera.azimuth = 17
         p.camera.zoom(1.15)
         camera = p.camera.copy()
+        camera.DeepCopy(p.camera)
         style = p.iren.style
         viewport = p.renderer.GetViewport()
         visibility = {key: p.actors[key].visibility for key in

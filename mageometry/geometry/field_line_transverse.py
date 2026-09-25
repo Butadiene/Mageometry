@@ -17,30 +17,36 @@ def field_line_transverse_geometry(field, x, y, z, delta=0.01, curvature_tol=0.0
     delta : float or (3,) array_like, optional
         Positive finite Cartesian central-difference steps. Default 0.01.
     curvature_tol : float, optional
-        Nonnegative curvature cutoff (inverse length). Sigma and q are NaN
+        Nonnegative curvature cutoff (inverse length). Beta_g and delta_g are NaN
         at or below this cutoff. Default zero; increase for noisy data.
 
     Returns
     -------
     dict of float or ndarray
-        ``alpha = a-c``, ``sigma = a+c``, ``q = u-v``,
-        ``gamma = sqrt(sigma**2+q**2)``, and ``omega_c`` in inverse length,
-        where a=b.dot(partial_n T), c=n.dot(partial_b T),
-        u=n.dot(partial_n T), v=b.dot(partial_b T), and b=T cross n.
+        ``alpha = p-q``, ``beta_g = p+q``, ``delta_g = a-d``,
+        ``gamma = sqrt(beta_g**2+delta_g**2)``, and ``omega_c`` in inverse
+        length, where p=b.dot(partial_n T), q=n.dot(partial_b T),
+        a=n.dot(partial_n T), d=b.dot(partial_b T), and b=T cross n.
         ``omega_c = sign(alpha)*sqrt(max(alpha**2-gamma**2, 0))/2``.
+        ``eta = (alpha**2-gamma**2)/(alpha**2+gamma**2)`` is dimensionless,
+        in [-1, 1], and NaN where alpha and gamma are both zero.
         ``curvature`` is also returned in inverse length. Scalar coordinates
         produce scalar values. Nulls and invalid derivative stencils give NaN.
+        The ``delta`` argument is a numerical step,
+        unrelated to the returned physical diagnostic ``delta_g``.
 
     Notes
     -----
     Only first derivatives of B are sampled; no derivatives of n are used.
-    With P=I-T T^t and G=grad(B), M=P G P/|B| is the transverse map.
+    With P=I-T T^t and G=grad(B), L=P G P/|B| is the Cartesian transverse
+    map; M is its 2D representation in the (n, b) basis.
     Gamma is computed from its symmetric traceless part in Cartesian space,
-    so alpha, gamma and omega_c remain defined on straight field lines.
-    Sigma and q refer to the local curvature normal and become unstable at
-    weak curvature. These are rates per length, not current densities or
-    finite-distance winding numbers. The coiling convention follows
-    Tassev & Savcheva (2019), https://arxiv.org/abs/1901.00865.
+    so alpha, gamma, omega_c and eta do not require curved field lines.
+    Beta_g and delta_g refer to the local curvature normal and become unstable
+    at weak curvature. The rates describe geometry per length, not current
+    densities or finite-distance winding numbers. Notation follows the
+    project's baseline in ``docs/fac_anisotropy_theory.md``. The coiling
+    convention follows Tassev & Savcheva (2019), https://arxiv.org/abs/1901.00865.
     """
     steps = np.broadcast_to(np.asarray(delta, dtype=float), (3,))
     if not np.all(np.isfinite(steps) & (steps > 0)):
@@ -83,9 +89,17 @@ def field_line_transverse_geometry(field, x, y, z, delta=0.01, curvature_tol=0.0
         binormal = np.cross(tangent, normal)
         dn = (direction_gradient @ normal[..., None])[..., 0]
         db = (direction_gradient @ binormal[..., None])[..., 0]
-        sigma = np.sum(binormal * dn + normal * db, axis=-1)
-        q = np.sum(normal * dn - binormal * db, axis=-1)
+        beta_g = np.sum(binormal * dn + normal * db, axis=-1)
+        delta_g = np.sum(normal * dn - binormal * db, axis=-1)
         omega_c = np.sign(alpha) * np.sqrt(np.maximum(alpha**2 - gamma**2, 0)) / 2
-    result = dict(alpha=alpha, sigma=sigma, q=q, gamma=gamma,
-                  omega_c=omega_c, curvature=curvature)
-    return {key: _finish(scalar, np.where(valid, value, np.nan)) for key, value in result.items()}
+        # Normalize before squaring to avoid underflow in weak gradients
+        # and overflow in the ratio. The 0/0 case remains undefined.
+        scale = np.maximum(np.abs(alpha), gamma)
+        scaled_alpha = alpha / scale
+        scaled_gamma = gamma / scale
+        eta = ((scaled_alpha**2 - scaled_gamma**2)
+               / (scaled_alpha**2 + scaled_gamma**2))
+    result = dict(alpha=alpha, beta_g=beta_g, delta_g=delta_g, gamma=gamma,
+                  omega_c=omega_c, eta=eta, curvature=curvature)
+    result = {key: _finish(scalar, np.where(valid, value, np.nan)) for key, value in result.items()}
+    return result

@@ -2,16 +2,18 @@
 
 [Documentation index](README.md) · [Geometry analysis](geometry_analysis.md)
 · [Viewer guide](viewer.md) · [Input formats](simulation_data_formats.md)
+· [Baseline FAC anisotropy theory](fac_anisotropy_theory.md)
 
 The transverse API measures how the magnetic direction changes across a
 field line. It returns local rotation and shear rates from first Cartesian
-derivatives of B. These are rates per length; interpretation depends on
+derivatives of B, together with the dimensionless rotation/shear balance eta.
+The rates are per length; interpretation depends on
 the field, grid resolution, and derivative step.
 
 ## Open a view
 
 ```bash
-python examples/geometry_viewer.py --component sigma --slice x --slice-only
+python examples/geometry_viewer.py --component beta_g --slice x --slice-only
 python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --component gamma --stride 4
 ```
 
@@ -22,7 +24,7 @@ Install `.[viz3d]` for viewing and `.[io,viz3d]` for XDMF/HDF5 input.
 See the [viewer guide](viewer.md) for input layouts, slicing, colour scales,
 units, and memory controls.
 
-![Sigma slice of an analytic magnetic field](images/transverse-sigma.png)
+![Beta_g slice of an analytic magnetic field](images/transverse-beta-g.png)
 
 ## Calculate rates without plotting
 
@@ -42,7 +44,7 @@ z = np.zeros_like(x)
 rates = field_line_transverse_geometry(field, x, y, z, delta=0.002,
                                       curvature_tol=1e-8)
 np.testing.assert_allclose(rates['alpha'], 2 / (x**2 + 1), rtol=1e-5)
-assert np.isnan(rates['sigma'][0])  # straight line on the central axis
+assert np.isnan(rates['beta_g'][0])  # straight line on the central axis
 assert np.isfinite(rates['gamma'][0])
 ```
 
@@ -56,39 +58,53 @@ The function is also exported as `mageometry.field_line_transverse_geometry`.
 | `curvature_tol` | Nonnegative curvature cutoff in inverse length; default 0 |
 
 The result is a dictionary of scalars for scalar coordinates, or arrays
-with the broadcast shape. It includes all six keys below.
+with the broadcast shape. It contains exactly the seven keys below.
 
 ## Definitions and units
 
-With T=B/|B|, curvature normal n, and b=T×n, define
-`a=b·∂nT`, `c=n·∂bT`, `u=n·∂nT`, and `v=b·∂bT`.
+Following the [baseline theory](fac_anisotropy_theory.md), use
+T=B/|B|, curvature normal n, b=T×n, and define
+`p=b·∂nT`, `q=n·∂bT`, `a=n·∂nT`, and `d=b·∂bT`.
 
 | Key | Definition | Interpretation |
 | --- | --- | --- |
-| `alpha` | a−c = μ₀j∥/|B| | Twice the azimuthal mean winding rate |
-| `sigma` | a+c | Signed off-diagonal shear in the Frenet frame |
-| `q` | u−v | Difference of transverse normal strains |
-| `gamma` | √(sigma²+q²) | Basis-independent anisotropy; gamma/2 is the maximum angular-rate deviation |
+| `alpha` (α) | p−q = μ₀j∥/\|B\| | Twice the azimuthal mean winding rate |
+| `beta_g` (β_g) | p+q = 𝒟/B | Signed off-diagonal shear in the Frenet frame |
+| `delta_g` (δ_g) | a−d | Difference of transverse normal strains |
+| `gamma` (Γ) | √(β_g²+δ_g²) | Basis-independent anisotropy; Γ/2 is the maximum angular-rate deviation |
 | `omega_c` | sign(alpha) √max(alpha²−gamma²,0)/2 | Signed local coiling rate |
+| `eta` | (alpha²−gamma²)/(alpha²+gamma²) | Dimensionless rotation/shear balance in [−1, 1] |
 | `curvature` | \|(T·∇)T\| | Field-line curvature from first Cartesian derivatives |
 
-All six outputs have inverse coordinate-length units. The five transverse
-rates are selectable in the overview viewer, are unaffected by
+The numerical implementation, analysis API, viewers, and CLIs all use
+`beta_g` and `delta_g`. The symbol q denotes the matrix entry defined above.
+The `delta` argument is the numerical difference step, separate from the
+physical diagnostic `delta_g`.
+
+All outputs except eta have inverse coordinate-length units. The five transverse
+rates and eta are selectable in the overview viewer, are unaffected by
 `current_scale`, and have no current arrows. The eigenvalue-based coiling
 rate is a local diagnostic, not an integrated winding number or proof of a
 flux rope; see [Tassev & Savcheva (2019)](https://arxiv.org/abs/1901.00865).
 
+Eta is positive when alpha² exceeds gamma², negative when gamma² exceeds
+alpha², and zero when the two nonzero magnitudes balance. It is **NaN**
+when both are zero. Pure rotation gives +1 and pure shear/strain gives −1.
+The viewer uses a fixed [−1, 1] colour scale by default. Select it with the
+dropdown, F5/F6, or `--component eta`. Eta is a derived diagnostic for any
+magnetic field source, including simulations; it is not a model input.
+
 `omega_c` is zero when `alpha**2 <= gamma**2`; a finite zero is a defined
 result, unlike NaN. When a Frenet normal exists, gamma equals
-`sqrt(sigma**2 + q**2)`. Internally it is evaluated independently in
-Cartesian coordinates, so it can remain finite when sigma and q are NaN.
+`sqrt(beta_g**2 + delta_g**2)`. Internally it is evaluated independently in
+Cartesian coordinates, so it can remain finite when beta_g and delta_g are NaN.
 
 ## Validity and differences from the current API
 
 The implementation uses seven B evaluations for Cartesian first derivatives,
 then projects the gradient into the transverse plane. It never differentiates
-n. Alpha, gamma, and omega_c do not require a Frenet normal: straight lines
-can retain nonzero anisotropy. Sigma and q are NaN when curvature is at or
+n. Alpha, gamma, omega_c, and eta do not require a Frenet normal: straight lines
+can retain nonzero anisotropy. Beta_g and delta_g are NaN when curvature is at or
 below `curvature_tol`, including zero curvature. All results are NaN at
 magnetic nulls or invalid stencils.
 At weak curvature prefer gamma and examine derivative-step convergence.
@@ -97,7 +113,7 @@ Viewer alpha now uses this first-gradient estimate, so it remains available
 on straight lines. The legacy `field_line_current_density()['alpha']` retains
 its frame-difference method and stricter validity mask. The two estimates
 agree in the converged limit where the frame is well defined, but need not
-match to round-off. Likewise, legacy `B_twist_diff/|B|` estimates sigma using
+match to round-off. Likewise, legacy `B_twist_diff/|B|` estimates beta_g using
 the old discretization. `B_twist_diff` no longer draws current arrows because
 it represents shear, even though it has current-like units.
 

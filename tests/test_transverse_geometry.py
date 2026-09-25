@@ -5,29 +5,65 @@ import numpy as np
 from mageometry.geometry import field_line_transverse_geometry as diagnostic
 
 
-def linear(a=2., c=-1., u=0., v=0., k=1.):
-    return lambda x, y, z: (u*x+c*y+k*z, a*x+v*y, 1+0*z)
+def linear(p=2., q=-1., a=0., d=0., k=1.):
+    """At the origin T=z, n=x, b=y and M has rows (a, q), (p, d)."""
+    return lambda x, y, z: (a*x+q*y+k*z, p*x+d*y, 1+0*z)
 
 
 class TestTransverseGeometry(unittest.TestCase):
     def test_analytic_maps(self):
-        for a, c, u, v in ((2, -2, 0, 0), (4, 0, 0, 0), (3, 3, 0, 0), (1, -1, 2, -2)):
-            r = diagnostic(linear(a, c, u, v), 0., 0., 0.)
-            expected = dict(alpha=a-c, sigma=a+c, q=u-v,
-                            gamma=np.hypot(a+c, u-v), curvature=1.)
-            expected['omega_c'] = np.sign(a-c)*np.sqrt(max((a-c)**2-expected['gamma']**2, 0))/2
+        for p, q, a, d in ((2, -2, 0, 0), (4, 0, 0, 0), (3, 3, 0, 0),
+                           (0, 0, 2, -2), (1, -1, 2, -2)):
+            r = diagnostic(linear(p, q, a, d), 0., 0., 0.)
+            expected = dict(alpha=p-q, beta_g=p+q, delta_g=a-d,
+                            gamma=np.hypot(p+q, a-d), curvature=1.)
+            expected['omega_c'] = np.sign(p-q)*np.sqrt(max((p-q)**2-expected['gamma']**2, 0))/2
+            expected['eta'] = ((p-q)**2 - expected['gamma']**2) / ((p-q)**2 + expected['gamma']**2)
             for key, value in expected.items():
                 self.assertIsInstance(r[key], float)
                 self.assertAlmostEqual(r[key], value)
 
+    def test_diagnostic_keys_and_matrix_entries_are_distinct(self):
+        for x in (0., np.zeros((2, 3))):
+            result = diagnostic(linear(p=2, q=-1, a=2, d=-2), x, 0., 0.)
+            self.assertEqual(set(result), {'alpha', 'beta_g', 'delta_g', 'gamma',
+                                           'omega_c', 'eta', 'curvature'})
+            np.testing.assert_allclose(result['alpha'], 3.)
+            np.testing.assert_allclose(result['beta_g'], 1.)
+            np.testing.assert_allclose(result['delta_g'], 4.)
+
+    def test_current_free_dipole_has_nonzero_anisotropy(self):
+        def dipole(x, y, z):
+            r5 = (x*x + y*y + z*z)**2.5
+            return 3*x*z/r5, 3*y*z/r5, (2*z*z-x*x-y*y)/r5
+
+        r = 4.
+        colatitude = np.array([.3, .7, 1.2, 2., 2.7])
+        result = diagnostic(dipole, r*np.sin(colatitude), 0., r*np.cos(colatitude), delta=1e-4)
+        expected = (3*np.abs(np.cos(colatitude))*np.sin(colatitude)**2
+                    / (r*(1+3*np.cos(colatitude)**2)**1.5))
+        np.testing.assert_allclose(result['alpha'], 0., atol=1e-8)
+        np.testing.assert_allclose(result['beta_g'], 0., atol=1e-8)
+        np.testing.assert_allclose(result['gamma'], expected, rtol=2e-7)
+        np.testing.assert_allclose(result['eta'], -1., atol=1e-12)
+
+    def test_eta_zero_denominator_and_weak_gradients(self):
+        with np.errstate(all='raise'):
+            self.assertTrue(np.isnan(diagnostic(linear(0, 0, k=0), 0., 0., 0.)['eta']))
+            for strength in (1., 1e-100):
+                for p, q, expected in ((2, -2, 1), (3, 3, -1), (4, 0, 0), (2, -1, 0.8)):
+                    result = diagnostic(linear(p*strength, q*strength, k=0), 0., 0., 0.)
+                    self.assertAlmostEqual(result['eta'], expected)
+
     def test_straight_null_invalid_and_cutoff(self):
         r = diagnostic(linear(k=0), 0., 0., 0.)
-        self.assertTrue(np.isnan(r['sigma']) and np.isnan(r['q']))
+        self.assertTrue(np.isnan(r['beta_g']) and np.isnan(r['delta_g']))
         self.assertAlmostEqual(r['alpha'], 3.)
         self.assertAlmostEqual(r['gamma'], 1.)
         self.assertAlmostEqual(r['omega_c'], np.sqrt(2.))
+        self.assertAlmostEqual(r['eta'], 0.8)
         r = diagnostic(linear(), 0., 0., 0., curvature_tol=2.)
-        self.assertTrue(np.isnan(r['sigma']))
+        self.assertTrue(np.isnan(r['beta_g']))
         self.assertAlmostEqual(r['gamma'], 1.)
         for field in (lambda x, y, z: (0., 0., 0.),
                       lambda x, y, z: (np.where(x > 0, np.nan, 0.), 0., 1.)):
@@ -37,7 +73,7 @@ class TestTransverseGeometry(unittest.TestCase):
                 diagnostic(linear(), 0., 0., 0., delta=delta)
 
     def test_broadcast_and_rotation(self):
-        base = linear(u=2, v=-2)
+        base = linear(a=2, d=-2)
         r = diagnostic(base, np.zeros((2, 1)), np.zeros((1, 3)), 0., delta=(.01, .02, .03))
         for value in r.values():
             self.assertEqual(value.shape, (2, 3))

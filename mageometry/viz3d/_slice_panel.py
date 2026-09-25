@@ -55,17 +55,23 @@ class _SlicePanel:
                 if title != self.bar_title:
                     if self.bar_title is not None:
                         p.remove_scalar_bar(self.bar_title, render=False)
-                    p.add_scalar_bar(title=title, mapper=self.actor.mapper,
+                    bar = p.add_scalar_bar(title=title, mapper=self.actor.mapper,
                                      color='#263546', title_font_size=10,
                                      label_font_size=10, width=0.86, height=0.07,
                                      position_x=0.07, position_y=0.18, render=False)
+                    bar.SetVerticalTitleSeparation(6)
                     self.bar_title = title
             if self.actor is not None:
                 self.actor.visibility = has_data
-            p.add_text(f'{owner.scalar_name} / CROSS-SECTION\n{owner.location()}',
+            heading = f'{owner.scalar_name} / CROSS-SECTION'
+            if owner.case_label is not None:
+                heading = f'{owner.case_label}\n{heading}'
+            p.add_text(f'{heading}\n{owner.location()}',
                        position=(0.04, 0.89), viewport=True, font_size=12,
                        color='#263546', name='fac-panel-title', render=False)
             status = 'All strengths / fixed colour scale' if has_data else 'No valid data on this plane'
+            if owner.case_label is not None and has_data:
+                status = 'All strengths / colour scale shared across datasets'
             p.add_text(status + '\nF1/F2/F3: YZ/XZ/XY  |  F4: enlarge',
                        position=(0.04, 0.025), viewport=True, font_size=9,
                        color='#64748b', name='fac-panel-status', render=False)
@@ -90,8 +96,9 @@ class _SlicePanel:
                 p.camera.SetWindowCenter(0, -0.10)
             else:
                 shift = normal * np.dot(origin - self.last_origin, normal)
-                p.camera.position = np.asarray(p.camera.position) + shift
-                p.camera.focal_point = np.asarray(p.camera.focal_point) + shift
+                if np.any(shift):
+                    p.camera.position = np.asarray(p.camera.position) + shift
+                    p.camera.focal_point = np.asarray(p.camera.focal_point) + shift
             self.last_normal, self.last_origin = normal.copy(), origin.copy()
             lo, hi = np.min(owner.focus.corners @ normal), np.max(owner.focus.corners @ normal)
             self.updating_slider = True

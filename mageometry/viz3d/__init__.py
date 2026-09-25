@@ -13,6 +13,8 @@ Linux (including WSL2 with WSLg), Windows, and macOS.
 - `explore` — one call: slices plus field lines traced from seed points
 - `fac_view` — signed FAC regions, current arrows, and peak-projection maps
 - `current_view` — switch notebook-10 current components in the same viewer
+- `geometry_view` — explore magnetic currents and transverse geometry
+- `compare_geometry` — switch labelled snapshots with shared comparison scales
 - `add_field_lines` — traced lines as polylines or tubes, optionally
   coloured by a quantity along the line
 - `add_frenet_frame` — T/n/b arrow glyphs at points
@@ -35,7 +37,7 @@ from .lines import add_field_lines
 from .frames import add_frenet_frame
 from .explore import explore
 from .fac import fac_view, current_view
-from .geometry import geometry_view
+from .geometry import geometry_view, compare_geometry
 
 __all__ = [
     "slice_view",
@@ -43,6 +45,7 @@ __all__ = [
     "fac_view",
     "current_view",
     "geometry_view",
+    "compare_geometry",
     "add_field_lines",
     "add_frenet_frame",
     "to_rectilinear_grid",

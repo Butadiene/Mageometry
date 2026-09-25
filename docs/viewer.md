@@ -27,6 +27,17 @@ All three scripts share the display controls and file options. Use `--help`
 to list the current options. The model demonstration uses Re and nT and
 converts displayed currents to nA/m². File inputs retain their native units.
 
+For multiple snapshots, use `viz3d.compare_geometry(cases, ...)`. Its
+**DATASET** dropdown (F7/F8) changes the selected grid while preserving
+camera, slice, diagnostic, shared colour scale, and absolute threshold.
+`python examples/compare_t96_by.py` generates six IMF By cases in memory.
+It defaults to direct model derivatives/tracing with a 0.002 Re difference
+step and the single-case example's 65 × 49 × 49 display grid. Add
+`--evaluation grid` for grid interpolation. Python callers can supply
+per-case `fields` and an explicit shared `delta` to `compare_geometry`.
+See [dataset comparison](data_comparison.md) for data requirements,
+shared-scale rules, fixed trace seeds, and cache controls.
+
 ## Supply your file
 
 ```bash
@@ -68,7 +79,7 @@ See [exact format requirements](simulation_data_formats.md#part-iii--bundled-rea
 ## Select a diagnostic and a slice
 
 ```bash
-python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --component sigma --slice x --slice-only
+python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --component beta_g --slice x --slice-only
 python examples/fac_viewer.py --component mu0J_b --slice x --slice-origin -6 0 0 --slice-only
 ```
 
@@ -90,8 +101,37 @@ With no slice direction specified, the CLI's face-on panel starts on XZ.
 Component changes keep the camera, plane position, and magnetic context
 lines fixed. Each component remembers its own threshold. Dropdown keyboard
 selection uses Up/Down and Enter; Esc closes the menu.
+The shear diagnostics are `beta_g` (β_g) and `delta_g` (δ_g), using the
+same names as the numerical implementation and analysis API. Their
+definitions and interpretation are in the [baseline theory](fac_anisotropy_theory.md).
 
-![Transverse sigma slice from an analytic field](images/transverse-sigma.png)
+### Source information
+
+The header shows declared source information in both the overview and the
+enlarged F4 view, and follows the selected comparison dataset. The bundled
+T96 examples supply the model name, Pdyn, Dst, IMF By/Bz, dipole tilt (rad),
+and epoch (Unix seconds). Text wraps and fits the available header space;
+the fitted view leaves room for it above the plot.
+
+This is a generic provenance display, separate from model evaluation. Supply
+`GriddedField.metadata` with optional `model`, `source`, `time`,
+`coordinate_system`, `length_unit`, `field_unit`, and a `parameters` mapping
+whose labels include units. For example, a simulation can declare:
+
+```python
+grid.metadata.update(source='run/step.vti', time=120.,
+                     parameters={'Resistivity [native]': 0.01, 'Step': 240})
+```
+
+No model inputs are inferred from a callable, and this information does not
+alter calculations or convert units. Callers must keep metadata consistent
+with their supplied grid/field. Missing metadata leaves the header empty.
+
+![Eta with source information](images/viewer-eta-overview.png)
+
+[Enlarged slice with the same source information](images/viewer-eta-focus.png).
+
+![Transverse beta_g slice from an analytic field](images/transverse-beta-g.png)
 
 ## Read the colours, arrows, and projections
 
@@ -102,12 +142,14 @@ selection uses Up/Down and Enter; Esc closes the menu.
 | `mu0J_n`, `mu0J_b` | Normal and binormal current | n or b |
 | `mu0J_x`, `mu0J_y`, `mu0J_z` | Cartesian components of the Frenet reconstruction | x, y, or z |
 | `B_kappa`, `minus_dB_dn` | Curvature and magnitude-gradient terms of `mu0J_b` | b |
-| `B_twist_diff` | Signed difference of the two parallel terms | None |
-| `alpha`, `sigma`, `q`, `gamma`, `omega_c` | Transverse rates; see [definitions](transverse_geometry.md) | None |
+| `B_twist_diff` | D = Bβ_g, the signed difference of the two parallel terms | None |
+| `alpha`, `beta_g`, `delta_g`, `gamma`, `omega_c` | Transverse rates; see [definitions](transverse_geometry.md) | None |
+| `eta` | (alpha²−gamma²)/(alpha²+gamma²), dimensionless rotation/shear balance | None |
 
 Red and blue indicate the sign in the selected basis. Only T-directed
 components represent current along or against B. `B_twist_diff` is a
 shear diagnostic with field/length units; it is not total parallel current.
+When current conversion is enabled, its displayed label is `D / mu0`.
 
 The overview maps select the signed value with the largest absolute
 magnitude along each sightline. They are peak projections, not slices or
@@ -119,6 +161,10 @@ Colour limits use the 98th percentile of each component's absolute value
 and stay fixed while adjusting its threshold. Compare legends across
 components: identical colours need not represent identical amplitudes.
 Nonnegative `gamma` uses the positive half of the diverging scale.
+Eta uses a fixed [−1, 1] scale by default; alpha = gamma = 0 is undefined
+and remains blank. Like the transverse rates, eta is never current-scaled.
+The comparison viewer uses the largest per-case percentile to fix a common
+range before displaying that diagnostic; it does not rescale on selection.
 
 ## Resolution, memory, and derivatives
 
@@ -142,6 +188,10 @@ spacing by default. With an explicit `field` and `delta`, it defaults to
 `min(delta)`. `--geometry-delta` does not alter the independent `fac`
 estimate. Compare multiple grid resolutions and steps when checking small
 features; see [numerical guidance](geometry_analysis.md#undefined-geometry-and-step-size).
+In comparisons, supplying per-case `fields` uses the direct-evaluation
+path with an explicit shared `delta`. Display-grid coarsening then changes
+the sampled diagnostic locations, without changing the magnetic field used
+for derivatives or tracing. See [direct model evaluation](data_comparison.md#direct-model-evaluation-in-python).
 
 ## Python API, native units, and screenshots
 
@@ -169,7 +219,8 @@ Viewer labels and `GriddedField.metadata` do not convert data. Native current
 values represent μ₀J in field/length units. If B is in nT and coordinates in
 Re, `current_scale=0.125`, `current_unit='nA/m^2'`, and `length_unit='Re'`
 label the approximately converted currents. The five transverse rates are
-never current-scaled and retain inverse-length units. `planet_radius`
+never current-scaled and retain inverse-length units; eta is dimensionless.
+`planet_radius`
 draws a reference sphere; use `mask=` to exclude its interior from analysis.
 
 For an off-screen PNG:
@@ -219,6 +270,37 @@ there. To use your data, replace the synthetic grid with a loaded
 `GriddedField`, use `field = grid.field()`, and choose arrow locations and
 `delta` with room for derivative stencils inside the grid.
 
+## Regenerate the README screenshots
+
+From the repository root with `.[viz3d]` installed, run:
+
+```bash
+python benchmark/readme_screenshots.py
+# Inspect a separate set before replacing documentation assets:
+python benchmark/readme_screenshots.py --output-dir /tmp/mageometry-screenshots
+```
+
+The script renders ten PNGs directly from the current viewer using
+`examples/fac_viewer.py`'s T96 + dipole snapshot and source metadata. It
+uses the default 120,000-node preview budget, a 1920 × 960 window, the
+companion slice panel, and a YZ plane at x = −6 Re. The screenshots in
+the README were captured on 2026-09-25 with PyVista 0.49.0.
+
+The capture sequence shows FAC with and without the draggable plane,
+the enlarged FAC slice, normal-current overview, binormal-current slice,
+first parallel-current term, signed shear difference, open component menu,
+and eta in overview and enlarged modes. Current components are selected
+through the actual dropdown, retaining the slice position and magnetic
+lines. Eta starts in a fresh viewer with its own automatic context seeds.
+The strength threshold and per-component colour limits are automatic;
+eta retains its fixed [−1, 1] scale. Inspect the resulting images after
+changes to layout, labels, or numerical sampling.
+
+The analytic `beta_g` image and IMF By comparison images illustrate separate
+examples; the latter have [their own regeneration commands](data_comparison.md#example-views).
+The README's accuracy plots are generated by
+[`benchmark/readme_validation.py`](../benchmark/readme_validation.py).
+
 ## Troubleshooting
 
 | Symptom | Check |
@@ -226,7 +308,7 @@ there. To use your data, replace the synthetic grid with a loaded
 | Missing magnetic arrays | Names and association; the CLI uses the defaults above |
 | Unsupported topology | Convert/resample to a rectilinear grid, or write a reader |
 | Fewer than three nodes per axis | Reduce stride or enlarge the selected region |
-| Blank sigma/q or Frenet current | Curvature normal and neighbouring stencils; compare `gamma`, `alpha`, or `fac` |
+| Blank beta_g/delta_g or Frenet current | Curvature normal and neighbouring stencils; compare `gamma`, `alpha`, or `fac` |
 | No regions above the threshold | Lower the threshold and inspect the slice; also check finite values |
 | Out-of-domain error in custom Python code | Keep the interpolator's default NaN fill rather than `fill_value=None` |
 | Display or OpenGL error | Check the available VTK rendering backend; off-screen rendering still requires a working backend |

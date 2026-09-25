@@ -117,7 +117,7 @@ np.testing.assert_allclose(rates['alpha'], 2 / (x**2 + 1), rtol=1e-5)
 | `field_magnitude_derivatives` | `B`, `dB_dT`, `dB_dn`, `dB_db` | Field; derivatives in field/length |
 | `field_line_current_density` | `mu0J_T/n/b`, `mu0J_x/y/z`, parallel terms, `B_twist_diff`, `alpha`, `B`, `curvature` | Currents in field/length; alpha and curvature in 1/length |
 | `field_aligned_current_density` | Cartesian curl(B)·T | Field/length |
-| `field_line_transverse_geometry` | `alpha`, `sigma`, `q`, `gamma`, `omega_c`, `curvature` | 1/length |
+| `field_line_transverse_geometry` | `alpha`, `beta_g`, `delta_g`, `gamma`, `omega_c`, `eta`, `curvature` | 1/length except dimensionless eta |
 
 The current API returns **μ₀J**, not J in SI units. In particular,
 `B_dT_dn_b + B_dn_db_T = mu0J_T`, while `B_twist_diff` is their signed
@@ -145,7 +145,7 @@ zero for an arbitrary empirical field or interpolant.
 | Magnetic null or undefined field | Tangent and dependent geometry are NaN |
 | Straight, nonzero field | Curvature can be zero; n, b, torsion, and Frenet currents are undefined |
 | Invalid neighbouring samples | Quantities needing those stencils become NaN |
-| Zero or weak curvature | Inspect transverse `gamma`; `sigma` and `q` need a resolved normal |
+| Zero or weak curvature | Inspect transverse `gamma`; `beta_g` and `delta_g` need a resolved normal |
 
 Check each result with `np.isfinite`. Do not replace undefined values with
 zero before averaging or plotting. Use a positive `delta` in coordinate
