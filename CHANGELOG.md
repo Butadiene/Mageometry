@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Select or disable backgrounds directly in the geometry GUI. Model examples
+  expose a dipole preset; an in-viewer folder browser loads XDMF/VTK backgrounds
+  without additional GUI dependencies. Preserve total-field context on changes
+  and keep the scene intact when loading or validation fails.
 - Add `field_line_transverse_decomposition` with total-frame gradient and
   shear tensors for total, background and residual contributions. Preserve
   additive signed rates while computing gamma/eta from each tensor.

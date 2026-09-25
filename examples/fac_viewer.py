@@ -26,9 +26,12 @@ F4 enlarges it with a dedicated position slider.
 """
 
 import argparse
+from functools import partial
+from pathlib import Path
 
 import numpy as np
 
+from mageometry.viz3d._background import _load_background
 from mageometry.viz3d._current import COMPONENTS, TRANSVERSE_COMPONENTS, _component_name
 
 from mageometry import GriddedField, geopack, geopack_field, load_hdf5, load_vtk, load_xdmf, viz3d
@@ -51,7 +54,9 @@ def model_snapshot():
                                 'IMF By [nT]': parmod[2], 'IMF Bz [nT]': parmod[3],
                                 'Dipole tilt [rad]': float(ps), 'Epoch [Unix s]': epoch})
     grid = GriddedField(*axes, *b, metadata=metadata)
+    backgrounds = {'Dipole': geopack_field(None, 'dip', ps=ps)}
     return grid, dict(field=field, delta=0.002, mask=mask, planet_radius=1.,
+                      background_choices=backgrounds,
                       length_unit='Re', current_scale=0.125, current_unit='nA/m^2',
                       trace_kwargs={'r0': 2.5, 'ds': 0.15, 'max_steps': 350})
 
@@ -115,12 +120,16 @@ def main(default_component="fac", description=None, require_source=False):
     else:
         print('Model: T96 + dipole; native nT/Re converted to nA/m^2.', flush=True)
         grid, options = model_snapshot()
+    options['background_loader'] = partial(_load_background, stride=args.stride)
+    if args.xmf or args.vtk or args.h5:
+        options['background_directory'] = Path(args.xmf or args.vtk or args.h5).resolve().parent
     viewer = viz3d.geometry_view
     if has_background:
         if args.background:
             tilt = grid.metadata['parameters']['Dipole tilt [rad]']
             background = geopack_field(None, 'dip', ps=tilt)
             label = 'Dipole'
+            options['background_choices'] = {'Dipole': background}
         elif args.background_xmf:
             background = load_xdmf(args.background_xmf, stride=args.stride)
             label = args.background_xmf

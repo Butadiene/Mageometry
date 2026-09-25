@@ -185,7 +185,29 @@ gradient contribution, not the actual winding of residual-field lines. Call
 `field_line_transverse_geometry` on an explicitly constructed residual field
 if its own geometry is the intended question.
 
-Open the corresponding comparison with:
+Choose **BACKGROUND** in `geometry_view` to select a preset or
+**Load background file...**. The model CLI exposes **Dipole** on normal
+startup (`python examples/geometry_viewer.py`); then choose
+**CONTRIBUTION → Residual gradient** and **COMPONENT → eta/gamma**.
+**None (total field)** disables attribution and restores all diagnostics.
+Enabling a background from a current diagnostic selects eta automatically.
+Background changes preserve total magnetic lines, cameras, slices and
+per-diagnostic thresholds; shared limits are recalculated for the new
+background. Invalid files or incompatible axes/declared units leave the
+current view intact and show a message. Escape or Cancel exits file browsing.
+
+Python callers can supply `background_choices={'Reference': background}` to
+`geometry_view` or `transverse_contribution_view`. Presets must be explicit
+callables or grids; metadata never implicitly selects a dipole. File loading
+supports `.xmf`, `.xdmf`, `.vti`, `.vtr` and uses the CLI's total-input stride.
+The Python API defaults to full file resolution; use `background_loader` for
+a custom stride, region or field-array name and `background_directory` for
+the initial folder. XDMF/HDF5 loading needs the optional `io` dependencies.
+The file browser uses the existing VTK interface; no Tk/Qt installation is
+needed. Bare HDF5 requires explicit grid coordinates: load it through Python
+and register the result as a background preset.
+
+Optional CLI arguments can preselect the corresponding comparison:
 
 ```bash
 python examples/geometry_viewer.py --background dipole --component eta --contribution residual --slice x --slice-origin -6 0 0

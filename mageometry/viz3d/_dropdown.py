@@ -22,6 +22,9 @@ class _Dropdown:
 
         self.plotter = weakref.proxy(plotter)
         self.renderer = plotter.renderer
+        self.name = name
+        self.on_rebuild = None
+        self.on_dismiss = None
         self.options = dict(options)
         self.keys = tuple(self.options)
         self.selected = selected
@@ -68,6 +71,8 @@ class _Dropdown:
             self._add(actor, name)
             return actor
 
+        self._make_rectangle = rectangle
+        self._make_label = label
         self.header = rectangle(f'{name}-button', (0.88, 0.92, 0.96), 20)
         self.value = label(f'{name}-value', '', 22)
         self.arrow = label(f'{name}-arrow', 'v', 22)
@@ -185,6 +190,31 @@ class _Dropdown:
         self._layout_state = None
         self.layout()
 
+    def set_options(self, options, selected):
+        """Replace choices without replacing event observers or menu peers."""
+        if not options or selected not in options:
+            raise ValueError('Dropdown choices must include the selected key.')
+        removed = {actor for row in self.rows for actor in row}
+        for actor in removed:
+            self.renderer.remove_actor(actor, reset_camera=False, render=False)
+        self.props.difference_update(removed)
+        self.options = dict(options)
+        self.keys = tuple(options)
+        self.rows = []
+        for key, text in self.options.items():
+            background = self._make_rectangle(f'{self.name}-row-{key}', (1., 1., 1.), 30)
+            label = self._make_label(f'{self.name}-option-{key}', text, 32)
+            self.rows.append((background, label))
+        if self.on_rebuild is not None:
+            self.on_rebuild(removed, {actor for row in self.rows for actor in row})
+        self.set_selected(selected)
+
+    def dismiss(self):
+        self.opened = False
+        self._refresh()
+        if self.on_dismiss is not None:
+            self.on_dismiss()
+
     def link(self, peer):
         """Allow one-click transfer between menus without a camera gesture."""
         self.peers.add(peer)
@@ -214,14 +244,16 @@ class _Dropdown:
             for peer in self.peers:
                 peer.layout()
                 if self.opened and peer._hit(position, peer.bounds):
-                    self.opened = False
-                    self._refresh()
+                    self.dismiss()
                     return False
             if self._hit(position, self.bounds):
                 for peer in self.peers:
-                    peer.opened = False
-                    peer._refresh()
-                self.opened = not self.opened
+                    if peer.opened:
+                        peer.dismiss()
+                if self.opened:
+                    self.dismiss()
+                else:
+                    self.opened = True
                 self.highlight = self.keys.index(self.selected)
             elif self.opened:
                 for index, bounds in enumerate(self.row_bounds):
@@ -230,7 +262,7 @@ class _Dropdown:
                         self._choose(index)
                         self.plotter.render()
                         return True
-                self.opened = False  # outside click dismisses without rotating
+                self.dismiss()  # outside click dismisses without rotating
             else:
                 return False
             self.pressed = True
@@ -254,8 +286,7 @@ class _Dropdown:
             elif key in ('Return', 'KP_Enter', 'space'):
                 self._choose(self.highlight)
             else:
-                self.opened = False
-                self._refresh()
+                self.dismiss()
                 self.plotter.render()
                 return key == 'Escape'  # other viewer shortcuts still work
         else:

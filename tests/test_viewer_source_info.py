@@ -100,9 +100,12 @@ class TestSourceInfoViewer(unittest.TestCase):
                     description = p.actors['fac-component-description']
                     description.GetSize(p.renderer, measured)
                     self.assertLessEqual(measured[0], .93 * width)
-                    title = p.actors['fac-focus-title' if focused else 'fac-title']
-                    title.GetSize(p.renderer, measured)
-                    self.assertLessEqual(measured[0], .48 * width)
+                    for name, fraction in (('geometry-background', .285),
+                                           ('geometry-dataset', .28),
+                                           ('current-component', .32)):
+                        title = p.actors[name + '-value']
+                        title.GetSize(p.renderer, measured)
+                        self.assertLessEqual(measured[0], fraction * width - 42)
                     if focused:
                         # The fitted plane lies below the reserved metadata
                         # area, rather than being covered by the text box.

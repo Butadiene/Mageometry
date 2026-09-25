@@ -15,18 +15,22 @@ sys.path.insert(0, str(ROOT / 'examples'))
 
 from fac_viewer import model_snapshot
 from readme_screenshots import click_text, select
-from mageometry import geopack_field, viz3d
+from mageometry import viz3d
 
 
 def main():
     pv.OFF_SCREEN = True
     grid, options = model_snapshot()
-    background = geopack_field(None, 'dip', ps=grid.metadata['parameters']['Dipole tilt [rad]'])
-    plotter = viz3d.transverse_contribution_view(
-        grid, background, background_label='Dipole', component='eta',
+    plotter = viz3d.geometry_view(
+        grid, component='eta',
         slice_normal='x', slice_origin=(-6., 0., 0.), slice_panel=True,
         max_points=120000, show=False, **options)
     try:
+        plotter.render()
+        click_text(plotter, 'geometry-background-value')
+        plotter.screenshot(ROOT / 'docs' / 'images' / 'viewer-background-menu.png')
+        click_text(plotter, 'geometry-background-option-preset-0')
+        assert plotter.renderers[0].actors['geometry-background-option-preset-0'].GetTextProperty().GetBold()
         for component in ('eta', 'gamma'):
             select(plotter, component)
             for contribution in ('total', 'background', 'residual'):

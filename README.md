@@ -425,8 +425,25 @@ indicate shear-dominated geometry; neither establishes finite-distance winding.
 The [enlarged slice](docs/images/viewer-eta-focus.png) retains the same
 source parameters and colour scale.
 
-To remove an explicit dipole **gradient** contribution, launch the shared-frame
-comparison:
+Choose a background directly in the GUI. Start the viewer normally, then
+select **BACKGROUND → Dipole** and **CONTRIBUTION → Residual gradient**.
+Choose eta or gamma in **COMPONENT**. No background CLI option is required.
+
+```bash
+python examples/geometry_viewer.py
+```
+
+![Background selection in the GUI](docs/images/viewer-background-menu.png)
+
+**None (total field)** restores the regular viewer. **Load background file...**
+opens a folder browser inside the same menu for XDMF or VTK snapshots; use
+folder rows, parent/home/root, page controls and Cancel (or Escape).
+Simulation viewers offer file selection without assuming a dipole.
+Backgrounds must match the total grid's axes and declared coordinates/units;
+failed loads leave the current view intact and show a message. Enabling a
+background from a current diagnostic selects eta automatically.
+
+You can still preselect the dipole and contribution at launch:
 
 ```bash
 python examples/geometry_viewer.py --background dipole --component eta --contribution residual --slice x --slice-origin -6 0 0
@@ -453,7 +470,7 @@ has undefined eta. The API is
 `viz3d.transverse_contribution_view` accepts callable or gridded backgrounds.
 For simulations, supply matching background data with `--background-xmf`
 or `--background-vtk`. See the [derivation and API guide](docs/transverse_geometry.md#background-gradient-contributions).
-Regenerate these six images with
+Regenerate the background menu and six comparison images with
 `python benchmark/transverse_contribution_screenshots.py`.
 
 The two entries immediately below `J_T` in the dropdown split its parallel

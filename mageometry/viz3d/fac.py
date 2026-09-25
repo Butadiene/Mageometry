@@ -8,10 +8,11 @@ from .mesh import to_rectilinear_grid, trace_polydata
 from .slicer import _face_camera
 from ._fac_slice import _FACSlice, _slice_settings
 from ._current import (COMPONENTS, COMPONENT_LABELS,
-                       _component_label, _component_name)
+                       TRANSVERSE_COMPONENTS, _component_label, _component_name)
 from ._dropdown import _Dropdown
 from ._preview import _masked_field, _preview_indices, _sample_fac
 from ._overview_data import _OverviewData
+from ._contribution_data import _ContributionData, CONTRIBUTIONS
 
 __all__ = ['fac_view', 'current_view']
 
@@ -256,7 +257,9 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
                    plotter=None, show=True, slice_normal=None, slice_origin=None,
                    slice_only=False, component=None, current_unit=None,
                    geometry_delta=None, slice_panel=False, comparison=None,
-                   contributions=None):
+                   contributions=None, background_controls=False,
+                   background_choices=None, background_loader=None,
+                   background_directory=None):
     pv = require_pyvista()
     owned_plotter = plotter is None
     slice_controller = None
@@ -291,13 +294,17 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
         raise ValueError("geometry_delta must be a positive finite scalar.")
 
     settings = contributions or comparison or {}
-    multiple = contributions is not None or comparison is not None
+    multiple = background_controls or contributions is not None or comparison is not None
     common = dict(field=field, delta=delta, max_points=max_points, mask=mask,
                   geometry_delta=geometry_delta, current_scale=current_scale,
                   percentile=percentile, color_limits=settings.get('color_limits'))
+    if background_controls:
+        from ._background import _BackgroundChoices
+        sources = _BackgroundChoices(
+            background_choices, settings.get('background'),
+            settings.get('background_label', 'Background'), background_loader,
+            background_directory)
     if contributions is not None:
-        from ._contribution_data import _ContributionData, CONTRIBUTIONS
-        from ._current import TRANSVERSE_COMPONENTS
         data = _ContributionData(gridded_field, settings['background'],
                                  background_label=settings['background_label'], **common)
         case_labels = CONTRIBUTIONS
@@ -305,16 +312,17 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
                             if key in TRANSVERSE_COMPONENTS}
         component_labels['alpha'] = 'alpha - Projected rotation'
     else:
-        data = _OverviewData(settings.get('cases', {'Snapshot': gridded_field}),
+        data = _OverviewData(settings.get('cases', {'total' if background_controls else 'Snapshot': gridded_field}),
                              comparison=comparison is not None, fields=settings.get('fields'),
                              cache_size=settings.get('cache_size', 1), **common)
-        case_labels = {label: label for label in data.labels}
+        case_labels = ({'total': 'Total field'} if background_controls
+                       else {label: label for label in data.labels})
         component_labels = COMPONENT_LABELS
     case = settings.get('initial_case', data.reference)
     initial = data.prepare(case, component)
     data.commit(initial)
     from ._source_info import _SourceInfo, _source_lines
-    reserve_info = any(_source_lines(data.metadata(label)) for label in data.labels)
+    reserve_info = background_controls or any(_source_lines(data.metadata(label)) for label in data.labels)
     preview = initial.prepared.preview
     spacing = initial.prepared.spacing
     fac_label = current_label
@@ -322,7 +330,7 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
 
     def display_label(key):
         label = _component_label(key, current_unit, length_unit, fac_label)
-        return label + ' / shared scale' if multiple else label
+        return label + ' / shared scale' if data.comparison else label
 
     values, basis = initial.values, initial.basis
     current_label = display_label(component)
@@ -373,14 +381,14 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
                          font_size=12, color=_NEGATIVE, name='fac-sign-negative')
         if selectable:
             description = COMPONENTS[component][2]
-            if contributions is not None and case != 'total':
+            if isinstance(data, _ContributionData) and case != 'total':
                 description = f'{component}: gradient contribution in total-field frame; not standalone field geometry'
             plotter.add_text(description, position=(0.035, 0.845),
                              viewport=True, font_size=10, color=_INK,
                              name='fac-component-description', render=False)
 
     describe_component()
-    plotter.add_text('Grey: total magnetic field lines' if contributions is not None
+    plotter.add_text('Grey: total magnetic field lines' if background_controls or contributions is not None
                      else 'Grey: magnetic field lines', position=(0.47, 0.885),
                      viewport=True, font_size=10, color='#64748b', name='fac-sign-context')
     plotter.add_mesh(mesh.outline(), color='#c0cbd6', line_width=1,
@@ -592,11 +600,13 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
     selector = None
     dataset_selector = None
 
-    def select(key, case_key=None):
+    def select(key, case_key=None, replacement=None):
         nonlocal component, scalar_name, values, basis, flat, volume
         nonlocal magnitude, limit, peak, current_label, mesh, preview, case
+        nonlocal data, case_labels, component_labels
         target_case = case if case_key is None else case_key
-        if key == component and target_case == case:
+        candidate = data if replacement is None else replacement
+        if replacement is None and key == component and target_case == case:
             if selector is not None:
                 selector.set_selected(key)
             if dataset_selector is not None:
@@ -616,13 +626,13 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
         # labels or scene data. A failed case keeps the old scene selected.
         try:
             progress(f'Preparing {key} - {target_case}')
-            selection = data.prepare(target_case, key, progress)
+            selection = candidate.prepare(target_case, key, progress)
             new_values, new_basis = selection.values, selection.basis
             new_mesh = to_rectilinear_grid(selection.prepared.preview, quantities=())
             new_mesh.point_data[key] = new_values.ravel(order='F')
             new_volume = _valid_volume(new_mesh, new_values)
             projections = [_peak_projection(new_values, axis).ravel(order='F') for axis in range(3)]
-            case_changed = target_case != case and contributions is None
+            case_changed = target_case != case and comparison is not None
             new_lines = prepare_lines(selection.prepared) if case_changed else None
         except Exception:
             if selector is not None:
@@ -632,6 +642,19 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
             raise
         finally:
             plotter.remove_actor('fac-focus-loading', reset_camera=False, render=False)
+        if replacement is not None:
+            data = candidate
+            data.thresholds = thresholds
+            if isinstance(data, _ContributionData):
+                case_labels = CONTRIBUTIONS
+                component_labels = {key: COMPONENT_LABELS[key] for key in COMPONENTS
+                                    if key in TRANSVERSE_COMPONENTS}
+                component_labels['alpha'] = 'alpha - Projected rotation'
+            else:
+                case_labels = {'total': 'Total field'}
+                component_labels = COMPONENT_LABELS
+            selector.set_options(component_labels, key)
+            dataset_selector.set_options(case_labels, target_case)
         old_label, old_name = current_label, scalar_name
         case = target_case
         component = scalar_name = key
@@ -675,26 +698,112 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
         data.commit(selection)
         plotter.render()
 
+    def retain_menu_props(removed, added):
+        slice_controller.focus.props.difference_update(removed)
+        slice_controller.focus.props.update(added)
+
     if selectable:
-        selector = _Dropdown(plotter, component_labels, component, select)
+        selector = _Dropdown(plotter, component_labels, component, select,
+                             x_range=(0.64, 0.96) if background_controls else (0.55, 0.96))
+        selector.on_rebuild = retain_menu_props
         slice_controller.focus.layout_callbacks.append(selector.layout)
         # The selector must remain interactive in the isolated slice mode.
         slice_controller.focus.props.update(selector.props)
-        keys = tuple(component_labels)
-        plotter.add_key_event('F5', lambda: select(keys[(keys.index(component) - 1) % len(keys)]))
-        plotter.add_key_event('F6', lambda: select(keys[(keys.index(component) + 1) % len(keys)]))
+        plotter.add_key_event('F5', lambda: select(selector.keys[(selector.keys.index(component) - 1) % len(selector.keys)]))
+        plotter.add_key_event('F6', lambda: select(selector.keys[(selector.keys.index(component) + 1) % len(selector.keys)]))
     if multiple:
         dataset_selector = _Dropdown(
             plotter, case_labels, case,
             lambda label: select(component, label), name='geometry-dataset',
-            caption=('CONTRIBUTION' if contributions is not None else 'DATASET')
-                    + '   /   F7: previous   F8: next', x_range=(0.035, 0.49))
+            caption=('CONTRIBUTION' if background_controls or contributions is not None else 'DATASET')
+                    + '   /   F7: previous   F8: next',
+            x_range=(0.34, 0.62) if background_controls else (0.035, 0.49))
+        dataset_selector.on_rebuild = retain_menu_props
         selector.link(dataset_selector)
         slice_controller.focus.layout_callbacks.append(dataset_selector.layout)
         slice_controller.focus.props.update(dataset_selector.props)
         for key, offset in (('F7', -1), ('F8', 1)):
             plotter.add_key_event(key, lambda offset=offset: select(
                 component, data.labels[(data.labels.index(case) + offset) % len(data.labels)]))
+    if background_controls:
+        from ._background import _BackgroundFileMenu
+
+        def background_message(text):
+            old = main_renderer.actors.get('geometry-background-message')
+            if old is not None:
+                slice_controller.focus.props.discard(old)
+            if not text:
+                plotter.remove_actor('geometry-background-message', reset_camera=False, render=False)
+                return
+            activate_main()
+            actor = plotter.add_text(text, position=(0.035, 0.30), viewport=True,
+                                     font_size=11, color=_INK,
+                                     name='geometry-background-message', render=False)
+            actor.GetTextProperty().SetBackgroundColor(0.94, 0.96, 0.98)
+            actor.GetTextProperty().SetBackgroundOpacity(1.)
+            slice_controller.focus.props.add(actor)
+            plotter.render()
+
+        def background_error(exc):
+            background_message('Background unchanged: ' + str(exc))
+
+        def apply_background(key, source=None, label=None):
+            background_message('')
+            try:
+                if key == 'none':
+                    replacement = _OverviewData({'total': gridded_field}, **common)
+                    target = 'total'
+                    next_component = component
+                else:
+                    source = sources.sources[key] if source is None else source
+                    label = sources.labels[key] if label is None else label
+                    replacement = _ContributionData(gridded_field, source,
+                                                     background_label=label, **common)
+                    target = case if case in CONTRIBUTIONS else 'total'
+                    next_component = component if component in TRANSVERSE_COMPONENTS else 'eta'
+                select(next_component, target, replacement)
+            except Exception as exc:
+                background_selector.set_selected(sources.selected)
+                background_error(exc)
+                return
+            if key == 'file':
+                sources.add(key, label, source)
+            sources.selected = key
+            background_selector.set_options(sources.options(), key)
+            background_message('')
+            plotter.render()
+
+        def load_background(path):
+            background_message('Loading ' + str(path))
+            try:
+                background = sources.loader(path)
+            except Exception as exc:
+                background_error(exc)
+                return
+            sources.directory = path.parent
+            apply_background('file', background, path.name)
+
+        def choose_background(key):
+            if key == 'load':
+                background_message('')
+                try:
+                    _BackgroundFileMenu(background_selector, sources.directory,
+                                        load_background, background_error)
+                except Exception as exc:
+                    background_error(exc)
+            elif key != sources.selected:
+                apply_background(key)
+            else:
+                background_selector.set_selected(key)
+
+        background_selector = _Dropdown(
+            plotter, sources.options(), sources.selected, choose_background,
+            name='geometry-background', caption='BACKGROUND', x_range=(0.035, 0.32))
+        background_selector.on_rebuild = retain_menu_props
+        background_selector.link(selector)
+        background_selector.link(dataset_selector)
+        slice_controller.focus.layout_callbacks.append(background_selector.layout)
+        slice_controller.focus.props.update(background_selector.props)
     from ._text_layout import _TextLayout
     text_layout = _TextLayout(plotter, main_renderer, {
         'fac-title': (0.48 if selectable else 0.93, 0.05),
@@ -706,6 +815,7 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
         'fac-focus-location': (0.93, 0.04), 'fac-focus-status': (0.93, 0.025),
         'fac-focus-coordinates': (0.93, 0.025), 'fac-focus-help': (0.93, 0.025),
         'fac-focus-loading': (0.93, 0.03),
+        'geometry-background-message': (0.93, 0.065),
     })
     slice_controller.focus.layout_callbacks.append(text_layout.refresh)
     if slice_panel:

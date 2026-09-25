@@ -1,10 +1,12 @@
 """General magnetic geometry viewer using the shared current/slice renderer."""
 
 from .fac import current_view, _overview_view
+from ._current import _component_name
 from ._overview_data import _validate_cases, _validate_fields
 
 
-def geometry_view(gridded_field, component='alpha', **kwargs):
+def geometry_view(gridded_field, component='alpha', *, background_choices=None,
+                  background_loader=None, background_directory=None, **kwargs):
     """Explore magnetic currents and transverse field-line structure.
 
     Parameters
@@ -14,6 +16,15 @@ def geometry_view(gridded_field, component='alpha', **kwargs):
     component : str, optional
         Initial diagnostic: ``alpha`` (default), ``beta_g``, ``delta_g``, ``gamma``,
         ``omega_c``, ``eta``, or any component accepted by :func:`current_view`.
+    background_choices : mapping of str to callable or GriddedField, optional
+        Named background presets for the GUI. No background is inferred from
+        metadata. The BACKGROUND menu also provides None and a file browser.
+    background_loader : callable, optional
+        ``loader(path) -> GriddedField`` for GUI file selection. Defaults to
+        XDMF or VTK loading at full resolution. Supply a loader with the same
+        stride/region as the total input when it has been subsetted.
+    background_directory : str or Path, optional
+        Initial folder in the in-viewer browser; default current directory.
     **kwargs
         Options forwarded to :func:`current_view`, including ``field``,
         ``geometry_delta``, ``slice_normal``, ``slice_only``, and ``show``.
@@ -29,6 +40,11 @@ def geometry_view(gridded_field, component='alpha', **kwargs):
         nonnegative and occupies the positive half of the shared colour scale.
         Eta defaults to a fixed [-1, 1] scale and is NaN where both alpha
         and gamma are zero. Optional source metadata is shown in both modes.
+        Background selection enables total/background/residual contributions
+        (F7/F8) with shared scales; None restores all current components.
+        Enabling a background while viewing a current component selects eta.
+        Total magnetic lines, cameras, slices and thresholds are retained.
+        An invalid background leaves the displayed data unchanged.
 
     Notes
     -----
@@ -39,7 +55,10 @@ def geometry_view(gridded_field, component='alpha', **kwargs):
     Legacy notebook current components keep their original discretization
     and validity masks, so their alpha estimates can differ numerically.
     """
-    return current_view(gridded_field, component=component, **kwargs)
+    return _overview_view(gridded_field, component=_component_name(component), background_controls=True,
+                          background_choices=background_choices,
+                          background_loader=background_loader,
+                          background_directory=background_directory, **kwargs)
 
 
 def compare_geometry(cases, component='alpha', *, initial_case=None,
@@ -140,7 +159,9 @@ def transverse_contribution_view(gridded_field, background, component='eta', *,
     color_limits : mapping of str to float, optional
         Shared symmetric limits, as in :func:`compare_geometry`.
     **kwargs
-        :func:`geometry_view` options. ``field`` optionally supplies the total
+        :func:`geometry_view` options, including ``background_choices``,
+        ``background_loader`` and ``background_directory`` for GUI selection.
+        ``field`` optionally supplies the total
         evaluator; ``geometry_delta`` controls both gradient stencils. Without
         evaluators, derivatives use linear preview-grid interpolation.
 
@@ -164,7 +185,7 @@ def transverse_contribution_view(gridded_field, background, component='eta', *,
     _transverse_component(component)
     if contribution not in CONTRIBUTIONS:
         raise ValueError(f'Unknown contribution {contribution!r}.')
-    return _overview_view(gridded_field, component=component,
+    return _overview_view(gridded_field, component=component, background_controls=True,
                           contributions=dict(background=background,
                                              background_label=background_label,
                                              initial_case=contribution,

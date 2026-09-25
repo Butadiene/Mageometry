@@ -122,7 +122,7 @@ class TestGeometryViewerExamples(unittest.TestCase):
         with patch.object(self.viewer.geopack, 'recalc', return_value=0.123) as recalc, \
                 patch.object(self.viewer, 'geopack_field', return_value=field) as model:
             grid, options = self.viewer.model_snapshot()
-        external, internal, parmod, ps = model.call_args.args
+        external, internal, parmod, ps = model.call_args_list[0].args
         self.assertEqual((external, internal), ('t96', 'dip'))
         self.assertIs(options['field'], field)
         self.assertEqual(grid.metadata['model'], 'T96 + dipole')
@@ -130,6 +130,19 @@ class TestGeometryViewerExamples(unittest.TestCase):
             'Pdyn [nPa]': parmod[0], 'Dst [nT]': parmod[1],
             'IMF By [nT]': parmod[2], 'IMF Bz [nT]': parmod[3],
             'Dipole tilt [rad]': ps, 'Epoch [Unix s]': recalc.call_args.args[0]})
+        self.assertIs(options['background_choices']['Dipole'], field)
+        model.assert_called_with(None, 'dip', ps=ps)
+
+    def test_simulation_gui_loader_preserves_input_stride(self):
+        path = Path('background.vti')
+        with patch.object(self.viewer, 'load_vtk'), \
+                patch.object(self.viewer.viz3d, 'geometry_view') as render:
+            self.run_viewer('geometry_viewer_simulation.py', '--vtk', 'run/total.vti', '--stride', '4')
+        options = render.call_args.kwargs
+        self.assertEqual(options['background_directory'], Path('run').resolve())
+        with patch('mageometry.viz3d._background.load_vtk') as load:
+            options['background_loader'](path)
+        load.assert_called_once_with(path, stride=4)
 
     def test_model_background_uses_declared_dipole_tilt(self):
         from types import SimpleNamespace
