@@ -836,6 +836,7 @@ and XDMF/HDF5 input needs `.[io]`.
 | --- | --- |
 | [`examples/readme_examples.py`](examples/readme_examples.py) | Numerical examples without plotting or input files |
 | [`examples/geometry_viewer.py`](examples/geometry_viewer.py) | General geometry viewer; model demonstration when no file is supplied |
+| [`examples/geometry_gui.py`](examples/geometry_gui.py) | Unified desktop workspace: model/file setup, case/contribution comparison, display layouts and saved sessions; requires `.[gui]`, see the [guide](docs/gui.md) |
 | [`examples/geometry_viewer_simulation.py`](examples/geometry_viewer_simulation.py) | Geometry viewer requiring an explicit snapshot file |
 | [`examples/compare_t96_by.py`](examples/compare_t96_by.py) | Six-case IMF By comparison with a dataset selector and shared scales |
 | [`examples/fac_viewer.py`](examples/fac_viewer.py) | Shared viewer CLI implementation; starts with FAC when run directly |

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Add the optional Qt desktop workspace (`python -m mageometry.gui`) with
+  model/file source editors, independent dataset and gradient-contribution
+  selectors, all 18 viewer diagnostics, 3D/slice focus layouts, numerical
+  job cancellation, and JSON session save/restore with input fingerprints.
+  Preserve existing scientific APIs and standalone viewers; Qt imports and
+  its worker process are confined to launching the application. Add a
+  [workspace guide](docs/gui.md) and desktop screenshot regeneration script.
 - Select or disable backgrounds directly in the geometry GUI. Model examples
   expose a dipole preset; an in-viewer folder browser loads XDMF/VTK backgrounds
   without additional GUI dependencies. Preserve total-field context on changes

@@ -7,6 +7,10 @@ The 3D overview displays magnetic geometry and current components on a
 rectilinear grid. It combines spatial regions, magnetic context lines,
 signed peak projections, and movable slices.
 
+For model/file setup, combined case/contribution comparison, three display
+layouts, and session save/restore in one window, use the optional
+[desktop workspace](gui.md). The standalone viewers below remain available.
+
 ## Install and choose an entry point
 
 Run commands from the repository root after installing PyVista. XDMF/HDF5

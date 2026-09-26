@@ -9,7 +9,9 @@ models, analytic test fields, and interpolated simulation data.
 | Compute frames, curvature, torsion, and currents | [Geometry analysis](geometry_analysis.md) |
 | Load your data or write a reader | [Simulation data formats](simulation_data_formats.md) |
 | Open a snapshot, select a component, and inspect slices | [Viewer guide](viewer.md) |
+| Run the unified desktop GUI and save analysis sessions | [Desktop workspace](gui.md) |
 | Switch datasets using shared scales, thresholds, and slices | [Dataset comparison](data_comparison.md) |
+| Review the proposed unified GUI and try its layout | [GUI design proposal](gui_design.md) · [Interactive mockup](gui_mockup.html) |
 | Interpret rotation, shear, anisotropy, and coiling | [Transverse geometry](transverse_geometry.md) |
 | Check baseline notation, assumptions, and R1/R2 research hypotheses | [FAC anisotropy theory](fac_anisotropy_theory.md) |
 | Run numerical examples or a viewer from the terminal | [Runnable scripts](../README.md#runnable-scripts) |
