@@ -115,6 +115,13 @@ These parts describe isotropic dilation, symmetric traceless strain, and
 rotation, respectively. If ∇·**B** = 0, then θ = −∂_s ln B. Magnetic
 flux conservation constrains the trace; it does not determine β_g or δ_g.
 
+The [flux-tube concept figure](transverse_decomposition_figure.md) shows
+each coefficient as an isolated mode, with 3D field lines and matching
+normal-plane sections. An orange field-line marker makes rotation visible
+even when the circular section retains its shape. SVG, PDF, and PNG versions
+are available in English and Japanese, with the construction assumptions
+and regeneration script.
+
 This is the transverse part of the unit-director gradient decomposition
 reviewed by [Selinger (2019), Sec. II.1, Eqs. (3)–(8)][selinger]. On setting
 the director to **T**, his splay is θ, twist is α, bend vector is −κ**n**,

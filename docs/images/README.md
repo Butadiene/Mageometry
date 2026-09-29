@@ -3,8 +3,9 @@
 [Documentation index](../README.md) · [Desktop workspace](../gui.md)
 · [Standalone viewers](../viewer.md)
 
-The PNGs in this directory are application renders of model or analytic
-fields. The Qt workspace, standalone PyVista viewers, and HTML design mockup
+The figures in this directory include application renders of model or
+analytic fields and original mathematical illustrations. The Qt workspace,
+standalone PyVista viewers, and HTML design mockup
 have different controls. Use a capture of the relevant application when
 illustrating a workflow. The [mockup](../gui_mockup.html) contains schematic
 diagrams and performs no magnetic calculations.
@@ -14,6 +15,20 @@ case, diagnostic, contribution, plane, units, colour limits, and visible
 labels before replacing a referenced image. Grid and finite-difference
 settings matter: matching colours across different capture sets do not
 establish matching numerical results.
+
+## Transverse-decomposition concept figure
+
+The [flux-tube figure guide](../transverse_decomposition_figure.md) provides
+English and Japanese SVG, PDF, and PNG downloads named
+`transverse-decomposition.*` and `transverse-decomposition-ja.*`. These are
+original mathematical illustrations, separate from application captures.
+They show isolated θ, δ_g, β_g, and α modes with field lines generated
+from exp(s M). The guide states the local thin-tube and frame assumptions,
+parameters, and sources.
+
+With `.[viz]`, run `python benchmark/transverse_decomposition_figure.py
+--language both`. Japanese output also requires a CJK font. The generator
+checks areas, strain axes, rotation, and the recovered transverse gradients.
 
 ## Qt desktop workspace
 

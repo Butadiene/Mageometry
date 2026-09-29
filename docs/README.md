@@ -14,6 +14,7 @@ models, analytic test fields, and interpolated simulation data.
 | Review the accepted GUI design and schematic layout | [GUI design reference](gui_design.md) · [Interactive mockup](gui_mockup.html) |
 | Identify or regenerate documentation images | [Image sources and capture commands](images/README.md) |
 | Interpret rotation, shear, anisotropy, and coiling | [Transverse geometry](transverse_geometry.md) |
+| See how each transverse coefficient changes a flux-tube section | [Concept figure and vector downloads](transverse_decomposition_figure.md) |
 | Check baseline notation, assumptions, and R1/R2 research hypotheses | [FAC anisotropy theory](fac_anisotropy_theory.md) |
 | Run numerical examples or a viewer from the terminal | [Runnable scripts](../README.md#runnable-scripts) |
 | Follow worked numerical examples | [Notebook index](../examples/notebooks/README.md) |
