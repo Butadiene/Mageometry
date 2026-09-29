@@ -14,7 +14,7 @@ From an activated Python environment in the repository:
 
 ```bash
 python -m pip install -e '.[gui]'
-python -m mageometry.gui
+python -m mageometry.gui  # one T96 + dipole case, alpha, total field
 ```
 
 The extra installs PySide6, PyVistaQt, PyVista and h5py. A working desktop
@@ -30,6 +30,8 @@ python -m mageometry.gui --session saved-session.json
 Python 3.9+ remains the package target. GUI dependency resolution was checked
 for Python 3.9; runtime and desktop rendering were exercised on Python 3.14.
 Importing `mageometry.gui` does not import Qt or create a window/process.
+The `gui` extra includes the file-reader and 3D dependencies; `dev` alone
+does not install Qt. Use `.[dev,gui]` to run the optional GUI tests.
 
 ## Model and file workflows
 
@@ -114,17 +116,65 @@ absolute magnitude along each sightline, not an integral. Changes to the
 display conversion or unit labels reset remembered numeric thresholds and
 manual limits to avoid reusing values in a different display convention.
 
-![Desktop workspace](images/gui-workspace.png)
+## Screenshots and regeneration
 
-![Enlarged slice](images/gui-slice.png)
+![Qt workspace in All panels mode: By = -5 nT, residual-gradient eta, YZ slice at x = -6 Re](images/gui-workspace.png)
 
-These are actual desktop renders of a small T96 comparison used for UI
-verification, with residual-gradient eta. Their coarse preview is not a
-resolution-converged scientific result. Regenerate all three layouts with:
+All panels: the selected case is IMF By = −5 nT; the second case is +5 nT.
+The slice, 3D regions, and signed peak projections share the eta scale.
+
+![Same Qt result in Slice focus mode, with the case and analysis controls visible](images/gui-slice.png)
+
+Slice focus: the same committed result and YZ plane enlarged. These are
+actual Qt window captures, separate from the [standalone viewer images](viewer.md)
+and the schematic [HTML mockup](gui_mockup.html).
+
+Both captures come from [`benchmark/render_gui.py`](../benchmark/render_gui.py):
+
+| Capture condition | Value |
+| --- | --- |
+| Total sources / background | T96 + dipole / dipole at the same epoch |
+| Cases / selected case | IMF By = −5 and +5 nT / −5 nT |
+| Epoch, Pdyn, Dst, IMF Bz | 100 Unix seconds, 2 nPa, −20 nT, −5 nT |
+| Grid / preview budget | 17 × 13 × 13 nodes / 3,000 nodes (no coarsening) |
+| Domain | x: −15 to 5, y/z: −8 to 8 Re; r < 2.5 Re excluded |
+| Evaluation / geometry step | Direct model / 0.002 Re |
+| Diagnostic / contribution | Dimensionless eta / residual gradient in the total-field frame |
+| Plane / colour range | YZ at x = −6 Re / [−1, 1] shared across cases and contributions |
+| Context lines | Six fixed seeds; at most 50 steps per tracing direction |
+
+This small grid and shortened tracing are for UI verification; these are
+not resolution-converged scientific results or the default launch settings.
+From the repository root, with `.[gui]` and a working desktop/OpenGL display,
+regenerate all three layouts into a separate directory:
 
 ```bash
 python benchmark/render_gui.py --output /tmp/mageometry-gui
 ```
+
+The capture and restore sequence has a 300-second timeout; use
+`--timeout 600` on slower machines if needed.
+
+| Generated full-window capture | Documentation asset |
+| --- | --- |
+| `workspace-all.png` | `docs/images/gui-workspace.png` |
+| `workspace-slice.png` | `docs/images/gui-slice.png` |
+| `workspace-three_d.png` | Additional 3D-focus check; not embedded in the guides |
+
+Inspect the generated images, then update the two referenced assets:
+
+```bash
+cp /tmp/mageometry-gui/workspace-all.png docs/images/gui-workspace.png
+cp /tmp/mageometry-gui/workspace-slice.png docs/images/gui-slice.png
+```
+
+The `plot-*.png` files show only the plots, as **Export PNG** does; they do
+not include the Qt forms. Each `workspace-*.png` and `plot-*.png` has a
+matching `.session.json` recipe. The script then checks dataset switching,
+numerical Apply, and restore. Its final `session.json` contains By = +5 nT
+with a 0.001 Re geometry step and belongs to that check, not these captures.
+Keep that distinction when reproducing an image. Other image sources are
+listed in the [image index](images/README.md).
 
 ## Numerical work and cancellation
 
@@ -174,7 +224,7 @@ recorded when saving; exact equality across changed software versions is not
 guaranteed. Coefficient asset files are those installed with the package;
 the current format does not separately fingerprint those packaged assets.
 
-**Export PNG** saves the selected plot layout and a matching `.session.json`
+**Export PNG** saves the selected plot layout (without the Qt forms) and a matching `.session.json`
 file. Pending settings never label the older image. Screenshots contain the
 case, diagnostic, contribution, units and scale. Detailed input metadata is
 retained in the accompanying recipe.

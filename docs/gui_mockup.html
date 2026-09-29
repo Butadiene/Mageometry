@@ -77,10 +77,10 @@
 </style>
 </head>
 <body>
-<div class="notice"><strong>Interactive design mockup.</strong> Controls demonstrate the proposed workflow. Diagrams are schematic; no files are loaded and no magnetic quantities are computed.</div>
+<div class="notice"><strong>Interactive design mockup.</strong> Controls demonstrate the accepted workflow. Diagrams are schematic; no files are loaded and no magnetic quantities are computed. See the <a href="gui.md">desktop workspace guide</a> for the implemented Qt application and actual screenshots.</div>
 <header>
   <div><h1>Mageometry <span class="tag">Session workspace</span></h1><div class="sub">Cases, numerical conditions, and geometric interpretation in one place.</div></div>
-  <div class="row"><a href="gui_design.md">Read the design</a><button id="save">Save demo state</button><button disabled title="Implemented in the future desktop application">Export scientific PNG</button></div>
+  <div class="row"><a href="gui_design.md">Read the design</a><button id="save">Save demo state</button><button disabled title="Available in the Qt application; this mockup has no scientific data">Export scientific PNG</button></div>
 </header>
 <div class="toolbar row">
   <label for="scenario">Try a workflow</label>
@@ -170,7 +170,7 @@
     </form>
   </aside>
 </main>
-<footer>Standalone review artifact · no network requests · no scientific computation. The proposed desktop application uses the existing analysis and rendering APIs. Read the <a href="gui_design.md">design document</a> for full controls, persistence, and acceptance criteria.</footer>
+<footer>Standalone review artifact · no network requests · no scientific computation. Demo-state JSON belongs only to this mockup and cannot be opened as a desktop session. Read the <a href="gui.md">workspace guide</a> for current controls and persistence, or the <a href="gui_design.md">design reference</a> for acceptance criteria.</footer>
 <script>
 'use strict';
 const byId = id => document.getElementById(id);

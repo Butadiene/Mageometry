@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Document desktop installation and startup in the README, distinguish Qt
+  workspace captures from standalone viewers and the design mockup, and
+  index image sources and regeneration commands. Refresh standalone By and
+  analytic beta_g captures, and save matching recipes during Qt capture.
+
 ### Added
 - Add the optional Qt desktop workspace (`python -m mageometry.gui`) with
   model/file source editors, independent dataset and gradient-contribution

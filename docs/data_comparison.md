@@ -9,6 +9,12 @@ of labels to `GriddedField` objects, optionally accompanied by per-case
 magnetic field callables for direct evaluation. Dataset generation, model
 state management and file loading remain outside the viewer.
 
+For editable sources, combined dataset/background-contribution selection,
+worker-process calculations, and saved sessions, use the
+[Qt desktop workspace](gui.md). Its By comparison starts with
+`python -m mageometry.gui --by -5 -3 -1 1 3 5` after installing `.[gui]`.
+The commands and images below describe the standalone PyVista viewer.
+
 ## Start with six IMF By cases
 
 From the repository root, after installing the optional viewer dependency:
@@ -243,17 +249,23 @@ time-series meaning; By values are not stored as times. The internal
 existing overview and slice renderer handles the display for both single
 and multiple snapshots.
 
-Difference maps, side-by-side cases, asynchronous preparation, automatic
-grid alignment, and lazy file loading are outside this implementation.
+Difference maps, side-by-side cases, automatic grid alignment, and lazy file
+loading are outside this implementation. The standalone viewer prepares
+results synchronously; the [Qt workspace](gui.md#numerical-work-and-cancellation)
+provides a numerical worker with progress and cancellation.
 
 ## Example views
 
-These images use direct T96 + dipole evaluation with a 0.002 Re difference
-step, at the same YZ slice and shared automatic colour range:
+These standalone-viewer images show total-field `alpha`, using direct
+T96 + dipole evaluation with a 0.002 Re difference step. They use the
+default six-case comparison and 59 × 44 × 44 preview, a YZ slice at
+x = −6 Re, and one automatic colour range shared across all six cases.
+They show different cases from the same comparison conditions; they are
+separate from the Qt guide's coarse residual-gradient eta captures.
 
 | IMF By = -5 nT | IMF By = +5 nT |
 | --- | --- |
-| ![Negative IMF By](images/comparison-by-negative.png) | ![Positive IMF By](images/comparison-by-positive.png) |
+| ![Standalone alpha slice at x = -6 Re for IMF By = -5 nT](images/comparison-by-negative.png) | ![Standalone alpha slice at x = -6 Re for IMF By = +5 nT](images/comparison-by-positive.png) |
 
 Regenerate from the repository root:
 

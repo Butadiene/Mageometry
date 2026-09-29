@@ -1,7 +1,7 @@
-# Unified magnetic-geometry application: design proposal
+# Unified magnetic-geometry application: accepted design reference
 
 [Documentation index](README.md) · [Interactive layout mockup](gui_mockup.html)
-· [Current viewer](viewer.md) · [Baseline theory](fac_anisotropy_theory.md)
+· [Standalone viewers](viewer.md) · [Baseline theory](fac_anisotropy_theory.md)
 
 Status: accepted layout and design reference. The desktop implementation is
 now available; see the [workspace guide](gui.md) for shipped behavior and
@@ -39,9 +39,13 @@ analysis settings, and views, with explicit relationships between them.
 The repository's R1/R2 hypotheses do not become automatic classifications in
 the GUI. `beta_g` and `delta_g` retain their canonical names throughout.
 
-## Scope and existing implementation
+## Scope at design time
 
-| Area | Existing implementation | Work required for the application |
+The following table records the starting point before the Qt workspace was
+implemented. Requirements and milestones below describe the accepted design;
+the [workspace guide](gui.md) documents the delivered features and limitations.
+
+| Area | Standalone implementation at design time | Planned application work |
 | --- | --- | --- |
 | Single-case viewers | Two wrappers call `fac_viewer.main` with different defaults or required input | One entry point with startup presets |
 | Model inputs | Fixed T96 + dipole example and configurable By cases | Editable T96 source form and reusable source factory |

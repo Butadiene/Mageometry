@@ -1,4 +1,4 @@
-# Viewer guide
+# Standalone viewer guide
 
 [Documentation index](README.md) · [Input formats](simulation_data_formats.md)
 · [Geometry analysis](geometry_analysis.md) · [Transverse definitions](transverse_geometry.md)
@@ -131,11 +131,15 @@ No model inputs are inferred from a callable, and this information does not
 alter calculations or convert units. Callers must keep metadata consistent
 with their supplied grid/field. Missing metadata leaves the header empty.
 
-![Eta with source information](images/viewer-eta-overview.png)
+![Standalone T96 plus dipole viewer: total-field eta with source information and a YZ slice at x = -6 Re](images/viewer-eta-overview.png)
 
 [Enlarged slice with the same source information](images/viewer-eta-focus.png).
 
-![Transverse beta_g slice from an analytic field](images/transverse-beta-g.png)
+![Standalone analytic-field viewer: beta_g on a YZ slice at x = 1 grid unit](images/transverse-beta-g.png)
+
+This separate analytic example uses B(x, y, z) = (−yz, xz, 1), not the T96
+model above. Its [capture recipe](transverse_geometry.md#analytic-field-screenshot)
+specifies the grid, derivative step, and regeneration command.
 
 ## Read the colours, arrows, and projections
 
@@ -276,6 +280,10 @@ there. To use your data, replace the synthetic grid with a loaded
 
 ## Regenerate the README screenshots
 
+This section covers the standalone PyVista captures. The Qt workspace has
+its own [capture script and settings](gui.md#screenshots-and-regeneration).
+See the [image index](images/README.md) for the complete file-to-source mapping.
+
 From the repository root with `.[viz3d]` installed, run:
 
 ```bash
@@ -331,7 +339,7 @@ python examples/geometry_viewer.py --background dipole --contribution residual -
 python examples/geometry_viewer_simulation.py --vtk total.vti --background-vtk background.vti --component eta
 ```
 
-For GUI selection, start `python examples/geometry_viewer.py` and use
+For selection in the standalone viewer, start `python examples/geometry_viewer.py` and use
 **BACKGROUND → Dipole**, followed by **CONTRIBUTION → Residual gradient**.
 The ordinary `geometry_view` also has this menu; Python callers register
 presets via `background_choices={'Reference': background}`. **None (total

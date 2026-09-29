@@ -15,6 +15,7 @@ On top of that foundation it provides:
 - **Field Line Tracing**: Batch tracing through any field callable with boundary interpolation, plus a separate tracer that follows the scalar geopack algorithm
 - **Coordinate Transforms**: Array-based transformations between GEI, GEO, GSM, GSE, SM, MAG, and GSW, plus spherical/Cartesian conversions
 - **Simulation Data and Visualization**: Rectilinear field grids, XDMF/HDF5 and VTK readers, optional Matplotlib plots and PyVista viewers
+- **Desktop Workspace (`mageometry.gui`)**: Optional Qt application for model/file setup, dataset and gradient-contribution comparisons, 3D/slice layouts, and saved analysis sessions
 - **Validation**: Scalar/vectorized comparisons and analytic geometry tests with explicit numerical tolerances
 
 ## Installation
@@ -43,12 +44,48 @@ Choose optional dependencies for the features you use (run from the repository):
 | 2D plots (`matplotlib`) | `python -m pip install -e '.[viz]'` |
 | 3D viewers and VTK input (`pyvista >= 0.44`) | `python -m pip install -e '.[viz3d]'` |
 | XDMF/HDF5 in the 3D viewers | `python -m pip install -e '.[io,viz3d]'` |
+| Desktop workspace (PySide6, PyVistaQt, PyVista, h5py) | `python -m pip install -e '.[gui]'` |
 | Tutorial notebooks and benchmarks | `python -m pip install -e '.[examples]'` |
 | Tests and optional plotting/input dependencies | `python -m pip install -e '.[dev]'` |
 
 The `examples` extra includes Matplotlib, Jupyter, pandas, psutil, and h5py;
-add `viz3d` for 3D examples. Importing `mageometry` uses bundled IGRF
+add `viz3d` for 3D examples. The `dev` extra does not include Qt; use
+`.[dev,gui]` to include desktop GUI tests. Importing `mageometry` uses bundled IGRF
 coefficients and does not access the network.
+
+## Desktop Workspace
+
+Launch the unified desktop application after installing `.[gui]`:
+
+```bash
+python -m mageometry.gui                          # one T96 + dipole case
+python -m mageometry.gui --by -5 -3 -1 1 3 5       # IMF By comparison
+python -m mageometry.gui --empty                  # add your own files
+python -m mageometry.gui --session session.json   # restore a saved recipe
+```
+
+The installed `mageometry-gui` command and `examples/geometry_gui.py` launch
+the same application. A working desktop OpenGL display is required.
+
+Edit sources and numerical conditions, then press **Apply and recompute**.
+Independent **Dataset**, **Diagnostic**, and **Contribution** selectors
+compare cases and total/background/residual gradient contributions. Choose
+**All panels**, **3D focus**, or **Slice focus** for inspection. **Save displayed
+session** stores the committed recipe and view as JSON; **Export PNG** saves
+the plot with a matching session recipe. The [workspace guide](docs/gui.md)
+covers background assignment, cancellation, input validation, and restore.
+
+![Qt desktop workspace showing residual-gradient eta for IMF By = -5 nT, with case and analysis side panels](docs/images/gui-workspace.png)
+
+This actual Qt capture shows a two-case T96 + dipole comparison (By = −5 and
++5 nT), with a dipole background and residual-gradient `eta` in the total-field
+frame. It uses a small 17 × 13 × 13 preview and a YZ slice at x = −6 Re for
+UI verification. See the [same result in Slice focus](docs/images/gui-slice.png)
+and the [capture settings and regeneration commands](docs/gui.md#screenshots-and-regeneration).
+The preview is not a resolution-converged scientific result.
+
+The Python APIs and standalone PyVista viewers described below have their
+own controls and remain available with their respective extras.
 
 ## Usage Examples
 
@@ -417,7 +454,7 @@ examples include the model, Pdyn, Dst, IMF By/Bz, tilt and epoch; simulations
 can supply their own labelled conditions through the same generic metadata
 interface. See [source information](docs/viewer.md#source-information).
 
-![Eta in the current viewer: source parameters, 3D regions, face-on slice, and signed peak maps](docs/images/viewer-eta-overview.png)
+![Standalone PyVista viewer showing total-field eta, source parameters, 3D regions, a face-on slice, and signed peak maps](docs/images/viewer-eta-overview.png)
 
 This T96 + dipole example shows `eta` with its fixed [−1, 1] colour scale.
 Positive values indicate rotation-dominated geometry and negative values
@@ -425,7 +462,7 @@ indicate shear-dominated geometry; neither establishes finite-distance winding.
 The [enlarged slice](docs/images/viewer-eta-focus.png) retains the same
 source parameters and colour scale.
 
-Choose a background directly in the GUI. Start the viewer normally, then
+Choose a background directly in the standalone PyVista viewer. Start it normally, then
 select **BACKGROUND → Dipole** and **CONTRIBUTION → Residual gradient**.
 Choose eta or gamma in **COMPONENT**. No background CLI option is required.
 
@@ -433,7 +470,7 @@ Choose eta or gamma in **COMPONENT**. No background CLI option is required.
 python examples/geometry_viewer.py
 ```
 
-![Background selection in the GUI](docs/images/viewer-background-menu.png)
+![BACKGROUND menu in the standalone PyVista viewer](docs/images/viewer-background-menu.png)
 
 **None (total field)** restores the regular viewer. **Load background file...**
 opens a folder browser inside the same menu for XDMF or VTK snapshots; use
@@ -454,6 +491,11 @@ python examples/geometry_viewer.py --background dipole --component eta --contrib
 F7/F8 switches total, background and residual gradients; F5/F6 switches the
 six transverse diagnostics. The magnetic lines, slice, camera and scales
 stay shared. Compare the captured views:
+
+These controls and screenshots belong to the standalone viewer. In the
+[Qt workspace](docs/gui.md#background-contributions-across-cases), assign
+backgrounds in **Cases and sources**, select **Gradient attribution**, and
+Apply; F7/F8 switch datasets and Alt+Left/Alt+Right switch contributions.
 
 | Diagnostic | Total field | Dipole gradient | Residual gradient |
 | --- | --- | --- | --- |
@@ -529,9 +571,10 @@ default; the draggable 3D slice starts hidden unless requested.
 
 #### Finding field-aligned currents
 
-![Current T96 plus dipole viewer with FAC selected: source parameters, signed 3D regions, YZ slice, and peak maps](docs/images/fac-overview.png)
+![Standalone T96 plus dipole viewer with FAC selected: source parameters, signed 3D regions, YZ slice, and peak maps](docs/images/fac-overview.png)
 
-Viewer screenshots were regenerated on 2026-09-25 using the current
+The standalone FAC, current-component, and total-field eta screenshots were
+regenerated on 2026-09-25 using the
 `geometry_view` UI and the `fac_viewer.py` model setup: T96 + dipole,
 Pdyn = 2 nPa, Dst = −20 nT, IMF By = 0 nT, IMF Bz = −5 nT, epoch = 100
 Unix seconds, a 65 × 49 × 49 grid, and a 0.002 Re derivative step.
@@ -823,14 +866,17 @@ Related functions for field line analysis:
 Start with the [documentation index](docs/README.md), then choose
 [geometry analysis](docs/geometry_analysis.md),
 [simulation input](docs/simulation_data_formats.md), or the
-[viewer guide](docs/viewer.md). Historical predecessor releases are
+[desktop workspace](docs/gui.md) and [standalone viewer guide](docs/viewer.md).
+The [image index](docs/images/README.md) identifies screenshot sources and
+regeneration commands. Historical predecessor releases are
 identified in the [release archive](docs/releases/README.md).
 
 ### Runnable Scripts
 
 Run these scripts from the repository root after an editable installation.
-The numerical examples need the base package; viewers need `.[viz3d]`,
-and XDMF/HDF5 input needs `.[io]`.
+The numerical examples need the base package; standalone viewers need
+`.[viz3d]`, and XDMF/HDF5 input needs `.[io]`. The desktop workspace needs
+`.[gui]`, which includes PyVista and h5py.
 
 | Script | Purpose |
 | --- | --- |
@@ -884,7 +930,10 @@ python tests/test_vectorized_models.py
 ```
 
 Tests use `unittest` and skip optional-dependency checks when the dependency
-is unavailable. Field-model comparisons default to `GEOPACK_FIELD_RTOL=1e-10`
+is unavailable. Install `.[dev,gui]` to include Qt controller tests; see the
+[desktop capture check](docs/gui.md#screenshots-and-regeneration) for an
+end-to-end run with the real numerical worker and session restore.
+Field-model comparisons default to `GEOPACK_FIELD_RTOL=1e-10`
 and `GEOPACK_FIELD_ATOL=1e-6` nT. Strict tracing comparisons use an
 epsilon-scaled tolerance controlled by `GEOPACK_MAXULP` (default 32) and
 report ULP differences above `GEOPACK_WARNULP` (default 8); a ULP warning

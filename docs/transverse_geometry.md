@@ -24,7 +24,23 @@ Install `.[viz3d]` for viewing and `.[io,viz3d]` for XDMF/HDF5 input.
 See the [viewer guide](viewer.md) for input layouts, slicing, colour scales,
 units, and memory controls.
 
-![Beta_g slice of an analytic magnetic field](images/transverse-beta-g.png)
+The [Qt workspace](gui.md) exposes the same six transverse diagnostics
+through its **Diagnostic** selector and supports saved comparison sessions.
+
+### Analytic-field screenshot
+
+![Standalone viewer showing beta_g for B = (-yz, xz, 1), on the YZ plane at x = 1 grid unit](images/transverse-beta-g.png)
+
+This capture uses the analytic field B(x, y, z) = (−yz, xz, 1), separate
+from the T96 launch example above and the helical field below. It samples
+41 × 41 × 41 nodes on [−2, 2] in each coordinate, evaluates derivatives
+directly with a 0.002 grid-unit step, and displays the YZ plane at x = 1.
+Beta_g has inverse grid-unit units; undefined Frenet frames remain blank.
+Regenerate it with `.[viz3d]` installed:
+
+```bash
+python benchmark/transverse_geometry_screenshot.py
+```
 
 ## Calculate rates without plotting
 

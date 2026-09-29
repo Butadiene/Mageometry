@@ -11,7 +11,8 @@ models, analytic test fields, and interpolated simulation data.
 | Open a snapshot, select a component, and inspect slices | [Viewer guide](viewer.md) |
 | Run the unified desktop GUI and save analysis sessions | [Desktop workspace](gui.md) |
 | Switch datasets using shared scales, thresholds, and slices | [Dataset comparison](data_comparison.md) |
-| Review the proposed unified GUI and try its layout | [GUI design proposal](gui_design.md) · [Interactive mockup](gui_mockup.html) |
+| Review the accepted GUI design and schematic layout | [GUI design reference](gui_design.md) · [Interactive mockup](gui_mockup.html) |
+| Identify or regenerate documentation images | [Image sources and capture commands](images/README.md) |
 | Interpret rotation, shear, anisotropy, and coiling | [Transverse geometry](transverse_geometry.md) |
 | Check baseline notation, assumptions, and R1/R2 research hypotheses | [FAC anisotropy theory](fac_anisotropy_theory.md) |
 | Run numerical examples or a viewer from the terminal | [Runnable scripts](../README.md#runnable-scripts) |
@@ -27,6 +28,7 @@ Mageometry is installed from source and is not published on PyPI.
 ```bash
 python -m pip install -e .                 # NumPy/SciPy analysis
 python -m pip install -e '.[io,viz3d]'      # HDF5/XDMF input and 3D viewers
+python -m pip install -e '.[gui]'           # Qt desktop workspace, including file input
 python -m pip install -e '.[examples]'      # notebooks and benchmarks
 ```
 
@@ -53,13 +55,25 @@ print(kappa)  # approximately [0.4, 0.5, 0.4], in inverse coordinate units
 ```
 
 Continue with [geometry analysis](geometry_analysis.md) for frames, current
-density, tracing, and numerical checks. For an interactive model example:
+density, tracing, and numerical checks. With `.[gui]` installed, start the
+[desktop workspace](gui.md) with a model or a By comparison:
+
+```bash
+python -m mageometry.gui
+python -m mageometry.gui --by -5 -3 -1 1 3 5
+```
+
+For a standalone PyVista model viewer with `.[viz3d]` installed:
 
 ```bash
 python examples/geometry_viewer.py --component gamma
 ```
 
 ## Start with your own snapshot
+
+In the desktop workspace, run `python -m mageometry.gui --empty`, choose
+**Add model / files**, configure the reader, and **Apply and recompute**.
+For the standalone CLI:
 
 ```bash
 python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --stride 4
@@ -83,7 +97,7 @@ for VTK, direct HDF5, custom array names, units, and memory controls.
 - Finite differences and interpolation introduce their own errors. Compare
   step sizes and grid resolutions before interpreting small features.
 
-For local verification, install `.[dev]` and run
+For local verification, install `.[dev]` (or `.[dev,gui]` for Qt tests) and run
 `python -m unittest discover tests/`. The historical installation commands
 and import paths in the release archive describe the predecessor project;
 use the current guides above for Mageometry.

@@ -3,7 +3,9 @@
 Run from the repository after installing .[gui]:
     python benchmark/render_gui.py --output /tmp/mageometry-gui
 
-Requires a working desktop/OpenGL display. Exits after rendering the layouts.
+Requires a working desktop/OpenGL display. Each layout gets a full-window PNG,
+a plot-only PNG, and a matching .session.json recipe. The final session.json
+belongs to the subsequent dataset-switch/Apply/restore check, not the captures.
 """
 
 import argparse
@@ -15,12 +17,14 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from mageometry.gui.window import MainWindow
-from mageometry.session import model_session
+from mageometry.session import load_session, model_session, save_session
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--timeout', type=float, default=300.,
+                        help='Maximum seconds for captures and restore checks (default: 300)')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     session = model_session((-5., 5.))
@@ -39,7 +43,7 @@ def main():
     modes = ('all', 'three_d', 'slice')
 
     def check():
-        if window.last_error or time.monotonic() - started > 90:
+        if window.last_error or time.monotonic() - started > args.timeout:
             print(window.last_error or 'GUI preparation timed out', flush=True)
             state['status'] = 1
             timer.stop()
@@ -53,6 +57,8 @@ def main():
             app.processEvents()
             window.grab().save(str(args.output / f'workspace-{mode}.png'))
             window.scene.screenshot(args.output / f'plot-{mode}.png')
+            save_session(window.saved_recipe(), args.output / f'workspace-{mode}.session.json')
+            save_session(window.saved_recipe(), args.output / f'plot-{mode}.session.json')
             print(f'Rendered {mode}', flush=True)
             state['index'] += 1
         elif state['index'] == 3:
@@ -65,8 +71,6 @@ def main():
             window.apply()
             state['index'] = 5
         elif state['index'] == 5:
-            from mageometry.session import save_session
-            from mageometry.session import load_session
             assert window.scene.view['layout'] == 'slice'
             assert window.scene.result['resolved']['geometry_delta'] == .001
             save_session(window.saved_recipe(), args.output / 'session.json')
