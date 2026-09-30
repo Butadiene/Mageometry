@@ -11,14 +11,14 @@ editing behavior; it computes no magnetic data and remains a review artifact.
 
 ## Purpose and design principles
 
-Make the complete workflows in `fac_viewer.py`, `geometry_viewer.py`,
-`geometry_viewer_simulation.py`, and `compare_t96_by.py` accessible from one
-desktop application. Users should be able to create or load cases, choose
-analysis conditions, compare results, and save a reproducible session without
-editing a script or restarting the application.
+Make single-model geometry and FAC, simulation input, and IMF By comparison
+workflows accessible from one desktop application. Users should be able to
+create or load cases, choose analysis conditions, compare results, and save
+a reproducible session without editing a script or restarting the application.
 
-The organizing concept is an **analysis session**. The four example scripts
-provide useful starting presets for that session. Their names need not become
+The organizing concept is an **analysis session**. The current example scripts
+(`geometry_gui.py`, `compare_t96_by.py`, `geometry_viewer_simulation.py`)
+provide starting presets for that session. Their names need not become
 separate application modes. A session contains sources, comparison groups,
 analysis settings, and views, with explicit relationships between them.
 
@@ -47,7 +47,7 @@ the [workspace guide](gui.md) documents the delivered features and limitations.
 
 | Area | Standalone implementation at design time | Planned application work |
 | --- | --- | --- |
-| Single-case viewers | Two wrappers call `fac_viewer.main` with different defaults or required input | One entry point with startup presets |
+| Single-case viewers | Separate launchers with different defaults or required input | One entry point with startup presets |
 | Model inputs | Fixed T96 + dipole example and configurable By cases | Editable T96 source form and reusable source factory |
 | Simulation input | XDMF, HDF5, VTK readers | File dialogs and reader forms using those readers |
 | Diagnostics | 18 entries in `viz3d._current.COMPONENTS` | Shared registry exposed in a grouped selector |
@@ -59,7 +59,7 @@ the [workspace guide](gui.md) documents the delivered features and limitations.
 | Session persistence | No current portable session format | Versioned declarative recipe and restore validation |
 | Responsive computation | Viewer preparation is synchronous | Job control, cancellation, and stale-result rejection |
 
-The first complete release covers all four scripts, including **dataset
+The first complete release covers all of these workflows, including **dataset
 comparison combined with gradient attribution**, session save/restore, and
 responsive job status. Implementation milestones below are delivery steps,
 not a reduction of that target.

@@ -7,10 +7,11 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
-from mageometry import geopack
+from mageometry import GriddedField, geopack
 from mageometry.session import model_session, empty_session, validate_session, SessionEngine, save_session, load_session
 from mageometry.session.sources import model_field, load_source
 from mageometry.session.jobs import JobRunner
@@ -29,6 +30,24 @@ def small_session():
 
 
 class TestSessionRecipes(unittest.TestCase):
+    def test_legacy_steps_are_preserved_when_loading_and_saving(self):
+        for fac, geometry in ((.03, None), ([.03, .02, .04], None), (.03, .01)):
+            with self.subTest(fac=fac, geometry=geometry), tempfile.TemporaryDirectory() as directory:
+                session = small_session()
+                session['schema_version'] = 1
+                session['groups'][0]['analysis'].update(delta=fac, geometry_delta=geometry)
+                before = deepcopy(session)
+                path = Path(directory) / 'legacy.json'
+                path.write_text(json.dumps(session))
+                migrated = load_session(path)
+                self.assertEqual(migrated['schema_version'], 2)
+                analysis = migrated['groups'][0]['analysis']
+                self.assertEqual(analysis['delta'], fac)
+                self.assertEqual(analysis['geometry_delta'], geometry or np.min(fac))
+                save_session(migrated, path)
+                self.assertEqual(load_session(path)['groups'], migrated['groups'])
+                self.assertEqual(session, before)
+
     def test_slice_normal_is_normalized_without_changing_input(self):
         for normal in ([2., 0., 0.], [1.e308, 1.e308, 0.]):
             session = small_session()
@@ -39,6 +58,18 @@ class TestSessionRecipes(unittest.TestCase):
         session['groups'][0]['view']['normal'] = [0., 0., 0.]
         with self.assertRaisesRegex(ValueError, 'nonzero'):
             validate_session(session)
+
+    def test_optional_threshold_slider_limits_default_to_automatic(self):
+        session = small_session()
+        del session['groups'][0]['view']['threshold_slider_limits']
+        restored = validate_session(session)
+        self.assertEqual(restored['groups'][0]['view']['threshold_slider_limits'], {})
+        self.assertNotIn('threshold_slider_limits', session['groups'][0]['view'])
+        for limits in ([], None, {'field:alpha': 0}, {'field:alpha': -1},
+                       {'field:alpha': True}, {'field:alpha': '1'}, {'field:alpha': float('inf')}):
+            with self.subTest(limits=limits), self.assertRaises(ValueError):
+                session['groups'][0]['view']['threshold_slider_limits'] = limits
+                validate_session(session)
 
     def test_validation_rejects_invalid_numerics_and_selection(self):
         for key, value in [('delta', 0), ('geometry_delta', float('nan')),
@@ -65,8 +96,10 @@ class TestSessionRecipes(unittest.TestCase):
                                    source=dict(kind='xdmf', path=str(Path(directory) / 'a.xmf'),
                                                options={'h5_file': str(Path(directory) / 'heavy.h5')}))]
             group['reference'] = group['view']['case'] = 'case-a'
-            group['view'].update(layout='slice', panels_hidden=True, normal=[0., 1., 0.],
-                                 origin=[-6., 2., 1.], thresholds={'field:alpha': .125})
+            group['view'].update(layout='three_d_slice', previous_layout='three_d_slice',
+                                 panels_hidden=True, normal=[0., 1., 0.],
+                                 origin=[-6., 2., 1.], thresholds={'field:alpha': .125},
+                                 threshold_slider_limits={'field:alpha': .5})
             save_session(session, path)
             raw = json.loads(path.read_text())
             source = raw['groups'][0]['cases'][0]['source']
@@ -96,6 +129,32 @@ class TestSessionRecipes(unittest.TestCase):
 
 
 class TestSessionPreparation(unittest.TestCase):
+    def test_geometry_is_the_shared_step_and_fac_override_is_independent(self):
+        def field(x, y, z):
+            return -np.sin(y), np.sin(x), np.ones_like(z)
+
+        axis = np.linspace(-2., 2., 5)
+        grid = GriddedField(axis, axis, axis,
+                            *field(*np.meshgrid(axis, axis, axis, indexing='ij')))
+        for geometry, override in ((.1, None), (.2, None), (.2, .3),
+                                    (.2, [.1, .3, .4]), (None, .3)):
+            with self.subTest(geometry=geometry, override=override):
+                group = model_session()['groups'][0]
+                group['analysis'].update(geometry_delta=geometry, delta=override,
+                                         mask_radius=0., current_scale=1., seeds=[])
+                with patch('mageometry.session.engine.load_source', return_value=(grid, field)):
+                    engine = SessionEngine(group)
+                geom_step = .002 if geometry is None else geometry
+                fac_step = geom_step if override is None else override
+                steps = np.broadcast_to(fac_step, (3,))
+                fac = engine.prepare(dict(group['view'], component='fac'))
+                alpha = engine.prepare(dict(group['view'], component='alpha'))
+                self.assertAlmostEqual(fac['values'][2, 2, 2],
+                                       np.sin(steps[0])/steps[0] + np.sin(steps[1])/steps[1])
+                self.assertAlmostEqual(alpha['values'][2, 2, 2], 2*np.sin(geom_step)/geom_step)
+                self.assertEqual(fac['resolved']['fac_delta'], fac_step)
+                self.assertEqual(alpha['resolved']['geometry_delta'], geom_step)
+
     def test_every_diagnostic_matches_existing_direct_comparison(self):
         group = small_session()['groups'][0]
         engine = SessionEngine(group)
@@ -141,7 +200,7 @@ class TestSessionPreparation(unittest.TestCase):
 
     def test_grid_mode_uses_preview_spacing_and_requires_matching_axes(self):
         group = small_session()['groups'][0]
-        group['analysis'].update(evaluation='grid', delta=None, max_points=27)
+        group['analysis'].update(evaluation='grid', delta=None, geometry_delta=None, max_points=27)
         engine = SessionEngine(group)
         result = engine.prepare(group['view'])
         self.assertEqual(result['resolved']['preview_shape'], [3, 3, 3])

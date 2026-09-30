@@ -21,10 +21,10 @@ From the repository root, after installing the optional viewer dependency:
 
 ```bash
 python -m pip install -e '.[viz3d]'
-python examples/compare_t96_by.py
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5
 ```
 
-The example generates six T96 + dipole snapshots in memory for IMF By
+This command generates six T96 + dipole snapshots in memory for IMF By
 `[-5, -3, -1, 1, 3, 5]` nT. It reads no simulation files and writes no
 intermediate datasets. **DATASET** selects the case; **COMPONENT** selects
 the diagnostic independently. The default is `alpha` with a YZ slice at
@@ -34,14 +34,17 @@ By default, magnetic derivatives and field-line tracing evaluate the model
 directly. The display grid and derivative step match the single-snapshot
 model example: 65 × 49 × 49 input nodes and 0.002 Re, with the same 120000-node
 preview budget. Colour scales and trace seeds remain shared across cases.
+The `python examples/compare_t96_by.py` command now opens the
+[Qt desktop workspace](gui.md) with the six By values above (requires
+`.[gui]`). Add `--layout three_d_slice` to show only 3D and the face-on slice.
 
 ```bash
-python examples/compare_t96_by.py --by -10 -5 0 5 10 --component gamma
-python examples/compare_t96_by.py --initial-by 5 --slice-only
-python examples/compare_t96_by.py --delta 0.001
-python examples/compare_t96_by.py --evaluation grid
-python examples/compare_t96_by.py --shape 81 65 65 --max-points 350000
-python examples/compare_t96_by.py --color-limit 0.2 --screenshot comparison.png
+python -m mageometry.viz3d --by -10 -5 0 5 10 --component gamma
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --initial-by 5 --slice-only
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --delta 0.001
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --evaluation grid
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --shape 81 65 65 --max-points 350000
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --color-limit 0.2 --screenshot comparison.png
 ```
 
 `--initial-by` must occur in `--by`. `--color-limit` and `--threshold`
@@ -84,10 +87,10 @@ numerically from direct model evaluation.
 
 ## Direct model evaluation in Python
 
-From the repository root, the same T96 helpers can be used directly:
+The same T96 helpers are available from the installed package:
 
 ```python
-from examples.compare_t96_by import make_cases, make_fields, inner_mask
+from mageometry.session.presets import make_cases, make_fields, inner_mask
 from mageometry import viz3d
 
 by_values = (-5., 0., 5.)
@@ -111,7 +114,7 @@ mask: a NaN input node stays blank even when its callable is defined there.
 Callables must represent the same magnetic field as their grids and remain
 reproducible after evaluating another case. The viewer does not interpret
 model names, parameters, or epochs. Stateful models need an adapter such as
-the example's T96 wrapper.
+the shared T96 source evaluator.
 
 ## Supply model grids or file data
 
@@ -232,7 +235,7 @@ initial preparation, cache recomputation and tracing.
 
 ```mermaid
 flowchart LR
-    M[Model sampling in an example] --> G[Labelled GriddedField cases]
+    M[Shared model source sampling] --> G[Labelled GriddedField cases]
     F[File readers] --> G
     G --> A[Shared analysis settings and per-case caches]
     M --> C[Optional per-case field callables]
@@ -270,6 +273,6 @@ separate from the Qt guide's coarse residual-gradient eta captures.
 Regenerate from the repository root:
 
 ```bash
-python examples/compare_t96_by.py --slice-only --screenshot docs/images/comparison-by-negative.png
-python examples/compare_t96_by.py --initial-by 5 --slice-only --screenshot docs/images/comparison-by-positive.png
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --slice-only --screenshot docs/images/comparison-by-negative.png
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --initial-by 5 --slice-only --screenshot docs/images/comparison-by-positive.png
 ```

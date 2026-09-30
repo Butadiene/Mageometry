@@ -1,6 +1,5 @@
 """Application entry point; Qt is optional until launch."""
 
-import argparse
 import os
 import sys
 
@@ -22,14 +21,6 @@ def run(session=None):
     return window
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Unified magnetic geometry workspace')
-    parser.add_argument('--session', help='Open a saved JSON session')
-    parser.add_argument('--by', type=float, nargs='+', help='Start a T96 By comparison')
-    parser.add_argument('--empty', action='store_true', help='Start with an empty file group')
-    args = parser.parse_args()
-    from ..session import load_session, model_session, empty_session
-    if sum(bool(value) for value in (args.session, args.by, args.empty)) > 1:
-        parser.error('Choose one of --session, --by, or --empty.')
-    session = load_session(args.session) if args.session else empty_session() if args.empty else model_session(args.by or (0.,))
-    return run(session)
+def main(argv=None, **presets):
+    from .cli import main as launch
+    return launch(argv, **presets)

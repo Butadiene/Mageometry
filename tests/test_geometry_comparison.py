@@ -271,8 +271,9 @@ class TestT96ComparisonExample(unittest.TestCase):
             self.assertAlmostEqual(result.values[3, 4, 4], expected['alpha'], places=12)
             self.assertEqual(result.prepared.cache.delta, 0.002)
 
-    def test_cli_defaults_and_grid_opt_in(self):
+    def test_standalone_cli_defaults_and_grid_opt_in(self):
         from examples import compare_t96_by as example
+        from mageometry.viz3d import cli
         runs = (
             ([], True, 0.002, None),
             (['--component', 'delta_g'], True, 0.002, None),
@@ -282,10 +283,10 @@ class TestT96ComparisonExample(unittest.TestCase):
         )
         for args, direct, delta, geometry_delta in runs:
             with self.subTest(args=args), patch.object(sys, 'argv', ['compare', *args]), \
-                    patch.object(example, 'make_cases', return_value={'A': grid()}) as cases, \
-                    patch.object(example, 'make_fields', return_value={'A': nonlinear_field(1.)}) as fields, \
-                    patch.object(example.viz3d, 'compare_geometry') as render, patch('builtins.print'):
-                example.main()
+                    patch.object(cli, 'make_cases', return_value={'A': grid()}) as cases, \
+                    patch.object(cli, 'make_fields', return_value={'A': nonlinear_field(1.)}) as fields, \
+                    patch.object(cli.viz3d, 'compare_geometry') as render, patch('builtins.print'):
+                cli.main(default_by=example.DEFAULT_BY)
                 cases.assert_called_once_with(example.DEFAULT_BY, (65, 49, 49))
                 self.assertEqual(render.call_args.kwargs['delta'], delta)
                 self.assertEqual(render.call_args.kwargs['geometry_delta'], geometry_delta)
@@ -299,15 +300,16 @@ class TestT96ComparisonExample(unittest.TestCase):
 
     def test_cli_rejects_invalid_steps_and_removed_names_before_sampling(self):
         from examples import compare_t96_by as example
+        from mageometry.viz3d import cli
         runs = (['--evaluation', 'grid', '--delta', '0.002'], ['--delta', '0'],
                 ['--geometry-delta', 'nan'], ['--delta', 'inf'],
                 ['--component', 'sigma'], ['--component', 'q'])
         for args in runs:
             with self.subTest(args=args), patch.object(sys, 'argv', ['compare', *args]), \
-                    patch.object(example, 'make_cases') as sample, \
+                    patch.object(cli, 'make_cases') as sample, \
                     patch.object(sys, 'stderr', new_callable=io.StringIO):
                 with self.assertRaises(SystemExit) as error:
-                    example.main()
+                    cli.main(default_by=example.DEFAULT_BY)
                 self.assertEqual(error.exception.code, 2)
                 sample.assert_not_called()
 

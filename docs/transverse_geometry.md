@@ -13,8 +13,8 @@ the field, grid resolution, and derivative step.
 ## Open a view
 
 ```bash
-python examples/geometry_viewer.py --component beta_g --slice x --slice-only
-python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --component gamma --stride 4
+python -m mageometry.viz3d --component beta_g --slice x --slice-only
+python -m mageometry.viz3d --xmf snapshot.xmf --component gamma --stride 4
 ```
 
 The first command uses a T96 + dipole model. The second requires your own
@@ -203,7 +203,7 @@ if its own geometry is the intended question.
 
 Choose **BACKGROUND** in `geometry_view` to select a preset or
 **Load background file...**. The model CLI exposes **Dipole** on normal
-startup (`python examples/geometry_viewer.py`); then choose
+startup (`python -m mageometry.viz3d`); then choose
 **CONTRIBUTION → Residual gradient** and **COMPONENT → eta/gamma**.
 **None (total field)** disables attribution and restores all diagnostics.
 Enabling a background from a current diagnostic selects eta automatically.
@@ -226,8 +226,8 @@ and register the result as a background preset.
 Optional CLI arguments can preselect the corresponding comparison:
 
 ```bash
-python examples/geometry_viewer.py --background dipole --component eta --contribution residual --slice x --slice-origin -6 0 0
-python examples/geometry_viewer_simulation.py --xmf total.xmf --background-xmf background.xmf --component gamma
+python -m mageometry.viz3d --background dipole --component eta --contribution residual --slice x --slice-origin -6 0 0
+python -m mageometry.viz3d --xmf total.xmf --background-xmf background.xmf --component gamma
 ```
 
 The second command needs your own matching files; `--background-vtk` accepts

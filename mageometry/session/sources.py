@@ -86,9 +86,11 @@ def load_source(source, mask_radius=0., check=lambda: None):
         p = source['parameters']
         metadata = dict(model='T96 + dipole', coordinate_system='GSM',
                         length_unit='Re', field_unit='nT',
-                        parameters={'Epoch [Unix s]': p['epoch'], 'Dipole tilt [rad]': float(ps),
-                                    'Pdyn [nPa]': p['pdyn'], 'Dst [nT]': p['dst'],
-                                    'IMF By [nT]': p['by'], 'IMF Bz [nT]': p['bz']})
+                        epoch=p['epoch'], dipole_tilt=float(ps), pdyn=p['pdyn'],
+                        dst=p['dst'], imf_by=p['by'], imf_bz=p['bz'],
+                        parameters={'Pdyn [nPa]': p['pdyn'], 'Dst [nT]': p['dst'],
+                                    'IMF By [nT]': p['by'], 'IMF Bz [nT]': p['bz'],
+                                    'Dipole tilt [rad]': float(ps), 'Epoch [Unix s]': p['epoch']})
         return GriddedField(*axes, *values, metadata=metadata), field
     loaders = {'xdmf': load_xdmf, 'hdf5': load_hdf5, 'vtk': load_vtk}
     grid = loaders[source['kind']](source['path'], **source.get('options', {}))

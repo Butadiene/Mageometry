@@ -16,7 +16,7 @@ models, analytic test fields, and interpolated simulation data.
 | Interpret rotation, shear, anisotropy, and coiling | [Transverse geometry](transverse_geometry.md) |
 | See how each transverse coefficient changes a flux-tube section | [Concept figure and vector downloads](transverse_decomposition_figure.md) |
 | Check baseline notation, assumptions, and R1/R2 research hypotheses | [FAC anisotropy theory](fac_anisotropy_theory.md) |
-| Run numerical examples or a viewer from the terminal | [Runnable scripts](../README.md#runnable-scripts) |
+| Run numerical examples or a viewer from the terminal | [Examples and entry points](../examples/README.md) |
 | Follow worked numerical examples | [Notebook index](../examples/notebooks/README.md) |
 | Check installation, field models, and measured performance | [Project README](../README.md) |
 | Look up predecessor release history | [Release archive](releases/README.md) |
@@ -67,7 +67,7 @@ python -m mageometry.gui --by -5 -3 -1 1 3 5
 For a standalone PyVista model viewer with `.[viz3d]` installed:
 
 ```bash
-python examples/geometry_viewer.py --component gamma
+python -m mageometry.viz3d --component gamma
 ```
 
 ## Start with your own snapshot
@@ -77,11 +77,13 @@ In the desktop workspace, run `python -m mageometry.gui --empty`, choose
 For the standalone CLI:
 
 ```bash
-python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --stride 4
+python -m mageometry.viz3d --xmf snapshot.xmf --stride 4
 ```
 
-Replace `snapshot.xmf` with your filename. The script requires an explicit
-input file and has no built-in simulation path or grid size. `--stride`
+Replace `snapshot.xmf` with your filename. File mode has no built-in
+simulation path or grid size. Omitting source options opens the T96 model.
+The desktop example `geometry_viewer_simulation.py` requires an explicit
+file or saved session. `--stride`
 defaults to 1; choose a value appropriate to your grid, retaining at least
 three points per axis for the viewer. See the [viewer guide](viewer.md)
 for VTK, direct HDF5, custom array names, units, and memory controls.

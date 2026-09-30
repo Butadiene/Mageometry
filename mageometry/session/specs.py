@@ -8,8 +8,10 @@ import numpy as np
 
 from ..viz3d._current import COMPONENTS, TRANSVERSE_COMPONENTS
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+DEFAULT_GEOMETRY_DELTA = 0.002
 SOURCE_KINDS = ('t96', 'dipole', 'xdmf', 'hdf5', 'vtk')
+VIEW_LAYOUTS = ('all', 'three_d_slice', 'three_d', 'slice')
 
 
 def new_id():
@@ -20,13 +22,13 @@ def default_view():
     return dict(case=None, component='alpha', contribution='total',
                 layout='all', previous_layout='all', panels_hidden=False,
                 normal=[1., 0., 0.], origin=[-6., 0., 0.],
-                thresholds={}, color_limits={}, cameras={},
+                thresholds={}, threshold_slider_limits={}, color_limits={}, cameras={},
                 lines=True, arrows=True, regions=True, plane=True)
 
 
 def default_analysis(model=False):
     return dict(kind='field', evaluation='direct' if model else 'grid',
-                delta=0.002 if model else None, geometry_delta=None,
+                delta=None, geometry_delta=DEFAULT_GEOMETRY_DELTA if model else None,
                 max_points=120000, cache_size=2, percentile=90.,
                 mask_radius=2.5 if model else 0.,
                 planet_radius=1. if model else None,
@@ -133,7 +135,7 @@ def validate_source(source):
 
 def validate_session(session):
     """Validate and copy a versioned recipe without reading files or rendering."""
-    if not isinstance(session, dict) or session.get('schema_version') != SCHEMA_VERSION:
+    if not isinstance(session, dict) or session.get('schema_version') not in (1, SCHEMA_VERSION):
         raise ValueError('Unsupported session schema version.')
     # Reject nonportable objects and NaN/Infinity before passing recipes to workers.
     json.dumps(session, allow_nan=False)
@@ -164,11 +166,16 @@ def validate_session(session):
         if a['evaluation'] == 'direct':
             if any(c['source']['kind'] != 't96' for c in cases):
                 raise ValueError('Direct evaluation requires model sources for every case.')
-            steps = a['delta'] if isinstance(a['delta'], list) else [a['delta']]
-            if len(steps) not in (1, 3):
-                raise ValueError('FAC delta must be a scalar or three steps.')
-            for step in steps:
-                finite(step, 'FAC delta', positive=True)
+            if a['delta'] is not None or result['schema_version'] == 1:
+                steps = a['delta'] if isinstance(a['delta'], list) else [a['delta']]
+                if len(steps) not in (1, 3):
+                    raise ValueError('FAC delta must be a scalar or three steps.')
+                for step in steps:
+                    finite(step, 'FAC delta', positive=True)
+                # Version 1 inherited geometry from FAC. Freeze that old
+                # geometry step before reversing the inheritance direction.
+                if result['schema_version'] == 1 and a['geometry_delta'] is None:
+                    a['geometry_delta'] = min(steps)
         elif a['delta'] is not None:
             raise ValueError('Grid FAC uses axis spacing; set delta to null.')
         if a['geometry_delta'] is not None:
@@ -206,8 +213,10 @@ def validate_session(session):
             raise ValueError('Field analysis uses the total contribution.')
         if view['contribution'] not in ('total', 'background', 'residual'):
             raise ValueError('Unknown contribution.')
-        if view['layout'] not in ('all', 'three_d', 'slice'):
+        if view['layout'] not in VIEW_LAYOUTS:
             raise ValueError('Unknown view layout.')
+        if view.get('previous_layout', 'all') not in VIEW_LAYOUTS[:-1]:
+            raise ValueError('Previous layout must be a non-slice layout.')
         vector(view['normal'], 'slice normal')
         normal = np.asarray(view['normal'], dtype=float)
         magnitude = np.max(np.abs(normal))
@@ -217,7 +226,13 @@ def validate_session(session):
         view['normal'] = (normal / np.linalg.norm(normal)).tolist()
         if view['origin'] is not None:
             vector(view['origin'], 'slice origin')
+        slider_limits = view.setdefault('threshold_slider_limits', {})
+        if not isinstance(slider_limits, dict):
+            raise ValueError('Threshold slider limits must be a mapping.')
+        for value in slider_limits.values():
+            finite(value, 'threshold slider upper bound', positive=True)
         for values, positive in ((view['thresholds'], False), (view['color_limits'], True)):
             for value in values.values():
                 finite(value, 'display limit', minimum=0, positive=positive)
+    result['schema_version'] = SCHEMA_VERSION
     return result

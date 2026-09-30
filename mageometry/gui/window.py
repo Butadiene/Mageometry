@@ -13,11 +13,12 @@ from ..session.jobs import JobRunner
 from ..viz3d._current import COMPONENTS, COMPONENT_LABELS, TRANSVERSE_COMPONENTS
 from ..viz3d._contribution_data import CONTRIBUTIONS
 from ..viz3d._source_info import _source_lines
-from ..viz3d.scene import GeometryScene, display_key
+from ..viz3d.scene import GeometryScene, difference_step_label, display_key
 from .forms import AnalysisForm, SourceDialog, numbers, line
 
 DISPLAY_KEYS = ('normal', 'origin', 'layout', 'previous_layout', 'panels_hidden',
-                'thresholds', 'color_limits', 'cameras', 'lines', 'arrows', 'regions', 'plane')
+                'thresholds', 'threshold_slider_limits', 'color_limits', 'cameras',
+                'lines', 'arrows', 'regions', 'plane')
 
 
 class MainWindow(W.QMainWindow):
@@ -99,7 +100,8 @@ class MainWindow(W.QMainWindow):
         modes = W.QHBoxLayout()
         layout.addLayout(modes)
         self.mode_buttons = {}
-        for label, key in [('All panels', 'all'), ('3D focus', 'three_d'), ('Slice focus', 'slice')]:
+        for label, key in [('All panels', 'all'), ('3D + Slice', 'three_d_slice'),
+                           ('3D focus', 'three_d'), ('Slice focus', 'slice')]:
             button = self._button(label, lambda mode=key: self.set_layout(mode), modes)
             button.setCheckable(True)
             self.mode_buttons[key] = button
@@ -201,7 +203,35 @@ class MainWindow(W.QMainWindow):
         self.threshold = W.QDoubleSpinBox()
         self.threshold.setDecimals(9)
         self.threshold.setRange(0., 1e100)
+        self.threshold.setKeyboardTracking(False)
+        self.threshold.setEnabled(False)
         form.addRow('Absolute threshold', self.threshold)
+        self.threshold_slider = W.QSlider(C.Qt.Orientation.Horizontal)
+        self.threshold_slider.setRange(0, 1000)
+        self.threshold_slider.setAccessibleName('Absolute threshold')
+        self.threshold_slider.setEnabled(False)
+        self.threshold_slider_max = 1.
+        self.threshold_range = W.QLabel()
+        threshold_controls = W.QVBoxLayout()
+        threshold_controls.addWidget(self.threshold_slider)
+        threshold_controls.addWidget(self.threshold_range)
+        form.addRow(threshold_controls)
+        self.auto_threshold_range = W.QCheckBox('Automatic threshold slider range')
+        self.auto_threshold_range.setChecked(True)
+        self.auto_threshold_range.setEnabled(False)
+        form.addRow(self.auto_threshold_range)
+        self.threshold_slider_upper = W.QLineEdit()
+        self.threshold_slider_upper.setEnabled(False)
+        self.threshold_slider_upper.setAccessibleName('Threshold slider upper bound')
+        self.threshold_slider_upper.setToolTip(
+            'Positive upper bound in display units; scientific notation is accepted. '
+            'The lower bound is zero. Lowering the upper bound below the current '
+            'threshold also lowers the threshold. Press Enter to apply.')
+        form.addRow('Slider upper bound', self.threshold_slider_upper)
+        threshold_tip = ('Applied immediately in the diagnostic display units. Automatic slider range uses '
+                         'the shared peak across cases and contributions. A higher threshold expands the range.')
+        self.threshold.setToolTip(threshold_tip)
+        self.threshold_slider.setToolTip(threshold_tip)
         self.auto_limit = W.QCheckBox('Automatic shared colour range')
         self.auto_limit.setChecked(True)
         form.addRow(self.auto_limit)
@@ -223,12 +253,16 @@ class MainWindow(W.QMainWindow):
         form.addRow(text)
         tabs.addTab(display, 'Display')
         self.threshold.valueChanged.connect(self.set_threshold)
+        self.threshold_slider.valueChanged.connect(self.move_threshold_slider)
+        self.auto_threshold_range.toggled.connect(lambda value: self._guard(self.set_threshold_slider_limit))
+        self.threshold_slider_upper.editingFinished.connect(lambda: self._guard(self.set_threshold_slider_limit))
         self.auto_limit.toggled.connect(lambda value: self.set_color_limit())
         self.color_limit.valueChanged.connect(lambda value: self.set_color_limit())
         for widget in self.analysis_form.fields.values():
             signal = widget.currentIndexChanged if isinstance(widget, W.QComboBox) else widget.textEdited
             signal.connect(self.mark_draft)
         self.analysis_form.seeds.textChanged.connect(self.mark_draft)
+        self.analysis_form.fac_override.toggled.connect(self.mark_draft)
         self.settings_dock.setWidget(tabs)
         self.addDockWidget(C.Qt.DockWidgetArea.RightDockWidgetArea, self.settings_dock)
 
@@ -406,6 +440,7 @@ class MainWindow(W.QMainWindow):
             unit_keys = ('current_scale', 'current_unit', 'length_unit')
             if any(self.displayed['analysis'][key] != candidate['analysis'][key] for key in unit_keys):
                 candidate['view']['thresholds'] = {}
+                candidate['view']['threshold_slider_limits'] = {}
                 candidate['view']['color_limits'] = {}
         candidate['view']['thresholds'].setdefault(display_key(result), result['scale']['threshold'])
         same_group = self.displayed is not None and self.displayed['id'] == candidate['id']
@@ -422,7 +457,7 @@ class MainWindow(W.QMainWindow):
         self.pending = None
         self.last_error = ''
         self.header.setText(f"{result['case_label']} | {result['component']} | {CONTRIBUTIONS[result['contribution']]}\n"
-                            f"{result['label']} | {result['analysis']['evaluation']} | geometry step {result['resolved']['geometry_delta']:g} | "
+                            f"{result['label']} | {result['analysis']['evaluation']} | {difference_step_label(result)} | "
                             f"preview {tuple(result['resolved']['preview_shape'])} | "
                             f"{'total-field-frame attribution' if result['kind'] == 'attribution' else 'field geometry and currents'}")
         self.header.setToolTip('\n'.join(_source_lines(result['metadata'])))
@@ -478,9 +513,8 @@ class MainWindow(W.QMainWindow):
         self.session = validate_session(session)
         self.committed = {}
         self.displayed = None
-        self.scene.result = None
-        self.plotter.clear_plane_widgets()
-        self.plotter.clear()
+        self.scene.clear()
+        self.sync_display()
         self.header.setText('No prepared result in this session.')
         self.restore_window()
         self._populate()
@@ -614,13 +648,20 @@ class MainWindow(W.QMainWindow):
         self.apply()
 
     def sync_display(self):
+        ready = self.scene.result is not None
+        self.threshold.setEnabled(ready)
+        self.threshold_slider.setEnabled(ready)
+        self.auto_threshold_range.setEnabled(ready)
         if self.scene.result is None:
+            self.threshold_range.clear()
+            self.threshold_slider_upper.clear()
+            self.threshold_slider_upper.setEnabled(False)
             return
         self.syncing = True
         try:
             view, result = self.scene.view, self.scene.result
             key = display_key(result)
-            self.threshold.setValue(view['thresholds'].get(key, result['scale']['threshold']))
+            self.sync_threshold(view['thresholds'].get(key, result['scale']['threshold']), reset_range=True)
             self.auto_limit.setChecked(key not in view['color_limits'])
             self.color_limit.setValue(view['color_limits'].get(key, result['scale']['limit']))
             self.color_limit.setEnabled(not self.auto_limit.isChecked())
@@ -696,9 +737,66 @@ class MainWindow(W.QMainWindow):
             lo, hi = self.plane_range
             self.move_plane(lo + (hi - lo) * value / 1000)
 
+    def sync_threshold(self, value, *, reset_range=False):
+        previous = self.syncing
+        self.syncing = True
+        try:
+            key = display_key(self.scene.result)
+            limits = self.scene.view['threshold_slider_limits']
+            if key in limits:
+                self.threshold_slider_max = min(limits[key], self.threshold.maximum())
+            elif reset_range:
+                peak = self.scene.result['scale']['peak']
+                self.threshold_slider_max = min(1.01 * peak, self.threshold.maximum()) if peak > 0 else 1.
+            self.threshold_slider_max = max(self.threshold_slider_max, value)
+            upper = self.threshold_slider_max
+            if key in limits:
+                limits[key] = upper
+            self.auto_threshold_range.setChecked(key not in limits)
+            self.threshold_slider_upper.setEnabled(key in limits)
+            self.threshold_slider_upper.setText(f'{upper:.16g}')
+            # Keep small diagnostics visible without quantizing manual input to slider ticks.
+            exponent = np.log10(upper) - 3
+            if value > 0:
+                exponent = min(exponent, np.log10(value))
+            self.threshold.setDecimals(min(323, max(9, int(np.ceil(-exponent)) + 2)))
+            self.threshold.setSingleStep(upper / self.threshold_slider.maximum())
+            self.threshold.setValue(value)
+            self.threshold_slider.setValue(round(self.threshold_slider.maximum() * value / upper))
+            self.threshold_range.setText(f'Slider range: 0 – {upper:.6g}')
+        finally:
+            self.syncing = previous
+
+    def move_threshold_slider(self, position):
+        if not self.syncing and self.scene.result is not None:
+            self.set_threshold(self.threshold_slider_max * position / self.threshold_slider.maximum())
+
+    def set_threshold_slider_limit(self):
+        if self.syncing or self.scene.result is None:
+            return
+        key = display_key(self.scene.result)
+        limits = self.scene.view['threshold_slider_limits']
+        value = self.scene.view['thresholds'][key]
+        if self.auto_threshold_range.isChecked():
+            limits.pop(key, None)
+            self.sync_threshold(value, reset_range=True)
+        else:
+            try:
+                upper = float(self.threshold_slider_upper.text())
+            except ValueError:
+                upper = np.nan
+            if not np.isfinite(upper) or not 0 < upper <= self.threshold.maximum():
+                raise ValueError('Slider upper bound must be a positive finite number no greater than 1e100.')
+            limits[key] = upper
+            if value > upper:
+                self.set_threshold(upper)
+            else:
+                self.sync_threshold(value)
+
     def set_threshold(self, value):
         if not self.syncing and self.scene.result is not None:
-            self.scene.view['thresholds'][display_key(self.scene.result)] = value
+            self.sync_threshold(value)
+            self.scene.view['thresholds'][display_key(self.scene.result)] = self.threshold.value()
             self.scene.update_display()
 
     def set_color_limit(self):

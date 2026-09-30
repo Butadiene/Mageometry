@@ -70,7 +70,7 @@ the same application. A working desktop OpenGL display is required.
 Edit sources and numerical conditions, then press **Apply and recompute**.
 Independent **Dataset**, **Diagnostic**, and **Contribution** selectors
 compare cases and total/background/residual gradient contributions. Choose
-**All panels**, **3D focus**, or **Slice focus** for inspection. **Save displayed
+**All panels**, **3D + Slice**, **3D focus**, or **Slice focus** for inspection. **Save displayed
 session** stores the committed recipe and view as JSON; **Export PNG** saves
 the plot with a matching session recipe. The [workspace guide](docs/gui.md)
 covers background assignment, cancellation, input validation, and restore.
@@ -84,8 +84,20 @@ UI verification. See the [same result in Slice focus](docs/images/gui-slice.png)
 and the [capture settings and regeneration commands](docs/gui.md#screenshots-and-regeneration).
 The preview is not a resolution-converged scientific result.
 
-The Python APIs and standalone PyVista viewers described below have their
-own controls and remain available with their respective extras.
+For command-line source selection and off-screen PNG output, use the common
+standalone CLI with `.[viz3d]` (add `io` for XDMF/HDF5):
+
+```bash
+python -m mageometry.viz3d --component gamma
+python -m mageometry.viz3d --xmf snapshot.xmf --stride 4
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --slice-only --screenshot comparison.png
+```
+
+`mageometry-viewer` launches the standalone CLI. Interactive example scripts
+now open the Qt desktop workspace; add `--layout three_d_slice` for 3D and
+slice only. See the [examples index](examples/README.md) for the presets
+and Python APIs. Standalone captures below show PyVista controls; Qt
+workspace captures are identified separately.
 
 ## Usage Examples
 
@@ -375,9 +387,9 @@ uses direct magnetic evaluations for derivatives and tracing; omitting
 `fields` uses grid interpolation.
 
 ```bash
-python examples/compare_t96_by.py
-python examples/compare_t96_by.py --by -10 -5 0 5 10 --component gamma
-python examples/compare_t96_by.py --evaluation grid
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5
+python -m mageometry.viz3d --by -10 -5 0 5 10 --component gamma
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --evaluation grid
 ```
 
 The first command generates six independent T96 + dipole grids with IMF By
@@ -391,7 +403,7 @@ and file-input recipes, units, shared scales, memory limits, and screenshots.
 
 [General magnetic geometry viewing](docs/transverse_geometry.md) adds `alpha`,
 `beta_g`, `delta_g`, `gamma`, `omega_c`, and `eta` through `viz3d.geometry_view` and
-`python examples/geometry_viewer.py --component beta_g --slice x --slice-only`.
+`python -m mageometry.viz3d --component beta_g --slice x --slice-only`.
 The calculation is also available as `mageometry.geometry.field_line_transverse_geometry`
 and the top-level `mageometry.field_line_transverse_geometry`.
 
@@ -408,7 +420,7 @@ See the [component dropdown](docs/images/current-component-menu.png),
 [binormal-current slice](docs/images/current-components-slice.png).
 
 ```bash
-python examples/fac_viewer.py --component mu0J_n --slice x --slice-origin -6 0 0 --slice-only
+python -m mageometry.viz3d --component mu0J_n --slice x --slice-origin -6 0 0 --slice-only
 ```
 
 ```python
@@ -467,7 +479,7 @@ select **BACKGROUND → Dipole** and **CONTRIBUTION → Residual gradient**.
 Choose eta or gamma in **COMPONENT**. No background CLI option is required.
 
 ```bash
-python examples/geometry_viewer.py
+python -m mageometry.viz3d
 ```
 
 ![BACKGROUND menu in the standalone PyVista viewer](docs/images/viewer-background-menu.png)
@@ -483,7 +495,7 @@ background from a current diagnostic selects eta automatically.
 You can still preselect the dipole and contribution at launch:
 
 ```bash
-python examples/geometry_viewer.py --background dipole --component eta --contribution residual --slice x --slice-origin -6 0 0
+python -m mageometry.viz3d --background dipole --component eta --contribution residual --slice x --slice-origin -6 0 0
 ```
 
 ![Residual-gradient eta in the total-field frame, with shared scale and total magnetic lines](docs/images/contribution-eta-residual.png)
@@ -524,7 +536,7 @@ by `field_line_current_density` without additional field evaluations. Both
 names also work with `viz.plot_geometry_map` and other named-quantity viewers.
 
 ```bash
-python examples/fac_viewer.py --component B_dT_dn_b --slice x --slice-origin -6 0 0 --slice-only
+python -m mageometry.viz3d --component B_dT_dn_b --slice x --slice-origin -6 0 0 --slice-only
 # Select "J_T term 2: B(dn/db).T" to compare the second contribution.
 ```
 
@@ -539,7 +551,7 @@ Like the individual terms, it has its own colour scale and works in both
 slice modes. Start directly with:
 
 ```bash
-python examples/fac_viewer.py --component B_twist_diff --slice x --slice-origin -6 0 0 --slice-only
+python -m mageometry.viz3d --component B_twist_diff --slice x --slice-origin -6 0 0 --slice-only
 ```
 
 See the [parallel-term difference distribution](docs/images/parallel-current-difference.png).
@@ -575,7 +587,8 @@ default; the draggable 3D slice starts hidden unless requested.
 
 The standalone FAC, current-component, and total-field eta screenshots were
 regenerated on 2026-09-25 using the
-`geometry_view` UI and the `fac_viewer.py` model setup: T96 + dipole,
+`geometry_view` UI and the single-model preset (now in
+`mageometry.session.presets.model_snapshot`): T96 + dipole,
 Pdyn = 2 nPa, Dst = −20 nT, IMF By = 0 nT, IMF Bz = −5 nT, epoch = 100
 Unix seconds, a 65 × 49 × 49 grid, and a 0.002 Re derivative step.
 The default 120,000-node budget produces the displayed 59 × 44 × 44
@@ -634,7 +647,7 @@ viz3d.fac_view(grid, slice_normal='x', slice_origin=(-6, 0, 0), slice_only=True)
 The command-line equivalent is:
 
 ```bash
-python examples/fac_viewer.py --slice x --slice-origin -6 0 0 --slice-only
+python -m mageometry.viz3d --component fac --slice x --slice-origin -6 0 0 --slice-only
 ```
 
 Without an explicit normal, the initial slice is XZ. The isolated view uses
@@ -665,8 +678,8 @@ nodes by default; coarsening changes derivative resolution. Its dimensions are
 shown in the window. Use `max_points=None` for the full grid, and reader-side
 `region`/`stride` to control the memory needed to load large snapshots.
 
-Run `python examples/fac_viewer.py` for T96 + dipole, or
-`python examples/fac_viewer.py --xmf snapshot.xmf --stride 4` for your data.
+Run `python -m mageometry.viz3d --component fac` for T96 + dipole, or
+`python -m mageometry.viz3d --component fac --xmf snapshot.xmf --stride 4` for your data.
 `--h5` can override the XDMF heavy-data file; direct HDF5 input requires
 `--origin` and `--spacing`. Use `--screenshot /tmp/fac.png` for an off-screen PNG.
 Add `--slice y` (XZ plane), or `--slice x --slice-origin -6 0 0`, to start
@@ -694,24 +707,24 @@ assumes stored `(nz, ny, nx)` arrays by default; pass `zyx_order=False` for
 #### Open a snapshot in the viewer
 
 ```bash
-python examples/geometry_viewer_simulation.py --xmf snapshot.xmf
-python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --h5 field.h5 --stride 4
-python examples/geometry_viewer_simulation.py --vtk snapshot.vti --component beta_g --slice x --slice-only
-python examples/geometry_viewer_simulation.py --h5 field.h5 --origin 0 0 0 --spacing 1 1 1
+python -m mageometry.viz3d --xmf snapshot.xmf
+python -m mageometry.viz3d --xmf snapshot.xmf --h5 field.h5 --stride 4
+python -m mageometry.viz3d --vtk snapshot.vti --component beta_g --slice x --slice-only
+python -m mageometry.viz3d --h5 field.h5 --origin 0 0 0 --spacing 1 1 1
 ```
 
 Replace the filenames and direct-HDF5 grid coordinates with your own values.
-Relative paths are resolved from the working directory. This entry point
-requires `--xmf`, `--vtk`, or `--h5`: no simulation name, snapshot path, or
+Relative paths are resolved from the working directory. Supply `--xmf`,
+`--vtk`, or `--h5` for file mode; no simulation name, snapshot path, or
 grid size is built in. It starts with `alpha`, reads all nodes by default
 (`--stride 1`), and retains the input units. XDMF's referenced HDF5 paths
 are resolved relative to the XDMF file; `--h5` overrides the heavy-data path.
 The CLI uses the reader's default magnetic array names; use the Python
 reader options above for other names or layouts.
 
-`geometry_viewer.py` and `fac_viewer.py` accept the same file options but
-default to a T96 + dipole demonstration when no file is supplied, starting
-with `alpha` and `fac`, respectively. See
+Without source options the common CLI opens a T96 + dipole demonstration.
+`--by` selects a model comparison. The example launchers now open the
+[desktop workspace presets](docs/viewer.md#desktop-example-launchers). See
 [viewer controls and geometry definitions](docs/transverse_geometry.md).
 
 #### Analyze a snapshot in Python
@@ -878,15 +891,22 @@ The numerical examples need the base package; standalone viewers need
 `.[viz3d]`, and XDMF/HDF5 input needs `.[io]`. The desktop workspace needs
 `.[gui]`, which includes PyVista and h5py.
 
+Use `python -m mageometry.gui` for the desktop workspace, or
+`python -m mageometry.viz3d` (`mageometry-viewer`) for the common standalone
+CLI. It accepts single models, snapshot files, `--by` comparisons, and
+`--screenshot` PNG output. See the [examples index](examples/README.md)
+for workflows and the three desktop example launchers.
+
 | Script | Purpose |
 | --- | --- |
 | [`examples/readme_examples.py`](examples/readme_examples.py) | Numerical examples without plotting or input files |
-| [`examples/geometry_viewer.py`](examples/geometry_viewer.py) | General geometry viewer; model demonstration when no file is supplied |
 | [`examples/geometry_gui.py`](examples/geometry_gui.py) | Unified desktop workspace: model/file setup, case/contribution comparison, display layouts and saved sessions; requires `.[gui]`, see the [guide](docs/gui.md) |
-| [`examples/geometry_viewer_simulation.py`](examples/geometry_viewer_simulation.py) | Geometry viewer requiring an explicit snapshot file |
-| [`examples/compare_t96_by.py`](examples/compare_t96_by.py) | Six-case IMF By comparison with a dataset selector and shared scales |
-| [`examples/fac_viewer.py`](examples/fac_viewer.py) | Shared viewer CLI implementation; starts with FAC when run directly |
+| [`examples/compare_t96_by.py`](examples/compare_t96_by.py) | Same desktop with six IMF By cases: −5, −3, −1, +1, +3, +5 nT |
+| [`examples/geometry_viewer_simulation.py`](examples/geometry_viewer_simulation.py) | Same desktop, requiring an explicit snapshot file or saved session |
 | [`examples/python_code_samples/mhd_gridded_field_example.py`](examples/python_code_samples/mhd_gridded_field_example.py) | Dipole-oriented diagnostics for a supplied XDMF/HDF5 snapshot |
+
+To start on FAC, use `python examples/geometry_gui.py --component fac`,
+or select **fac** from **Diagnostic** in any desktop example.
 
 For slice widgets and Frenet-frame arrows, use the standalone example in
 the [viewer guide](docs/viewer.md#free-slice-plane-and-frenet-frames).

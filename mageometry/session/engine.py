@@ -13,6 +13,7 @@ from ..viz3d._contribution_data import _ContributionData, CONTRIBUTIONS
 from ..viz3d._current import COMPONENTS, _component_label
 from ..viz3d.fac import _region_seeds
 from .sources import load_source, fingerprint
+from .specs import DEFAULT_GEOMETRY_DELTA
 
 
 def calculation_key(group):
@@ -49,8 +50,13 @@ class SessionEngine:
         _validate_cases(self.grids)
         radius = a['mask_radius']
         self.mask = (lambda x, y, z: x*x + y*y + z*z < radius**2) if radius else None
-        self.options = dict(delta=a['delta'], max_points=a['max_points'], mask=self.mask,
-                            geometry_delta=a['geometry_delta'], current_scale=a['current_scale'],
+        geometry_delta, fac_delta = a['geometry_delta'], None
+        if a['evaluation'] == 'direct':
+            if geometry_delta is None:
+                geometry_delta = DEFAULT_GEOMETRY_DELTA
+            fac_delta = geometry_delta if a['delta'] is None else a['delta']
+        self.options = dict(delta=fac_delta, max_points=a['max_points'], mask=self.mask,
+                            geometry_delta=geometry_delta, current_scale=a['current_scale'],
                             percentile=a['percentile'], cache_size=a['cache_size'])
         self.fields = fields if a['evaluation'] == 'direct' else None
         self.total = _OverviewData(self.grids, fields=self.fields, comparison=True, **self.options)
@@ -192,8 +198,7 @@ class SessionEngine:
                                            self.analysis['length_unit']),
                     analysis=deepcopy(self.analysis),
                     resolved=dict(inputs=deepcopy(self.inputs), seeds=self.seeds.tolist(),
+                                  fac_delta=deepcopy(self.options['delta']),
                                   geometry_delta=float(prepared.cache.delta) if hasattr(prepared.cache, 'delta')
-                                  else float(self.analysis['geometry_delta'] or
-                                             (np.min(self.analysis['delta']) if self.fields is not None
-                                              else prepared.spacing)),
+                                  else float(self.options['geometry_delta'] or prepared.spacing),
                                   preview_shape=list(grid.shape), scales=deepcopy(self.statistics)))

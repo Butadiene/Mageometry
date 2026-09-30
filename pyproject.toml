@@ -64,6 +64,9 @@ Homepage = "https://github.com/Butadiene/Mageometry"
 Repository = "https://github.com/Butadiene/Mageometry"
 Issues = "https://github.com/Butadiene/Mageometry/issues"
 
+[project.scripts]
+mageometry-viewer = "mageometry.viz3d.cli:main"
+
 [project.gui-scripts]
 mageometry-gui = "mageometry.gui.app:main"
 

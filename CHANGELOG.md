@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Add a threshold slider below the existing numeric control in the desktop
+  Display tab. Keep both controls synchronized, expand the slider range for
+  larger manual values, and restore thresholds with the displayed diagnostic.
+  Allow a manual slider upper bound with scientific notation and a switch
+  back to automatic range. Save manual ranges per diagnostic and analysis
+  kind; clamp the threshold when a smaller upper bound is entered.
+
+- Make Geometry step the desktop's shared derivative step. Direct FAC follows
+  it unless the optional FAC override is enabled; expose `--fac-delta` (with
+  `--delta` as an alias) for that override. Record the effective FAC steps and
+  display them for FAC results. Migrate version-1 sessions without changing
+  their numerical steps; new sessions use schema version 2.
+
+- Launch three interactive examples in the shared Qt workspace, with model,
+  By-comparison and file presets; select FAC with `--component fac`.
+  Share CLI argument validation with the standalone viewer and support
+  desktop PNG/session export.
+- Add a full-height 3D + Slice layout, including F4 return, session restore
+  and `--layout three_d_slice`. Explain the FAC finite-difference step in
+  the Analysis form and guide. Preserve companion slice/projection actors
+  when refreshing one renderer.
+
+- Consolidate standalone model, file and IMF By comparison commands in
+  `python -m mageometry.viz3d` / `mageometry-viewer`. Keep desktop examples
+  for standard model startup, By comparison and simulation input.
+  Share T96 source evaluation with the Qt workspace, move model helpers
+  into `mageometry.session.presets`, and update screenshot scripts and
+  documentation to use the common entry points.
+
 ### Documentation
 
 - Document desktop installation and startup in the README, distinguish Qt
@@ -54,7 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `geometry.field_line_transverse_geometry` for first-gradient alpha, beta_g,
   delta_g, gamma and signed local coiling rate, including invariant diagnostics on
   straight lines.
-- Add `viz3d.geometry_view` and `examples/geometry_viewer.py`, sharing the
+- Add `viz3d.geometry_view`, sharing the
   current viewer controls and supporting all six transverse distributions.
 
 ### Changed
@@ -68,16 +99,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CLIs, and notebooks. The free-plane slice and Frenet-frame example now
   lives in the [viewer guide](docs/viewer.md#free-slice-plane-and-frenet-frames).
 - Keep a synchronized face-on cross-section visible beside the 3D overview in
-  geometry_viewer and fac_viewer; F4 still expands the slice.
+  the geometry and FAC viewers; F4 still expands the slice.
 - Viewer alpha uses Cartesian first magnetic derivatives and stays defined
   without a Frenet normal; the legacy current calculation API is unchanged.
 - Remove current arrows from the shear diagnostic `B_twist_diff`.
 
 ### Fixed
+- Preserve desktop illumination across result updates and session loading.
+  Fix mouse navigation in 3D and Slice focus: hidden renderers
+  no longer intercept drags or zoom, and the plane widget returns to its
+  3D renderer after layout changes. Match standalone surface shading,
+  magnetic-line transparency and faint plane handles; keep widget bounds
+  out of camera fitting. Add mouse-event and lighting regressions, a real
+  Qt navigation check, and refreshed desktop captures.
 - Restore overview slider visibility and renderer ownership after F4 slice
   scanning, including the companion panel's position slider.
 
 ### Removed
+- Remove the duplicate `examples/geometry_viewer.py` and
+  `examples/fac_viewer.py` desktop launchers. Use `examples/geometry_gui.py`
+  or `python -m mageometry.gui`, adding `--component fac` to start on FAC.
+  Import `model_snapshot` from `mageometry.session.presets` instead of
+  `examples.fac_viewer`. Keep the By-comparison and simulation launchers,
+  numerical API examples and tutorial notebooks.
 - Remove the transverse diagnostic names `sigma` and `q`, including
   compatibility aliases. Callers must use `beta_g` and `delta_g`, respectively.
 - Remove redundant standalone basic-usage, field-map, geometry, and
@@ -175,8 +219,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   masks, and reports preview resolution. `field_aligned_current_density` and
   the `'fac'` plotting quantity compute Cartesian curl projected along B,
   including straight field lines where a Frenet normal is undefined.
-  `examples/fac_viewer.py` opens a model or simulation snapshot and supports
-  off-screen screenshots.
+  `python -m mageometry.viz3d --component fac` opens a model or simulation
+  snapshot and supports off-screen screenshots.
 - **`mageometry.geometry.field_line_current`: |B| gradients along the frame and
   the current density in the Frenet frame.** `field_magnitude_derivatives`
   returns ∂B/∂T, ∂B/∂n, ∂B/∂b — the scalar pieces the frame's directional

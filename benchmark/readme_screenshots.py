@@ -5,21 +5,20 @@ Run from the repository after installing ``.[viz3d]``::
     python benchmark/readme_screenshots.py
 
 Uses the same T96 + dipole snapshot, derivative step, units, preview budget,
-and window size as examples/fac_viewer.py. Component changes use the actual
-dropdown so the cached values, slice position, and magnetic lines are shared.
+and window size as the shared standalone CLI with ``--component fac``.
+Component changes use the actual dropdown so the cached values, slice
+position, and magnetic lines are shared.
 """
 
 import argparse
 from pathlib import Path
-import sys
 
 import pyvista as pv
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'examples'))
-
-from fac_viewer import model_snapshot
+from mageometry.session.presets import model_snapshot
 from mageometry import viz3d
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def press(plotter, key):

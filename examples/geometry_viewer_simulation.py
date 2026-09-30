@@ -1,20 +1,16 @@
-"""Explore magnetic geometry in a user-supplied simulation snapshot.
+"""Launch the desktop workspace with an explicit snapshot (requires gui).
 
-    python examples/geometry_viewer_simulation.py --xmf snapshot.xmf
-    python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --stride 4
-    python examples/geometry_viewer_simulation.py --vtk snapshot.vti --component beta_g
-    python examples/geometry_viewer_simulation.py --h5 field.h5 --origin 0 0 0 --spacing 1 1 1
-
-Specify a snapshot with --xmf, --vtk, or --h5. Relative paths are resolved
-from the working directory. No snapshot path or grid size is built in.
-All nodes are read by default; use --stride to reduce memory use.
-Coordinates and geometry rates retain the input grid's units.
-All display controls are shared with geometry_viewer.
+Supply --xmf, --vtk or --h5 (with --origin and --spacing for direct HDF5).
+The common ``python -m mageometry.gui`` CLI accepts the same file options.
+There is no built-in simulation path, grid size or unit conversion.
 """
 
-from geometry_viewer import main
+from mageometry.gui.app import main as _main
+
+
+def main(argv=None):
+    return _main(argv, require_source=True, description=__doc__)
 
 
 if __name__ == '__main__':
-    main(default_component='alpha', description=__doc__,
-         require_source=True)
+    main()

@@ -166,7 +166,8 @@ class AnalysisForm(W.QWidget):
                 combo.addItem(label, value)
             self.fields[key] = combo
             self.form.addRow(key.capitalize(), combo)
-        labels = {'delta': 'FAC step (direct only)', 'geometry_delta': 'Geometry step (blank: auto)',
+        labels = {'geometry_delta': 'Geometry step (shared; blank: auto)',
+                  'delta': 'FAC steps (blank: Geometry step)',
                   'max_points': 'Analysis/display preview nodes', 'cache_size': 'Retained case previews',
                   'mask_radius': 'Inner exclusion radius', 'planet_radius': 'Reference sphere radius (blank: none)',
                   'current_scale': 'Current display multiplier', 'current_unit': 'Current display unit (blank: native)',
@@ -176,9 +177,27 @@ class AnalysisForm(W.QWidget):
                   'rlim': 'Trace outer radius (blank: none)', 'err': 'Trace error tolerance',
                   'bounds': 'Trace bounds: xmin xmax ymin ymax zmin zmax (blank: grid)'}
         for key, label in labels.items():
+            if key == 'delta':
+                self.fac_override = W.QCheckBox('Override direct FAC steps')
+                self.form.addRow(self.fac_override)
             widget = W.QLineEdit()
             self.fields[key] = widget
             self.form.addRow(label, widget)
+        tips = {
+            'delta': ('Optional steps for the FAC diagnostic computed directly from curl(B). '
+                      'Otherwise FAC follows Geometry step. Enter one value or three x/y/z '
+                      'steps in coordinate units (Re for the model). '
+                      'Grid evaluation uses preview axis spacing instead. '
+                      'This is separate from the field-line trace step.'),
+            'geometry_delta': ('Shared spatial difference step for geometry diagnostics and '
+                               'direct FAC unless FAC steps are overridden. Blank uses 0.002 '
+                               'in direct mode, or the smallest preview axis spacing in grid '
+                               'mode. In coordinate length units (Re for the model).'),
+            'ds': 'Integration step for tracing field lines, in coordinate length units.',
+        }
+        for key, tip in tips.items():
+            self.fields[key].setToolTip(tip)
+            self.form.labelForField(self.fields[key]).setToolTip(tip)
         direction = W.QComboBox()
         for label, value in [('Both', 'both'), ('Along B', 1), ('Against B', -1)]:
             direction.addItem(label, value)
@@ -191,9 +210,18 @@ class AnalysisForm(W.QWidget):
         for widget in self.fields.values():
             self.form.labelForField(widget).setWordWrap(True)
         self.fields['evaluation'].currentIndexChanged.connect(self._evaluation_changed)
+        self.fac_override.toggled.connect(self._evaluation_changed)
+        self.fac_override.setToolTip(tips['delta'])
+        self._evaluation_changed()
 
     def _evaluation_changed(self):
-        self.fields['delta'].setEnabled(self.fields['evaluation'].currentData() == 'direct')
+        direct = self.fields['evaluation'].currentData() == 'direct'
+        self.fac_override.setEnabled(direct)
+        show_fac = direct and self.fac_override.isChecked()
+        self.fields['delta'].setVisible(show_fac)
+        self.form.labelForField(self.fields['delta']).setVisible(show_fac)
+        self.fields['delta'].setEnabled(show_fac)
+        self.fields['geometry_delta'].setPlaceholderText('0.002' if direct else 'Minimum preview spacing')
 
     def set_analysis(self, analysis):
         self.base = deepcopy(analysis)
@@ -209,6 +237,7 @@ class AnalysisForm(W.QWidget):
                 widget.setText(line(value))
         seeds = analysis['seeds']
         self.seeds.setPlainText('' if seeds is None else '\n'.join(line(seed) for seed in seeds) if seeds else 'none')
+        self.fac_override.setChecked(analysis['delta'] is not None)
         self._evaluation_changed()
 
     def analysis(self):
@@ -225,7 +254,8 @@ class AnalysisForm(W.QWidget):
         for key in ('length_unit', 'current_unit'):
             result[key] = text(key) or None
         result['length_unit'] = result['length_unit'] or 'grid unit'
-        steps = numbers(text('delta')) if result['evaluation'] == 'direct' else []
+        override = result['evaluation'] == 'direct' and self.fac_override.isChecked()
+        steps = numbers(text('delta')) if override else []
         result['delta'] = steps[0] if len(steps) == 1 else steps or None
         result['trace'] = {'direction': self.fields['direction'].currentData()}
         for key in ('ds', 'r0', 'rlim', 'err', 'max_steps'):

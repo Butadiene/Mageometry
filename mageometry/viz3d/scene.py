@@ -12,6 +12,18 @@ def display_key(result):
     return result['kind'] + ':' + result['component']
 
 
+def difference_step_label(result):
+    geometry_step = result['resolved']['geometry_delta']
+    if result['component'] != 'fac':
+        return f'geometry step {geometry_step:g}'
+    if result['analysis']['evaluation'] == 'grid':
+        return 'FAC steps: preview axis spacing'
+    steps = result['resolved'].get('fac_delta', result['analysis']['delta'])
+    if steps is None:
+        steps = geometry_step
+    return 'FAC steps ' + ', '.join(f'{step:g}' for step in np.atleast_1d(steps))
+
+
 class GeometryScene:
     """A five-renderer scene embeddable in Qt or an off-screen Plotter.
 
@@ -66,6 +78,23 @@ class GeometryScene:
                                    render=False, show_scalar_bar=False, **kwargs)
         return None
 
+    def clear(self):
+        """Clear result actors and widgets while retaining scene illumination."""
+        lights = [list(renderer.lights) for renderer in self.p.renderers]
+        self.p.clear_plane_widgets()
+        self.widget = None
+        self.p.clear()
+        # Plotter.clear() removes lights as well as actors. Preserve the
+        # light kit (or caller-supplied lights); otherwise even a smooth
+        # sphere is rendered as a flat disc after opening or updating data.
+        for renderer, previous_lights in zip(self.p.renderers, lights):
+            for light in previous_lights:
+                renderer.add_light(light)
+        self.result = self.view = None
+        self.mesh = self.volume = None
+        self.projections = []
+        self.last_normal = self.last_origin = None
+
     def set_result(self, result, view, preserve_camera=True):
         # Build the potentially failing data objects before touching the scene.
         mesh = self.pv.RectilinearGrid(*result['axes'])
@@ -78,21 +107,19 @@ class GeometryScene:
             projection_data.append((self.pv.RectilinearGrid(*axes),
                                     _peak_projection(result['values'], axis).ravel(order='F')))
         saved = self.camera_state() if preserve_camera and self.result is not None else view.get('cameras', {})
-        self.result, self.view = result, view
-        self.mesh, self.volume, self.projections = mesh, volume, projection_data
-        if view['origin'] is None:
-            view['origin'] = list(mesh.center)
         self.updating = True
         try:
-            self.p.clear_plane_widgets()
-            self.widget = None
-            self.p.clear()
+            self.clear()
+            self.result, self.view = result, view
+            self.mesh, self.volume, self.projections = mesh, volume, projection_data
+            if view['origin'] is None:
+                view['origin'] = list(mesh.center)
             self.set_layout(view['layout'], render=False)
             self.p.subplot(0)
             self._add(mesh.outline(), 'outline', color='#9caec0')
             radius = result['analysis']['planet_radius']
             if radius is not None:
-                self._add(self.pv.Sphere(radius=radius), 'planet', color='#b3c5d5', smooth_shading=True)
+                self._add(self.pv.Sphere(radius=radius), 'planet', color='#d7e0e8', smooth_shading=True)
             points, cells, offset = [], [], 0
             for path in result['paths']:
                 if len(path) >= 2:
@@ -101,7 +128,7 @@ class GeometryScene:
                     offset += len(path)
             if points:
                 self._add(self.pv.PolyData(np.concatenate(points), lines=np.asarray(cells)),
-                          'lines', color='#748698', line_width=1.5)
+                          'lines', color='#778999', line_width=1.4, opacity=.45, pickable=False)
             self.p.show_bounds(bounds=mesh.bounds, color='#596b7e', font_size=10,
                                xtitle='x', ytitle='y', ztitle='z', use_3d_text=False)
             for axis in range(3):
@@ -118,10 +145,16 @@ class GeometryScene:
             self.p.reset_camera()
             self.last_normal = self.last_origin = None
             self.update_display(render=False)
+            renderer = self.p.renderers[0]
+            existing_props = set(renderer.GetViewProps())
             self.widget = self.p.add_plane_widget(
                 self._drag_plane, normal=view['normal'], origin=view['origin'], bounds=mesh.bounds,
-                color='#c09631', outline_translation=False, test_callback=False,
+                factor=1., color='#b77a18', outline_translation=False, outline_opacity=.08,
+                test_callback=False,
                 interaction_event='end')
+            self.widget.GetPlaneProperty().SetOpacity(.08)
+            for prop in set(renderer.GetViewProps()) - existing_props:
+                prop.SetUseBounds(False)
             if saved:
                 self.restore_cameras(saved)
             self.set_layout(view['layout'], render=False)
@@ -133,7 +166,7 @@ class GeometryScene:
         r = self.result
         text = f"{r['case_label']}; {r['component']}; {r['contribution']}\n{subtitle}"
         if index in (0, 1):
-            text += (f"\n{r['analysis']['evaluation']}; geometry step {r['resolved']['geometry_delta']:g}"
+            text += (f"\n{r['analysis']['evaluation']}; {difference_step_label(r)}"
                      if 'resolved' in r else '')
             if r['kind'] == 'attribution':
                 text += '\nTotal-field frame'
@@ -155,7 +188,8 @@ class GeometryScene:
             if self.volume.n_cells and np.any(sign * flat >= cutoff):
                 region = self.volume.clip_scalar(value=sign * cutoff, scalars='value', invert=sign < 0)
                 if region.n_cells:
-                    actor = self._add(region.extract_surface(), name, color=color, opacity=.5)
+                    actor = self._add(region.extract_surface(), name, color=color,
+                                      opacity=.5, smooth_shading=True)
                     actor.visibility = view['regions']
         p.remove_actor('arrows', reset_camera=False, render=False)
         basis = r['basis']
@@ -187,7 +221,9 @@ class GeometryScene:
             p.render()
 
     def _scalar(self, data, name):
-        self.p.remove_actor(name, reset_camera=False, render=False)
+        # Companion renderers use the same names. Plotter.remove_actor removes
+        # matching actors in every renderer, including the shared 3D slice.
+        self.p.renderer.remove_actor(name, reset_camera=False, render=False)
         actor = self._add(data, name, scalars='value', cmap='RdBu_r',
                           clim=(-self.limit, self.limit), nan_opacity=0, lighting=False)
         if actor is not None:
@@ -251,14 +287,30 @@ class GeometryScene:
             self.plane_changed(normal, origin)
 
     def set_layout(self, layout, render=True):
-        viewports = [(0, .25, .55, 1), (.55, .25, 1, 1),
-                     (0, 0, 1/3, .25), (1/3, 0, 2/3, .25), (2/3, 0, 1, .25)]
+        layouts = {
+            'all': [(0, .25, .55, 1), (.55, .25, 1, 1),
+                    (0, 0, 1/3, .25), (1/3, 0, 2/3, .25), (2/3, 0, 1, .25)],
+            'three_d_slice': [(0, 0, .55, 1), (.55, 0, 1, 1), None, None, None],
+            'three_d': [(0, 0, 1, 1), None, None, None, None],
+            'slice': [None, (0, 0, 1, 1), None, None, None],
+        }
+        if layout not in layouts:
+            raise ValueError('Unknown view layout.')
+        viewports = layouts[layout]
         for index, renderer in enumerate(self.p.renderers):
-            visible = layout == 'all' or index == (0 if layout == 'three_d' else 1)
+            visible = viewports[index] is not None
             renderer.SetDraw(visible)
             renderer.SetInteractive(visible)
-            renderer.SetViewport(*(viewports[index] if layout == 'all' else (0, 0, 1, 1)))
+            # PyVista's mouse callbacks re-enable renderers based on their
+            # viewport alone. Hidden full-window panels would then receive
+            # drags intended for the visible camera. Collapse them outside
+            # the drawable pixels, at the upper-right window boundary.
+            viewport = viewports[index] if visible else (1, 1, 1, 1)
+            renderer.SetViewport(*viewport)
         if self.widget is not None:
+            # Disabling a VTK widget clears its renderer. Keep it attached to
+            # the 3D scene when returning from Slice focus.
+            self.widget.SetCurrentRenderer(self.p.renderers[0])
             self.widget.SetEnabled(layout != 'slice' and self.view['plane'])
         if self.view is not None:
             self.view['layout'] = layout

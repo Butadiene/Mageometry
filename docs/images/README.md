@@ -41,6 +41,8 @@ python benchmark/render_gui.py --output /tmp/mageometry-gui
 | Asset | Generated file | View |
 | --- | --- | --- |
 | [gui-workspace.png](gui-workspace.png) | `workspace-all.png` | Full Qt window, All panels |
+| [gui-three-d-slice.png](gui-three-d-slice.png) | `workspace-three_d_slice.png` | Same result, 3D + Slice |
+| [gui-display.png](gui-display.png) | `workspace-display.png` | Same result, Display tab with threshold input, slider and editable range |
 | [gui-slice.png](gui-slice.png) | `workspace-slice.png` | Same result, Slice focus |
 
 The captures show residual-gradient eta for the By = −5 nT case in a
@@ -48,6 +50,10 @@ two-case T96 + dipole comparison, a 17 × 13 × 13 grid, direct 0.002 Re
 derivatives, and the YZ plane at x = −6 Re. The background is a dipole at
 the same epoch; attribution uses the total-field frame. See the
 [complete conditions and copy commands](../gui.md#screenshots-and-regeneration).
+The captures were refreshed on 2026-09-30 with retained 3D illumination,
+smooth region shading and translucent context lines. The capture script
+also verifies mouse rotation through 3D + Slice and 3D/Slice focus layout changes,
+numeric threshold entry, manual slider range entry, and slider keyboard input.
 
 Use each capture's matching `.session.json` to restore its recipe. The
 script's final `session.json` belongs to a later restore check with different
@@ -62,6 +68,9 @@ The [viewer guide](../viewer.md#regenerate-the-readme-screenshots) specifies
 the model conditions and capture sequence: By = 0 nT, 65 × 49 × 49 input
 nodes, 59 × 44 × 44 preview nodes, direct 0.002 Re derivatives, and a YZ
 slice at x = −6 Re. These images show the standalone controls.
+The capture scripts use `mageometry.session.presets.model_snapshot`, the
+same model preset as `python -m mageometry.viz3d`; the preset preserves the
+original single-case units, metadata labels, mask and automatic trace seeds.
 
 | Asset | Selected diagnostic / view |
 | --- | --- |

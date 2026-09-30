@@ -6,16 +6,14 @@ retains one total-field trace, slice, camera and per-diagnostic scale.
 """
 
 from pathlib import Path
-import sys
 
 import pyvista as pv
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'examples'))
-
-from fac_viewer import model_snapshot
+from mageometry.session.presets import model_snapshot
 from readme_screenshots import click_text, select
 from mageometry import viz3d
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():

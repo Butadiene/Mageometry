@@ -7,9 +7,10 @@ The 3D overview displays magnetic geometry and current components on a
 rectilinear grid. It combines spatial regions, magnetic context lines,
 signed peak projections, and movable slices.
 
-For model/file setup, combined case/contribution comparison, three display
+For model/file setup, combined case/contribution comparison, four display
 layouts, and session save/restore in one window, use the optional
-[desktop workspace](gui.md). The standalone viewers below remain available.
+[desktop workspace](gui.md). Use the standalone CLI below for command-line
+source selection, off-screen PNGs, or a PyVista window without Qt.
 
 ## Install and choose an entry point
 
@@ -18,23 +19,52 @@ input also needs h5py:
 
 ```bash
 python -m pip install -e '.[io,viz3d]'
-python examples/geometry_viewer.py --component gamma
+python -m mageometry.viz3d --component gamma
 ```
 
-| Script | No input file supplied | Initial component |
-| --- | --- | --- |
-| `examples/geometry_viewer.py` | T96 + dipole demonstration | `alpha` |
-| `examples/fac_viewer.py` | T96 + dipole demonstration | `fac` |
-| `examples/geometry_viewer_simulation.py` | Usage error; a file is required | `alpha` |
+The common entry point is `python -m mageometry.viz3d`; `mageometry-viewer`
+is the installed command. Both accept the model, file, background, comparison and screenshot
+options described here. Run `--help` for the full option list.
 
-All three scripts share the display controls and file options. Use `--help`
-to list the current options. The model demonstration uses Re and nT and
-converts displayed currents to nA/m². File inputs retain their native units.
+| Input | Initial view |
+| --- | --- |
+| No source options | T96 + dipole, By = 0 nT, `alpha` |
+| `--xmf`, `--vtk`, or `--h5` | Supplied snapshot, `alpha` |
+| `--by -5 -3 -1 1 3 5` | Six T96 cases, `alpha`, YZ slice at x = −6 Re |
+| Background option | Total/background/residual gradients, `eta` |
+
+The model demonstration uses Re and nT and converts displayed currents to
+nA/m². File inputs retain their native units. `--shape NX NY NZ` sets the
+model display grid; `--evaluation grid` selects interpolated derivatives
+and traces for a model. File sources always use grid evaluation.
+
+### Desktop example launchers
+
+The example scripts now open the [Qt desktop workspace](gui.md) and require
+`.[gui]`. Their source and diagnostic presets are:
+
+| Script | Preset |
+| --- | --- |
+| `examples/geometry_gui.py` | Standard entry point: single model, `alpha` |
+| `examples/geometry_viewer_simulation.py` | Requires an explicit `--xmf`, `--vtk`, `--h5`, or saved `--session` |
+| `examples/compare_t96_by.py` | Defaults to `--by -5 -3 -1 1 3 5` |
+
+They accept `--layout three_d_slice` for 3D and slice only, and
+`--component fac` to start on FAC. To open the standalone interface described
+in this guide, use `python -m mageometry.viz3d`.
+The examples contain no separate loading or rendering implementation. Model
+helpers live in `mageometry.session.presets`; import `model_snapshot`,
+`make_cases` and `make_fields` from there. The standalone CLI and Qt workspace
+use the same model recipes and source evaluators. Their controls and rendering shells remain
+separate; dataset comparison with background contributions together is
+available in the Qt workspace.
+
+### Compare model cases
 
 For multiple snapshots, use `viz3d.compare_geometry(cases, ...)`. Its
 **DATASET** dropdown (F7/F8) changes the selected grid while preserving
 camera, slice, diagnostic, shared colour scale, and absolute threshold.
-`python examples/compare_t96_by.py` generates six IMF By cases in memory.
+`python -m mageometry.viz3d --by -5 -3 -1 1 3 5` generates six IMF By cases in memory.
 It defaults to direct model derivatives/tracing with a 0.002 Re difference
 step and the single-case example's 65 × 49 × 49 display grid. Add
 `--evaluation grid` for grid interpolation. Python callers can supply
@@ -45,10 +75,10 @@ shared-scale rules, fixed trace seeds, and cache controls.
 ## Supply your file
 
 ```bash
-python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --stride 4
-python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --h5 field.h5
-python examples/geometry_viewer_simulation.py --vtk snapshot.vti
-python examples/geometry_viewer_simulation.py --h5 field.h5 --origin 0 0 0 --spacing 1 1 1
+python -m mageometry.viz3d --xmf snapshot.xmf --stride 4
+python -m mageometry.viz3d --xmf snapshot.xmf --h5 field.h5
+python -m mageometry.viz3d --vtk snapshot.vti
+python -m mageometry.viz3d --h5 field.h5 --origin 0 0 0 --spacing 1 1 1
 ```
 
 Replace filenames, origin, and spacing with your own values. Relative CLI
@@ -83,13 +113,14 @@ See [exact format requirements](simulation_data_formats.md#part-iii--bundled-rea
 ## Select a diagnostic and a slice
 
 ```bash
-python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --component beta_g --slice x --slice-only
-python examples/fac_viewer.py --component mu0J_b --slice x --slice-origin -6 0 0 --slice-only
+python -m mageometry.viz3d --xmf snapshot.xmf --component beta_g --slice x --slice-only
+python -m mageometry.viz3d --component mu0J_b --slice x --slice-origin -6 0 0 --slice-only
 ```
 
 `--slice x` means a plane **normal to x**, so it displays YZ. `--slice-origin`
 specifies a point on the plane in grid coordinates, not a camera position.
-With no slice direction specified, the CLI's face-on panel starts on XZ.
+With no slice direction specified, a single snapshot starts on XZ.
+By comparisons start on YZ at x = −6 Re.
 
 | Control | Action |
 | --- | --- |
@@ -234,7 +265,7 @@ draws a reference sphere; use `mask=` to exclude its interior from analysis.
 For an off-screen PNG:
 
 ```bash
-python examples/geometry_viewer_simulation.py --xmf snapshot.xmf --component gamma --slice x --slice-only --screenshot geometry.png
+python -m mageometry.viz3d --xmf snapshot.xmf --component gamma --slice x --slice-only --screenshot geometry.png
 ```
 
 For Python screenshots, set `pyvista.OFF_SCREEN = True` before constructing
@@ -293,7 +324,8 @@ python benchmark/readme_screenshots.py --output-dir /tmp/mageometry-screenshots
 ```
 
 The script renders ten PNGs directly from the current viewer using
-`examples/fac_viewer.py`'s T96 + dipole snapshot and source metadata. It
+the shared `mageometry.session.presets.model_snapshot` T96 + dipole data
+and source metadata. It
 uses the default 120,000-node preview budget, a 1920 × 960 window, the
 companion slice panel, and a YZ plane at x = −6 Re. The screenshots in
 the README were captured on 2026-09-25 with PyVista 0.49.0.
@@ -335,11 +367,11 @@ set of magnetic lines is retained. Colour limits and per-diagnostic thresholds
 are shared; all six transverse diagnostics are available through F5/F6.
 
 ```bash
-python examples/geometry_viewer.py --background dipole --contribution residual --component gamma --slice x
-python examples/geometry_viewer_simulation.py --vtk total.vti --background-vtk background.vti --component eta
+python -m mageometry.viz3d --background dipole --contribution residual --component gamma --slice x
+python -m mageometry.viz3d --vtk total.vti --background-vtk background.vti --component eta
 ```
 
-For selection in the standalone viewer, start `python examples/geometry_viewer.py` and use
+For selection in the standalone viewer, start `python -m mageometry.viz3d` and use
 **BACKGROUND → Dipole**, followed by **CONTRIBUTION → Residual gradient**.
 The ordinary `geometry_view` also has this menu; Python callers register
 presets via `background_choices={'Reference': background}`. **None (total
