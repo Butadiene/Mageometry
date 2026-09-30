@@ -407,6 +407,11 @@ and file-input recipes, units, shared scales, memory limits, and screenshots.
 The calculation is also available as `mageometry.geometry.field_line_transverse_geometry`
 and the top-level `mageometry.field_line_transverse_geometry`.
 
+The [flux-tube decomposition figure](docs/transverse_decomposition_figure.md)
+and [directional-rotation figure](docs/directional_rotation_figure.md) connect
+the transverse matrix to 3D field lines, cross-section changes, and the
+azimuthal mean ⟨Ω⟩_φ = α/2. Both provide English/Japanese vector and PNG downloads.
+
 `viz3d.current_view` extends the FAC layout with a **component selector**.
 Click the top **dropdown** to choose a named component, or use **F5 / F6**
 (previous / next), to switch the 3D regions,

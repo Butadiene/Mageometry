@@ -142,6 +142,10 @@ $$
 Thus Ω_n = p, Ω_b = −q, Ω_n+Ω_b = α, Ω_n−Ω_b = β_g,
 and the azimuthal mean is α/2. The extreme rates are (α±Γ)/2.
 FAC constrains the mean; β_g and δ_g describe its directional variation.
+The [directional-rotation concept figure](directional_rotation_figure.md)
+connects these identities to labelled neighbouring field lines, signed
+normal-plane arrows and the Ω(φ) curve, with editable English/Japanese
+SVG, PDF and PNG versions.
 The directional rate and its azimuthal mean agree with
 [Tassev and Savcheva (2019), Eqs. (83)–(86)][tassev-savcheva].
 With ∂_s **n** = −κ**T** + τ**b**, the angle measured in the Frenet

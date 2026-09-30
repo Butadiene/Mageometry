@@ -30,6 +30,20 @@ With `.[viz]`, run `python benchmark/transverse_decomposition_figure.py
 --language both`. Japanese output also requires a CJK font. The generator
 checks areas, strain axes, rotation, and the recovered transverse gradients.
 
+## Directional-rotation concept figure
+
+The [directional-rotation guide](../directional_rotation_figure.md) provides
+English and Japanese SVG, PDF and PNG files named `directional-rotation.*`
+and `directional-rotation-ja.*`. This original mathematical illustration
+links 3D neighbours, signed angular arrows and Ω(φ), including Ω_n = p,
+Ω_b = −q, the FAC sum, signed-shear difference and mean α/2. It uses the
+same zero-torsion reference curve as the decomposition figure and specifies
+the general Frenet correction dφ/ds = Ω − τ.
+
+With `.[viz]`, run `python benchmark/directional_rotation_figure.py --language
+both`. The guide lists the illustrative coefficients, scales and numerical
+checks. No external image or simulation data is used.
+
 ## Qt desktop workspace
 
 Requires `.[gui]` and a working desktop/OpenGL display. Run:

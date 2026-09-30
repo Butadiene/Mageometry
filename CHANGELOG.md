@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Add a companion directional-rotation concept figure in English and
+  Japanese (SVG/PDF/PNG), connecting neighbouring field lines to Ω(φ),
+  Ω_n = p, Ω_b = −q, their sum/difference and the azimuthal mean α/2.
+  Include a reproducible generator, numerical checks and frame assumptions.
+
 - Document desktop installation and startup in the README, distinguish Qt
   workspace captures from standalone viewers and the design mockup, and
   index image sources and regeneration commands. Refresh standalone By and

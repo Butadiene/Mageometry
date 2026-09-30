@@ -30,6 +30,12 @@ its mapped image, and the orange line and dot identify the same neighbouring
 field line. This marker reveals rotation even when a circular outline
 does not change shape.
 
+The figure defines A₀ and A₁ as the flux-tube cross-sectional areas
+perpendicular to **T** at s₀ and s₀ + ℓ, respectively. Here s is arc length
+along the reference field line, and ℓ is the arc length between these
+sections, not their straight-line separation. These area symbols are
+distinct from the dimensionless ratio A = Γ/|α| in the baseline theory.
+
 | Isolated coefficient | What changes | What stays fixed |
 | --- | --- | --- |
 | θ > 0 | Both transverse lengths grow by exp(θℓ/2); area grows by exp(θℓ) | Circular shape and the marked radius's angle |
@@ -45,6 +51,9 @@ its antisymmetric part.
 Even a symmetric strain can change the angle of a particular marked radius,
 as the β_g panel shows. Here α/2 is the azimuthal mean angular rate; zero
 α does not require every neighbouring field line to keep its initial angle.
+The [directional-rotation companion figure](directional_rotation_figure.md)
+shows Ω(φ), the signs Ω_n = p and Ω_b = −q, and their sum, difference and
+uniform azimuthal mean in 3D, cross-section and graph views.
 
 The middle two columns together represent the two degrees of freedom of
 the symmetric, trace-free term. This is the part corresponding to Selinger's

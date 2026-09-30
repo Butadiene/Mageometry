@@ -308,16 +308,22 @@ def make_figure(language, cjk_font=None):
         fig.text(x, .159, definition, fontsize=16, color=color, ha='center')
         fig.text(x, .127, effect, fontsize=13, color=INK, ha='center')
 
-    label(.04, .085, 'Dashed grey: initial section     Colour: mapped section     Orange: the same labelled field line',
+    label(.04, .101,
+          r'$A_0, A_1$: areas normal to $\mathbf{T}$ at $s_0$ and $s_0+\ell$;    '
+          r'$\ell$: arc length between sections along the reference line.',
+          'A₀, A₁：s₀ と s₀ + ℓ での T に垂直な断面積。　'
+          'ℓ：両断面間の基準磁力線に沿った弧長。',
+          size=10.5, color=INK)
+    label(.04, .075, 'Dashed grey: initial section     Colour: mapped section     Orange: the same labelled field line',
           '灰色の破線：初期断面　　実線：移動先の断面　　オレンジ：同じ磁力線を追う目印',
           size=11, color=MUTED)
-    label(.96, .085, 'Negative signs reverse the illustrated map.',
+    label(.96, .075, 'Negative signs reverse the illustrated map.',
           '符号が負の場合は逆向きの写像。', size=10.5, color=MUTED, ha='right')
-    fig.add_artist(Line2D([.04, .96], [.065, .065], transform=fig.transFigure,
+    fig.add_artist(Line2D([.04, .96], [.050, .050], transform=fig.transFigure,
                           color='#d8e0e7', linewidth=.8))
-    fig.text(.04, .033, r'$\boldsymbol{\xi}(s_0+\ell)=\exp(\ell M)\,\boldsymbol{\xi}(s_0)$',
+    fig.text(.04, .018, r'$\boldsymbol{\xi}(s_0+\ell)=\exp(\ell M)\,\boldsymbol{\xi}(s_0)$',
              fontsize=14, color=INK)
-    label(.365, .035, 'Constant local coefficients; transported frame (torsion = 0 here).  s is distance, not time.',
+    label(.365, .020, 'Constant local coefficients; transported frame (torsion = 0 here).  s is distance, not time.',
           '局所係数を固定した細い管の模式図。図の基底はねじれなし（τ = 0）。s は時間ではなく距離。',
           size=10.3, color=MUTED)
     return fig
