@@ -11,13 +11,13 @@ models, analytic test fields, and interpolated simulation data.
 | Open a snapshot, select a component, and inspect slices | [Viewer guide](viewer.md) |
 | Run the unified desktop GUI and save analysis sessions | [Desktop workspace](gui.md) |
 | Read Japanese explanations of every desktop control and all 21 diagnostics | [3D viewer 日本語詳細ガイド](gui_ja.md) |
-| Switch datasets using shared scales, thresholds, and slices | [Dataset comparison](data_comparison.md) |
-| Review the accepted GUI design and schematic layout | [GUI design reference](gui_design.md) · [Interactive mockup](gui_mockup.html) |
+| Switch datasets using shared scales, thresholds, and slices | [Dataset comparison](viewer.md#compare-datasets-in-python) |
+| Develop the desktop/session code and check its boundaries | [Desktop architecture](gui_architecture.md) |
 | Identify or regenerate documentation images | [Image sources and capture commands](images/README.md) |
 | Interpret rotation, shear, anisotropy, and coiling | [Transverse geometry](transverse_geometry.md) |
 | See how each transverse coefficient changes a flux-tube section | [Concept figure and vector downloads](transverse_decomposition_figure.md) |
 | Relate directional neighbour rotation to its mean and FAC | [Directional-rotation figure and vector downloads](directional_rotation_figure.md) |
-| Check baseline notation, assumptions, and R1/R2 research hypotheses | [FAC anisotropy theory](fac_anisotropy_theory.md) |
+| Check baseline notation, assumptions, and R1/R2 research hypotheses | [FAC anisotropy theory](fac_anisotropy_theory.md) · [日本語訳](fac_anisotropy_theory_ja.md) |
 | Run numerical examples or a viewer from the terminal | [Examples and entry points](../examples/README.md) |
 | Follow worked numerical examples | [Notebook index](../examples/notebooks/README.md) |
 | Check installation, field models, and measured performance | [Project README](../README.md) |
@@ -35,9 +35,9 @@ python -m pip install -e '.[gui]'           # Qt desktop workspace, including fi
 python -m pip install -e '.[examples]'      # notebooks and benchmarks
 ```
 
-The `examples` extra does not include PyVista; use `.[examples,viz3d]`
-for notebooks that use 3D plotting. The `viz` extra provides Matplotlib
-alone. Importing Mageometry does not download data or coefficients.
+The tutorials use Matplotlib and need no PyVista. The `examples` extra
+does not include PyVista; add `viz3d` for standalone viewers or your own
+PyVista work. The `viz` extra provides Matplotlib alone. Importing Mageometry does not download data or coefficients.
 
 ## Start without a data file
 

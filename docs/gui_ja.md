@@ -1,6 +1,6 @@
 # 3D viewer 日本語詳細ガイド
 
-[ドキュメント一覧](README.md) · [英語版 GUI ガイド](gui.md) · [理論と記号の基準](fac_anisotropy_theory.md)
+[ドキュメント一覧](README.md) · [英語版 GUI ガイド](gui.md) · [理論と記号の基準（日本語）](fac_anisotropy_theory_ja.md)
 
 Mageometry の 3D viewer で、各設定が何を変えるか、表示された量をどう読むかを説明します。
 対象は `python -m mageometry.gui` で起動する Qt デスクトップ画面です。
@@ -80,6 +80,7 @@ IMF By = −10・−5・0・+5・+10 nT の5ケースで起動します。
 | Analysis、入力ソース、背景の編集 | **Apply and recompute** で適用します。編集中の値が、そのまま現在の図の条件になるわけではありません。 |
 | Group | そのグループの条件で準備し、記憶している表示設定を使います。 |
 
+準備済みの結果がない間は Display の操作は無効です。
 計算中は直前の結果が残ります。新しい計算が成功するまで、結果ヘッダーは直前の図の条件を示します。
 画面最下部の進捗・エラー表示と、Analysis の未適用編集の表示を併せて確認してください。
 
@@ -1066,7 +1067,7 @@ python -m mageometry.gui --session saved-session.json --screenshot restored.png
 ## 関連資料
 
 - [GUI ガイド](gui.md)：英語の操作説明、撮影条件、再生成手順。
-- [FAC anisotropy theory](fac_anisotropy_theory.md)：記号・恒等式・仮定・R1/R2 研究仮説を区別した理論の基準。
+- [FAC と横断面異方性の基礎理論](fac_anisotropy_theory_ja.md)：記号・恒等式・仮定・R1/R2 研究仮説を区別した理論の基準。
 - [Transverse geometry](transverse_geometry.md)：幾何診断量の Python API と有効性。
 - [Geometry analysis](geometry_analysis.md)：曲率・基底・電流などの計算 API。
 - [磁束管の分解図](transverse_decomposition_figure.md)：日本語・英語の SVG、PDF、PNG。

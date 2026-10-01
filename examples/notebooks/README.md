@@ -1,37 +1,69 @@
-# Mageometry Notebooks Index
+# Notebook tutorials
 
-Tutorial notebooks for Mageometry. From the repository root, install their
-dependencies with `python -m pip install -e '.[examples]'` (Matplotlib,
-Jupyter, pandas, psutil, and h5py). For interactive 3D examples, use
-`python -m pip install -e '.[examples,viz3d]'` to include PyVista as well.
+[Examples](../README.md) · [Analysis API](../../docs/geometry_analysis.md)
+· [Theory](../../docs/fac_anisotropy_theory.md) · [理論の日本語訳](../../docs/fac_anisotropy_theory_ja.md)
 
-## Start here: the analysis library
+Install from the repository root with `python -m pip install -e '.[examples]'`.
+Open a notebook in Jupyter and run it top to bottom in a fresh kernel. Every
+notebook is self-contained: small deterministic examples, no external data or
+network access, and no Qt/PyVista requirement. They use the installed package;
+there is no working-directory change or `sys.path` injection.
 
-| # | Notebook | Description |
-|---|----------|-------------|
-| 7 | [07_fieldline_geometry_and_derivatives](07_fieldline_geometry_and_derivatives.ipynb) | **Field line geometry with Mageometry**: field callables (`geopack_field`), the Frenet-Serret frame, the nine directional derivative formulas, NaN/validity conventions and the finite-difference quality diagnostic, choosing δ, geometry along traced field lines, vectorization, meridian maps |
-| 10 | [10_current_density_from_geometry](10_current_density_from_geometry.ipynb) | **Current density from field line geometry**: the Frenet-frame decomposition μ₀J = B(dT_dn_b + dn_db_T) T + (∂B/∂b) n + (Bκ − ∂B/∂n) b, |B| gradients along the frame (`field_magnitude_derivatives`), validation against a finite-difference ∇×B, the current-free dipole as a cancellation test, ∇·B from the frame (and where T96 is genuinely non-solenoidal), parallel-current and twist maps, performance |
-| 9 | [09_visualization](09_visualization.ipynb) | **Visualization with `mageometry.viz`**: geometry maps on planes, traced lines coloured by a quantity (2D and 3D), profiles along lines, Frenet frame arrows, custom quantities, and the same plots on gridded data |
-| 8 | [08_simulation_data_geometry](08_simulation_data_geometry.ipynb) | **Simulation data pipeline**: write a compatible XDMF/HDF5 file (from a T96 reference field, so every step is checkable), `load_xdmf` / `GriddedField`, linear vs cubic interpolation, curvature through the file, tracing with `bounds`, the Frenet frame and the nine directional derivatives through the file (validity, accuracy vs the model), bringing your own data |
+## Analysis learning path
 
-## The geopack field engine
+| Notebook | What it demonstrates |
+| --- | --- |
+| [07 — Frames and derivatives](07_fieldline_geometry_and_derivatives.ipynb) | Analytic helix, nine independent projections, NaN masks, step convergence, dipole maps |
+| [08 — Sampled data](08_simulation_data_geometry.ipynb) | Temporary XDMF/HDF5 round trip, axis order, linear/cubic interpolation errors, bounded tracing |
+| [09 — Python plotting](09_visualization.ipynb) | Matplotlib maps, paths, profiles, frame arrows and explicit transverse diagnostic callables |
+| [10 — Current and along-field derivatives](10_current_density_from_geometry.ipynb) | Known Cartesian curl, current conversion, dipole cancellation, analytic `dalpha_ds`/`dalpha_ds_over_B`/`dfac_ds` |
+| [11 — Transverse geometry and FAC](11_transverse_geometry_and_fac.ipynb) | Equal FAC with different shear, directional rotation, total-frame background attribution and nonadditive norms |
 
-These cover `mageometry.geopack`, the vectorized geopack fork that serves as one field source.
+Use [05 — Tracing](05_field_line_tracing_guide.ipynb) alongside this path to
+learn generic tracing, termination codes and the opposite geopack direction
+convention. The [desktop guide](../../docs/gui.md) and
+[standalone viewer guide](../../docs/viewer.md) cover interactive applications;
+notebooks focus on analysis from Python.
 
-| # | Notebook | Description |
-|---|----------|-------------|
-| 1 | [01_coordinate_transformations_guide](01_coordinate_transformations_guide.ipynb) | Coordinate system transforms (GEI, GEO, GSM, GSE, SM, MAG, GSW) with scalar and vectorized implementations |
-| 2 | [02_magnetic_field_models_guide](02_magnetic_field_models_guide.ipynb) | External Tsyganenko models (T89, T96, T01, T04), internal field models (dipole, IGRF), and total field calculation |
-| 3 | [03_performance_comparison](03_performance_comparison.ipynb) | Scalar vs vectorized benchmarks across coordinates, field models, IGRF, and tracing |
-| 4 | [04_accuracy_validation](04_accuracy_validation.ipynb) | Numerical accuracy verification of vectorized vs scalar implementations |
-| 5 | [05_field_line_tracing_guide](05_field_line_tracing_guide.ipynb) | Engine tracer (`geopack.trace` scalar vs `trace_vectorized`), plus a closing section on the library-level `trace_field_lines` |
-| 6 | [06_field_line_tracing_validation](06_field_line_tracing_validation.ipynb) | Engine tracing accuracy validation: endpoint agreement, path comparison, reversibility |
+## Model sources
 
-## Advanced examples
+| Notebook | What it demonstrates |
+| --- | --- |
+| [01 — Coordinates](01_coordinate_transformations_guide.ipynb) | Explicit UTC epoch, forward/inverse rotations, scalar/array agreement and vector components |
+| [02 — Magnetic models](02_magnetic_field_models_guide.ipynb) | T89/T96/T01/T04 callables, shared source adapters, domain masking, model comparisons and geometry |
 
-Detailed directional derivative map notebooks are in [`directional_derivatives_maps/`](directional_derivatives_maps/):
+Number gaps preserve the retained notebooks' filenames and incoming links.
 
-| Notebook | Description |
-|----------|-------------|
-| [dipole_field_directional_derivatives](directional_derivatives_maps/dipole_field_directional_derivatives.ipynb) | Dipole field derivative maps on meridional and equatorial planes with analytical comparison |
-| [t96_field_directional_derivatives](directional_derivatives_maps/t96_field_directional_derivatives.ipynb) | T96 model derivative maps on multiple planes with field-aligned current calculations (stored without outputs; run it to generate the figures) |
+## Reproduce the tutorials
+
+Tracked notebooks contain source and assertions, without stale outputs or
+execution counts. Execute all eight in independent kernels, retaining results
+outside the source tree for review:
+
+```bash
+python benchmark/check_notebooks.py --output /tmp/mageometry-notebooks
+# Or rerun one notebook:
+python benchmark/check_notebooks.py examples/notebooks/10_current_density_from_geometry.ipynb \
+  --output /tmp/mageometry-notebooks
+```
+
+The runner executes every cell with the normal notebook parameters, validates
+notebook structure, fails on errors, and never overwrites input notebooks.
+The file tutorial cleans up its generated data; use its documented reader
+contract when substituting your own snapshots. Assertions check these examples,
+not universal tolerances for observations or simulations.
+
+## Consolidated material
+
+The former validation/benchmark notebooks duplicated maintained test and
+benchmark code. Their replacements are:
+
+| Retired material | Current location |
+| --- | --- |
+| `03_performance_comparison` | `benchmark/readme_benchmarks.py` and `benchmark/readme_overhead_decomposition.py`; [measured results](../../README.md#performance-benchmarks) |
+| `04_accuracy_validation` | `tests/test_vectorized_models.py` and `benchmark/readme_validation.py`; small scalar/array checks in 01/02 |
+| `06_field_line_tracing_validation` | `tests/test_trace_vectorized.py`, `tests/test_trace_vectorized_with_vectorized_models.py`, `tests/test_tracing.py`; tutorial checks in 05 |
+| Separate dipole/T96 directional-map notebooks | One callable-based map workflow in 07; source adapters in 02, current diagnostics in 10, transverse diagnostics in 11 |
+
+Run the full regression suite with `python -m unittest discover tests/`.
+Benchmark scripts report measured performance independently of tutorial execution.

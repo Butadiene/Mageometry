@@ -4,11 +4,9 @@
 · [Standalone viewers](../viewer.md)
 
 The figures in this directory include application renders of model or
-analytic fields and original mathematical illustrations. The Qt workspace,
-standalone PyVista viewers, and HTML design mockup
-have different controls. Use a capture of the relevant application when
-illustrating a workflow. The [mockup](../gui_mockup.html) contains schematic
-diagrams and performs no magnetic calculations.
+analytic fields and original mathematical illustrations. The Qt workspace and
+standalone PyVista viewers have different controls. Use a capture of the
+relevant application when illustrating a workflow.
 
 Run regeneration commands from the repository root. Inspect the selected
 case, diagnostic, contribution, plane, units, colour limits, and visible
@@ -156,7 +154,7 @@ independent residual magnetic fields. See the
 Both use the default six-case comparison, direct 0.002 Re derivatives,
 a 59 × 44 × 44 preview, the YZ plane at x = −6 Re, and a scale shared
 across all six cases. Regenerate with the
-[comparison commands](../data_comparison.md#example-views), using `.[viz3d]`.
+[comparison commands](../viewer.md#comparison-screenshots), using `.[viz3d]`.
 
 ## Analytic transverse geometry
 

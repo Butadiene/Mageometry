@@ -214,6 +214,21 @@ class TestViz(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.viz.plot_line_profiles(self.trace, dipole_b, axes=[plt.gca()])
 
+    def test_frenet_frame_broadcast_coordinates_and_partial_validity(self):
+        def helix(x, y, z):
+            return -y, x, np.ones_like(z)
+
+        x = np.array([[0.], [1.]])
+        y = np.array([[0., .5, 1.]])
+        out = self.viz.plot_frenet_frame(helix, x, y, 0., plane='xy')
+        self.assertEqual(out['T'].N, 6)
+        self.assertEqual(out['n'].N, 5)
+        np.testing.assert_allclose(out['T'].X, [0., 0., 0., 1., 1., 1.])
+        np.testing.assert_allclose(out['T'].Y, [0., .5, 1., 0., .5, 1.])
+        ax = plt.figure().add_subplot(111, projection='3d')
+        out3 = self.viz.plot_frenet_frame(helix, x, y, 0., ax=ax)
+        self.assertEqual(set(out3), {'T', 'n', 'b'})
+
     def test_frenet_frame_2d_3d_and_nan(self):
         out = self.viz.plot_frenet_frame(dipole_b, [3.0, 4.0], [0.0, 0.0], [0.0, 1.0],
                                          delta=0.05, plane='xz')

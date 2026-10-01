@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Fix Frenet-frame plotting for broadcast coordinate arrays, preserving
+  per-vector validity masks, and label model backgrounds with the assigned
+  model instead of unconditionally reporting a dipole.
+
+- Separate desktop display widgets and rendering callbacks from the session
+  window. Disable display editing until a prepared result is available.
+- Consolidate comparison documentation into the standalone viewer guide and
+  replace the obsolete GUI design/mockup with implemented architecture notes.
+  Reduce duplicated viewer instructions in the README. Add a complete Japanese
+  translation of the FAC anisotropy baseline and document along-field API units.
+- Rework tutorials into eight small executable notebooks: add transverse
+  geometry/background attribution and analytic along-field derivative checks;
+  retire duplicated benchmark, validation and directional-map notebooks in
+  favor of maintained scripts/tests. Clear stored outputs and add
+  `benchmark/check_notebooks.py` for fresh-kernel execution artifacts.
+
 - Group desktop Display controls into bordered Shared, 3D and peak maps,
   and Slice sections. Place shared sign/colour controls and each view's
   filters, ranges and visibility controls together, with their scope labeled.
@@ -118,7 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `viz3d.compare_geometry` for labelled grids with independent dataset
   and diagnostic selectors, shared scales and thresholds, fixed trace seeds,
   preserved camera/slice state, and bounded case-preview caches. Add a
-  six-case T96 IMF By example and a [comparison guide](docs/data_comparison.md).
+  six-case T96 IMF By example and a [comparison guide](docs/viewer.md#compare-datasets-in-python).
 - Support per-case direct magnetic callables in `viz3d.compare_geometry`
   with an explicit shared derivative step. The T96 comparison defaults to
   direct evaluation at 0.002 Re with the original 65 × 49 × 49 display grid;

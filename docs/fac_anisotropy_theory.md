@@ -1,7 +1,7 @@
 # Baseline theory: FAC and transverse magnetic anisotropy
 
 [Documentation index](README.md) · [Transverse API](transverse_geometry.md)
-· [Viewer guide](viewer.md)
+· [Viewer guide](viewer.md) · [日本語訳](fac_anisotropy_theory_ja.md)
 
 This document defines the project's baseline for field-aligned current
 (FAC) and transverse magnetic anisotropy. It specifies the notation,
@@ -76,7 +76,7 @@ does not assume a force-free field.
 | β_g | p+q = 𝒟/B | `beta_g` |
 | δ_g | a−d | `delta_g` |
 | Γ | √(β_g²+δ_g²) | `gamma`; displayed as `Gamma` |
-| θ | a+d = tr M = ∇·**T** | Internal transverse trace; no public output yet |
+| θ | a+d = tr M = ∇·**T** | `trace` in each `field_line_transverse_decomposition` branch; not a standalone geometry output |
 | 𝒟 | Bβ_g | Legacy `B_twist_diff` estimates this using frame derivatives |
 | ω_c | sgn(α)√max(α²−Γ²,0)/2 | `omega_c` |
 | η | (α²−Γ²)/(α²+Γ²) | `eta` |

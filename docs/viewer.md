@@ -41,39 +41,9 @@ nA/m². File inputs retain their native units. `--shape NX NY NZ` sets the
 model display grid; `--evaluation grid` selects interpolated derivatives
 and traces for a model. File sources always use grid evaluation.
 
-### Desktop example launchers
-
-The example scripts now open the [Qt desktop workspace](gui.md) and require
-`.[gui]`. Their source and diagnostic presets are:
-
-| Script | Preset |
-| --- | --- |
-| `examples/geometry_gui.py` | Standard entry point: single model, `alpha` |
-| `examples/geometry_viewer_simulation.py` | Requires an explicit `--xmf`, `--vtk`, `--h5`, or saved `--session` |
-| `examples/compare_t96_by.py` | Dst = −30 nT, IMF Bz = −10 nT; defaults to `--by -10 -5 0 5 10` |
-
-They accept `--layout three_d_slice` for 3D and slice only, and
-`--component fac` to start on FAC. To open the standalone interface described
-in this guide, use `python -m mageometry.viz3d`.
-The examples contain no separate loading or rendering implementation. Model
-helpers live in `mageometry.session.presets`; import `model_snapshot`,
-`make_cases` and `make_fields` from there. The standalone CLI and Qt workspace
-use the same model recipes and source evaluators. Their controls and rendering shells remain
-separate; dataset comparison with background contributions together is
-available in the Qt workspace.
-
-### Compare model cases
-
-For multiple snapshots, use `viz3d.compare_geometry(cases, ...)`. Its
-**DATASET** dropdown (F7/F8) changes the selected grid while preserving
-camera, slice, diagnostic, shared colour scale, and absolute threshold.
-`python -m mageometry.viz3d --by -5 -3 -1 1 3 5` generates six IMF By cases in memory.
-It defaults to direct model derivatives/tracing with a 0.002 Re difference
-step and the single-case example's 65 × 49 × 49 display grid. Add
-`--evaluation grid` for grid interpolation. Python callers can supply
-per-case `fields` and an explicit shared `delta` to `compare_geometry`.
-See [dataset comparison](data_comparison.md) for data requirements,
-shared-scale rules, fixed trace seeds, and cache controls.
+For desktop launch presets, see the [example index](../examples/README.md#desktop-example-launchers).
+For multiple datasets, see [comparison in Python](#compare-datasets-in-python)
+and the shared settings below.
 
 ## Supply your file
 
@@ -222,8 +192,8 @@ For exact derivatives, `∂s FAC = B ∂s alpha + alpha ∂s B` in native units;
 `dfac_ds` is not generally `B*dalpha_ds`.
 
 ```bash
-python examples/geometry_viewer_simulation.py --xmf ea01sw000.xmf \
-  --stride 4 --component dalpha_ds_over_B --slice x --layout three_d_slice
+python -m mageometry.viz3d --xmf snapshot.xmf \
+  --stride 4 --component dalpha_ds_over_B --slice x --slice-only
 ```
 
 Use `--component dalpha_ds` or `--component dfac_ds` for the other derivatives.
@@ -276,7 +246,7 @@ features; see [numerical guidance](geometry_analysis.md#undefined-geometry-and-s
 In comparisons, supplying per-case `fields` uses the direct-evaluation
 path with an explicit shared `delta`. Display-grid coarsening then changes
 the sampled diagnostic locations, without changing the magnetic field used
-for derivatives or tracing. See [direct model evaluation](data_comparison.md#direct-model-evaluation-in-python).
+for derivatives or tracing. See [direct model evaluation](#direct-model-evaluation-in-python).
 
 ## Python API, native units, and screenshots
 
@@ -317,6 +287,193 @@ python -m mageometry.viz3d --xmf snapshot.xmf --component gamma --slice x --slic
 For Python screenshots, set `pyvista.OFF_SCREEN = True` before constructing
 the plotter, pass `show=False`, then call `plotter.screenshot(path)` and
 `plotter.close()`.
+
+## Compare datasets in Python
+
+`compare_geometry(cases, ...)` accepts an ordered mapping of labels to
+`GriddedField` snapshots. **DATASET** (F7/F8) and **COMPONENT** (F5/F6) are
+independent, including in the F4 enlarged slice. For example:
+
+```bash
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --initial-by 5 --slice-only
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --evaluation grid
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --color-limit 0.2 --screenshot comparison.png
+```
+
+The CLI creates T96 + dipole grids at epoch 100 Unix seconds, Pdyn = 2 nPa,
+Dst = −20 nT and IMF Bz = −5 nT, with GSM coordinates in Re and fields in nT.
+`--initial-by` must occur in `--by`. `--color-limit` and `--threshold`
+apply to the initial diagnostic. Default display sampling is 65 × 49 × 49
+on x = [−15, 5], y/z = [−8, 8] Re, with a 120000-node preview budget.
+The inner r < 2.5 Re region is masked. Currents use the 0.125 conversion.
+The five-case [desktop preset](../examples/README.md#desktop-example-launchers)
+uses different Dst/Bz/By conditions; reproduce comparisons with explicit inputs.
+
+Direct evaluation uses a 0.002 Re Cartesian FAC step (`--delta`), also the
+default geometry step; `--geometry-delta` overrides geometry alone.
+Grid mode rejects `--delta`: FAC uses preview-axis differences and geometry
+defaults to the smallest preview spacing. `--shape` and `--max-points`
+together control the sampled display resolution. Model callables restore
+their epochs on every evaluation; evaluation remains serial because geopack
+has shared state. For combined dataset/background selection and saved recipes,
+use the [desktop workspace](gui.md).
+
+### Direct model evaluation in Python
+
+The same T96 helpers are available from the installed package:
+
+```python
+from mageometry.session.presets import make_cases, make_fields, inner_mask
+from mageometry import viz3d
+
+by_values = (-5., 0., 5.)
+viz3d.compare_geometry(
+    make_cases(by_values), fields=make_fields(by_values), delta=0.002,
+    mask=inner_mask, component='alpha', length_unit='Re',
+    current_scale=0.125, current_unit='nA/m^2', slice_panel=True)
+```
+
+`fields` is a mapping with exactly the same labels as `cases`. Each value
+accepts broadcast coordinates and returns `(bx, by, bz)` in the corresponding
+grid's coordinates and units. All cases must supply a callable, and an
+explicit positive shared `delta` is required (a scalar or three Cartesian
+steps). The default geometry step is `min(delta)`; `geometry_delta` can
+override it. A single shared `field` is rejected to avoid assigning the
+wrong model to a case. Omitting `fields` keeps the grid-data workflow.
+
+The callables supply field values at derivative stencil points and along
+traces. Input grids still define the display coordinates and base validity
+mask: a NaN input node stays blank even when its callable is defined there.
+Callables must represent the same magnetic field as their grids and remain
+reproducible after evaluating another case. The viewer does not interpret
+model names, parameters, or epochs. Stateful models need an adapter such as
+the shared model source evaluator.
+
+### Supply model grids or file data
+
+This small standalone example requires no files:
+
+```python
+import numpy as np
+from mageometry import GriddedField, viz3d
+
+axis = np.linspace(-2, 2, 25)
+x, y, z = np.meshgrid(axis, axis, axis, indexing='ij')
+cases = {}
+for strength in (0.5, 1.0, 1.5):
+    cases[f'Twist = {strength:g}'] = GriddedField(
+        axis, axis, axis, -strength*y, strength*x, np.ones_like(x),
+        metadata={'coordinate_system': 'Cartesian',
+                  'length_unit': 'm', 'field_unit': 'T'})
+
+viz3d.compare_geometry(cases, component='alpha', length_unit='m',
+                       slice_panel=True, slice_normal='z',
+                       color_limits={'alpha': 3.0}, cache_size=2)
+```
+
+For files, construct the mapping with the existing readers:
+
+```python
+from mageometry import load_xdmf, viz3d
+
+# Replace these placeholders with your files; use identical reader settings.
+cases = {'Run A': load_xdmf('run_a.xmf', stride=4),
+         'Run B': load_xdmf('run_b.xmf', stride=4)}
+viz3d.compare_geometry(cases, component='fac', slice_panel=True)
+```
+
+The first mapping entry is the **reference case**, supplying default
+thresholds and automatic magnetic-line seeds. `initial_case='Run B'` changes
+only the initially displayed case. For reproducible tracing independent
+of the initial diagnostic, supply explicit `seeds` in grid coordinates.
+The CLI model comparison does this.
+
+### Comparison contract
+
+- All cases must have exactly identical x/y/z axes with at least three
+  nodes per axis. Different grids must be resampled before calling the
+  viewer; it does not silently align them.
+- Coordinates, units, and preprocessing must agree. Conflicting declared
+  `coordinate_system`, `length_unit`, or `field_unit` metadata are rejected.
+  Missing declarations are allowed; the caller remains responsible for
+  consistency. Neither metadata nor labels convert units.
+- `max_points`, `mask`, `delta`, `geometry_delta`, `current_scale`, and display unit
+  labels apply to every case. Do not mutate the input arrays while viewing.
+- All cases use the same evaluation mode. Without `fields`, FAC uses
+  Cartesian grid differences and other diagnostics/traces use the linear
+  preview interpolant. With `fields`, all magnetic derivatives and traces
+  use the selected callable and the shared explicit difference steps.
+- NaN stays blank and validity is specific to each diagnostic. A case with
+  no valid results keeps its label and reports that the quantity is
+  unavailable. Numerical preparation failures retain the previous scene
+  and selected labels, and raise an error.
+
+| State | Dataset selection |
+| --- | --- |
+| Camera, pan, zoom, projection | Preserved in every panel |
+| Slice normal/origin and F4 mode | Preserved |
+| Diagnostic | Preserved |
+| Colour range | Shared across all cases for that diagnostic |
+| Absolute threshold | Shared across cases, remembered per diagnostic |
+| Magnetic-line seeds | Fixed physical coordinates |
+| Magnetic lines | Retraced through the selected direct or interpolated field |
+| Volume, projections, regions, current arrows | Replaced together |
+
+Threshold defaults use the reference case's absolute-value percentile
+(`percentile=90`). The slider then sets an absolute cutoff; it is never
+lowered automatically for a weaker case. Thresholds affect regions,
+arrows, and peak maps. Slices show all finite strengths.
+
+The automatic colour limit is the largest per-case 98th percentile of
+finite absolute values. If that is zero, it falls back to the global peak
+or 1 for entirely zero/invalid data. Colours are symmetric about zero;
+nonnegative `gamma` occupies the positive half. Percentile limits can
+saturate extremes. `color_limits={'alpha': 0.2, 'fac': 0.05}` overrides
+limits in each diagnostic's displayed units. Legends identify the shared
+scale. Eta defaults to a fixed [−1, 1] range instead of percentile scaling.
+Different diagnostics still have separate scales and units.
+
+### Preparation, memory, and numerical resolution
+
+The first use of each diagnostic makes a synchronous pass over all cases
+to establish its common colour limit, slider bounds, and reference
+threshold. The CLI announces initial preparation; later diagnostic
+switches show progress in the window. Even explicit colour limits require
+this pass to set the remaining shared controls. Selection is synchronous
+and can pause the interface while computing or tracing.
+
+`cache_size=2` bounds retained case previews and their derived results.
+Revisiting an evicted case recomputes it. Small scale summaries remain
+cached. During preparation the current scene/selection remains available
+until the replacement is ready. Input grids are all held in memory
+separately; this is not a streaming file loader or a total process memory
+cap. The six default magnetic arrays occupy about 21.4 MiB; derived arrays,
+VTK meshes and tracing require additional memory. One scene is reused.
+
+See [resolution and derivatives](#resolution-memory-and-derivatives) for
+preview coarsening and step convergence. There is no automatic grid alignment,
+streaming file loader, side-by-side case display, or difference-map mode.
+
+### Comparison screenshots
+
+These standalone-viewer images show total-field `alpha`, using direct
+T96 + dipole evaluation with a 0.002 Re difference step. They use the
+default six-case comparison and 59 × 44 × 44 preview, a YZ slice at
+x = −6 Re, and one automatic colour range shared across all six cases.
+They show different cases from the same comparison conditions; they are
+separate from the Qt guide's coarse residual-gradient eta captures.
+
+| IMF By = -5 nT | IMF By = +5 nT |
+| --- | --- |
+| ![Standalone alpha slice at x = -6 Re for IMF By = -5 nT](images/comparison-by-negative.png) | ![Standalone alpha slice at x = -6 Re for IMF By = +5 nT](images/comparison-by-positive.png) |
+
+Regenerate from the repository root:
+
+```bash
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --slice-only --screenshot docs/images/comparison-by-negative.png
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --initial-by 5 --slice-only --screenshot docs/images/comparison-by-positive.png
+```
 
 ## Free slice plane and Frenet frames
 
@@ -387,7 +544,7 @@ eta retains its fixed [−1, 1] scale. Inspect the resulting images after
 changes to layout, labels, or numerical sampling.
 
 The analytic `beta_g` image and IMF By comparison images illustrate separate
-examples; the latter have [their own regeneration commands](data_comparison.md#example-views).
+examples; the latter have [their own regeneration commands](#comparison-screenshots).
 The README's accuracy plots are generated by
 [`benchmark/readme_validation.py`](../benchmark/readme_validation.py).
 

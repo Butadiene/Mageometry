@@ -12,7 +12,7 @@ from ..viz3d._overview_data import _OverviewData, _validate_cases
 from ..viz3d._contribution_data import _ContributionData, CONTRIBUTIONS
 from ..viz3d._current import COMPONENTS, _component_label
 from ..viz3d.fac import _region_seeds
-from .sources import load_source, fingerprint
+from .sources import load_source, fingerprint, source_label
 from .specs import DEFAULT_GEOMETRY_DELTA
 
 
@@ -191,7 +191,7 @@ class SessionEngine:
         metadata = deepcopy(self.grids[key].metadata)
         if self.analysis['kind'] == 'attribution':
             metadata['parameters'] = dict(metadata.get('parameters', {}),
-                                           Background=self.cases[key]['background'].get('path', 'Dipole'),
+                                           Background=source_label(self.cases[key]['background']),
                                            Frame='Total field', Contribution=CONTRIBUTIONS[branch])
         return dict(case=key, case_label=self.cases[key]['label'], component=component,
                     contribution=branch, kind=self.analysis['kind'],

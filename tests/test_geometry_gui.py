@@ -108,17 +108,17 @@ class TestGeometryGUI(unittest.TestCase):
         window.analysis_form.fields['geometry_delta'].setText('.001')
         cameras = window.scene.camera_state()
         original_slice = window.plotter.renderers[1].actors['slice'].mapper.dataset['value'].copy()
-        self.assertEqual(window.threshold.value(), 2.)
+        self.assertEqual(window.display_panel.threshold.value(), 2.)
         with patch.object(window.scene, 'update_display', wraps=window.scene.update_display) as update:
-            window.threshold.setValue(1.234567891)
+            window.display_panel.threshold.setValue(1.234567891)
             self.assertEqual(window.scene.view['thresholds']['field:alpha'], 1.234567891)
             update.assert_called_once()
-            self.assertAlmostEqual(window.threshold_slider.value() / 1000 * window.threshold_slider_max,
-                                   window.threshold.value(), delta=window.threshold_slider_max / 2000)
+            self.assertAlmostEqual(window.display_panel.threshold_slider.value() / 1000 * window.display_panel.threshold_slider_max,
+                                   window.display_panel.threshold.value(), delta=window.display_panel.threshold_slider_max / 2000)
             update.reset_mock()
-            window.threshold_slider.setValue(500)
-            self.assertAlmostEqual(window.threshold.value(), 4.04)
-            self.assertEqual(window.scene.view['thresholds']['field:alpha'], window.threshold.value())
+            window.display_panel.threshold_slider.setValue(500)
+            self.assertAlmostEqual(window.display_panel.threshold.value(), 4.04)
+            self.assertEqual(window.scene.view['thresholds']['field:alpha'], window.display_panel.threshold.value())
             update.assert_called_once()
         self.assertEqual(cameras, window.scene.camera_state())
         np.testing.assert_allclose(window.plotter.renderers[1].actors['slice'].mapper.dataset['value'],
@@ -127,17 +127,17 @@ class TestGeometryGUI(unittest.TestCase):
         self.assertEqual(window.analysis_form.fields['geometry_delta'].text(), '.001')
         saved = window.saved_recipe()['groups'][0]
         self.assertEqual(saved['analysis']['geometry_delta'], .002)
-        self.assertEqual(saved['view']['thresholds']['field:alpha'], window.threshold.value())
+        self.assertEqual(saved['view']['thresholds']['field:alpha'], window.display_panel.threshold.value())
 
     def test_value_sign_updates_display_without_applying_analysis(self):
         window = self.window
         window.analysis_form.fields['geometry_delta'].setText('.001')
         cameras = window.scene.camera_state()
-        self.assertEqual(window.value_sign.currentData(), 'both')
+        self.assertEqual(window.display_panel.value_sign.currentData(), 'both')
         for mode, excluded in (('positive', 'negative'), ('negative', 'positive')):
             with self.subTest(mode=mode):
                 with patch.object(window.scene, 'update_display', wraps=window.scene.update_display) as update:
-                    window.value_sign.setCurrentIndex(window.value_sign.findData(mode))
+                    window.display_panel.value_sign.setCurrentIndex(window.display_panel.value_sign.findData(mode))
                     update.assert_called_once()
                 self.assertEqual(window.scene.view['value_sign'], mode)
                 self.assertIn(mode, window.plotter.renderers[0].actors)
@@ -152,15 +152,15 @@ class TestGeometryGUI(unittest.TestCase):
     def test_interval_and_slice_ranges_are_display_only_and_survive_pending_result(self):
         window = self.window
         window.analysis_form.fields['geometry_delta'].setText('.001')
-        window.value_interval.setText('-.4 1.2')
-        window.threshold_mode.setCurrentIndex(window.threshold_mode.findData('interval'))
-        self.assertFalse(window.threshold.isEnabled())
-        self.assertTrue(window.value_interval.isEnabled())
-        window.slice_color_range.setText('-.2 .8')
-        window.auto_slice_color.setChecked(False)
-        window.slice_horizontal.setText('-1 1')
-        window.slice_vertical.setText('-.5 .5')
-        window.auto_slice_extent.setChecked(False)
+        window.display_panel.value_interval.setText('-.4 1.2')
+        window.display_panel.threshold_mode.setCurrentIndex(window.display_panel.threshold_mode.findData('interval'))
+        self.assertFalse(window.display_panel.threshold.isEnabled())
+        self.assertTrue(window.display_panel.value_interval.isEnabled())
+        window.display_panel.slice_color_range.setText('-.2 .8')
+        window.display_panel.auto_slice_color.setChecked(False)
+        window.display_panel.slice_horizontal.setText('-1 1')
+        window.display_panel.slice_vertical.setText('-.5 .5')
+        window.display_panel.auto_slice_extent.setChecked(False)
         self.assertFalse(self.runner.requests)
         saved = window.saved_recipe()['groups'][0]
         self.assertEqual(saved['analysis']['geometry_delta'], .002)
@@ -169,44 +169,44 @@ class TestGeometryGUI(unittest.TestCase):
         self.assertEqual(saved['view']['slice_color_ranges']['field:alpha'], [-.2, .8])
         self.assertEqual(saved['view']['slice_extent'], [-1., 1., -.5, .5])
         window.select('component', 'eta')
-        window.value_interval.setText('-.3 .9')
-        window.set_value_interval()
+        window.display_panel.value_interval.setText('-.3 .9')
+        window.display_panel.set_value_interval()
         updated = deepcopy(self.result)
         updated.update(component='eta', scale={'limit': 1., 'peak': 1., 'threshold': .25})
         self.runner.events = [(self.runner.token, 'result', updated)]
         window.poll()
-        self.assertEqual(window.threshold_mode.currentData(), 'absolute')
-        self.assertTrue(window.auto_slice_color.isChecked())
-        self.assertFalse(window.auto_slice_extent.isChecked())
+        self.assertEqual(window.display_panel.threshold_mode.currentData(), 'absolute')
+        self.assertTrue(window.display_panel.auto_slice_color.isChecked())
+        self.assertFalse(window.display_panel.auto_slice_extent.isChecked())
         self.assertEqual(window.scene.view['value_intervals']['field:alpha'], [-.3, .9])
         window.select('component', 'alpha')
         self.runner.events = [(self.runner.token, 'result', self.result)]
         window.poll()
-        self.assertEqual(window.threshold_mode.currentData(), 'interval')
-        self.assertEqual(window.value_interval.text(), '-0.3 0.9')
-        self.assertEqual(window.slice_color_range.text(), '-0.2 0.8')
+        self.assertEqual(window.display_panel.threshold_mode.currentData(), 'interval')
+        self.assertEqual(window.display_panel.value_interval.text(), '-0.3 0.9')
+        self.assertEqual(window.display_panel.slice_color_range.text(), '-0.2 0.8')
         saved = window.saved_recipe()
         window.new_session(saved)
         self.runner.events = [(self.runner.token, 'result', self.result)]
         window.poll()
         self.assertEqual(window.scene.view['slice_extent'], [-1., 1., -.5, .5])
-        self.assertEqual(window.threshold_mode.currentData(), 'interval')
-        self.assertFalse(window.auto_slice_color.isChecked())
+        self.assertEqual(window.display_panel.threshold_mode.currentData(), 'interval')
+        self.assertFalse(window.display_panel.auto_slice_color.isChecked())
 
     def test_invalid_ranges_leave_applied_display_state_and_axes_labels_follow_plane(self):
         window = self.window
-        window.value_interval.setText('1 1')
-        window.threshold_mode.setCurrentIndex(window.threshold_mode.findData('interval'))
+        window.display_panel.value_interval.setText('1 1')
+        window.display_panel.threshold_mode.setCurrentIndex(window.display_panel.threshold_mode.findData('interval'))
         self.assertNotIn('field:alpha', window.scene.view['threshold_modes'])
-        self.assertTrue(window.value_interval.isEnabled())
-        window.value_interval.setText('-.5 .5')
-        window.set_value_interval()
-        window.auto_slice_color.setChecked(False)
-        window.auto_slice_extent.setChecked(False)
+        self.assertTrue(window.display_panel.value_interval.isEnabled())
+        window.display_panel.value_interval.setText('-.5 .5')
+        window.display_panel.set_value_interval()
+        window.display_panel.auto_slice_color.setChecked(False)
+        window.display_panel.auto_slice_extent.setChecked(False)
         previous = deepcopy(window.scene.view)
-        for widget, action in ((window.value_interval, window.set_value_interval),
-                               (window.slice_color_range, window.set_slice_color_range),
-                               (window.slice_horizontal, window.set_slice_extent)):
+        for widget, action in ((window.display_panel.value_interval, window.display_panel.set_value_interval),
+                               (window.display_panel.slice_color_range, window.display_panel.set_slice_color_range),
+                               (window.display_panel.slice_horizontal, window.display_panel.set_slice_extent)):
             original = widget.text()
             for text in ('1 1', '3 2', 'nan 2', '0 inf', '1'):
                 widget.setText(text)
@@ -215,11 +215,11 @@ class TestGeometryGUI(unittest.TestCase):
                 self.assertEqual(window.scene.view, previous)
             widget.setText(original)
         window.align_axis(2)
-        self.assertIn('horizontal x', window.slice_horizontal_label.text())
-        self.assertIn('vertical y', window.slice_vertical_label.text())
+        self.assertIn('horizontal x', window.display_panel.slice_horizontal_label.text())
+        self.assertIn('vertical y', window.display_panel.slice_vertical_label.text())
         window.scene._drag_plane([1., 1., 1.], [0., 0., 0.])
-        self.assertIn('horizontal u', window.slice_horizontal_label.text())
-        self.assertIn('vertical v', window.slice_vertical_label.text())
+        self.assertIn('horizontal u', window.display_panel.slice_horizontal_label.text())
+        self.assertIn('vertical v', window.display_panel.slice_vertical_label.text())
 
     def test_disabling_traces_requires_apply_and_retains_automatic_seed_choice(self):
         window = self.window
@@ -251,64 +251,64 @@ class TestGeometryGUI(unittest.TestCase):
         window = self.window
         window.select('component', 'eta')
         # A display edit made during a calculation must take precedence on completion.
-        window.value_sign.setCurrentIndex(window.value_sign.findData('negative'))
+        window.display_panel.value_sign.setCurrentIndex(window.display_panel.value_sign.findData('negative'))
         updated = deepcopy(self.result)
         updated.update(component='eta', scale={'limit': 1., 'peak': 1., 'threshold': .25})
         self.runner.events = [(self.runner.token, 'result', updated)]
         window.poll()
         self.assertEqual(window.scene.view['value_sign'], 'negative')
-        self.assertEqual(window.value_sign.currentData(), 'negative')
+        self.assertEqual(window.display_panel.value_sign.currentData(), 'negative')
         self.assertNotIn('positive', window.plotter.renderers[0].actors)
         saved = window.saved_recipe()
         window.new_session(saved)
-        self.assertFalse(window.value_sign.isEnabled())
+        self.assertFalse(window.display_panel.value_sign.isEnabled())
         self.runner.events = [(self.runner.token, 'result', updated)]
         window.poll()
-        self.assertTrue(window.value_sign.isEnabled())
-        self.assertEqual(window.value_sign.currentData(), 'negative')
+        self.assertTrue(window.display_panel.value_sign.isEnabled())
+        self.assertEqual(window.display_panel.value_sign.currentData(), 'negative')
         self.assertEqual(window.scene.view['value_sign'], 'negative')
 
     def test_manual_threshold_expands_slider_and_keeps_range_stable(self):
         window = self.window
-        window.threshold.setValue(20.)
-        self.assertEqual(window.threshold_slider.value(), window.threshold_slider.maximum())
-        self.assertEqual(window.threshold_slider_max, 20.)
+        window.display_panel.threshold.setValue(20.)
+        self.assertEqual(window.display_panel.threshold_slider.value(), window.display_panel.threshold_slider.maximum())
+        self.assertEqual(window.display_panel.threshold_slider_max, 20.)
         self.assertNotIn('positive', window.plotter.renderers[0].actors)
         self.assertIn('slice', window.plotter.renderers[1].actors)
-        window.threshold_slider.setValue(250)
-        self.assertEqual(window.threshold.value(), 5.)
-        self.assertEqual(window.threshold_slider_max, 20.)
-        window.threshold_slider.setValue(1000)
-        self.assertEqual(window.threshold.value(), 20.)
-        window.threshold_slider.setValue(0)
+        window.display_panel.threshold_slider.setValue(250)
+        self.assertEqual(window.display_panel.threshold.value(), 5.)
+        self.assertEqual(window.display_panel.threshold_slider_max, 20.)
+        window.display_panel.threshold_slider.setValue(1000)
+        self.assertEqual(window.display_panel.threshold.value(), 20.)
+        window.display_panel.threshold_slider.setValue(0)
         self.assertEqual(window.scene.view['thresholds']['field:alpha'], 0.)
 
     def test_threshold_range_follows_result_and_restores_saved_value(self):
         window = self.window
-        window.threshold.setValue(12.)
+        window.display_panel.threshold.setValue(12.)
         window.select('component', 'eta')
         # The controls continue to describe the displayed result while a job is pending.
-        self.assertEqual(window.threshold.value(), 12.)
+        self.assertEqual(window.display_panel.threshold.value(), 12.)
         updated = deepcopy(self.result)
         updated.update(component='eta', scale={'limit': 1., 'peak': 1., 'threshold': .25})
         self.runner.events = [(self.runner.token, 'result', updated)]
         window.poll()
-        self.assertEqual(window.threshold.value(), .25)
-        self.assertAlmostEqual(window.threshold_slider_max, 1.01)
+        self.assertEqual(window.display_panel.threshold.value(), .25)
+        self.assertAlmostEqual(window.display_panel.threshold_slider_max, 1.01)
         window.select('component', 'alpha')
         self.runner.events = [(self.runner.token, 'result', self.result)]
         window.poll()
-        self.assertEqual(window.threshold.value(), 12.)
-        self.assertEqual(window.threshold_slider.value(), 1000)
+        self.assertEqual(window.display_panel.threshold.value(), 12.)
+        self.assertEqual(window.display_panel.threshold_slider.value(), 1000)
         saved = window.saved_recipe()
         window.new_session(saved)
-        self.assertFalse(window.threshold.isEnabled())
-        self.assertFalse(window.threshold_slider.isEnabled())
+        self.assertFalse(window.display_panel.threshold.isEnabled())
+        self.assertFalse(window.display_panel.threshold_slider.isEnabled())
         self.runner.events = [(self.runner.token, 'result', self.result)]
         window.poll()
-        self.assertTrue(window.threshold_slider.isEnabled())
-        self.assertEqual(window.threshold.value(), 12.)
-        self.assertEqual(window.threshold_slider_max, 12.)
+        self.assertTrue(window.display_panel.threshold_slider.isEnabled())
+        self.assertEqual(window.display_panel.threshold.value(), 12.)
+        self.assertEqual(window.display_panel.threshold_slider_max, 12.)
 
     def test_threshold_slider_handles_zero_invalid_and_small_values(self):
         window = self.window
@@ -321,96 +321,96 @@ class TestGeometryGUI(unittest.TestCase):
             window.scene.view['thresholds']['field:alpha'] = threshold
             window.pending = deepcopy(window.group)
             window.accept_result(updated)
-            window.threshold_slider.setValue(500)
-            self.assertGreater(window.threshold.value(), 0.)
-            self.assertAlmostEqual(window.threshold.value() / window.threshold_slider_max, .5)
-            self.assertEqual(window.scene.view['thresholds']['field:alpha'], window.threshold.value())
+            window.display_panel.threshold_slider.setValue(500)
+            self.assertGreater(window.display_panel.threshold.value(), 0.)
+            self.assertAlmostEqual(window.display_panel.threshold.value() / window.display_panel.threshold_slider_max, .5)
+            self.assertEqual(window.scene.view['thresholds']['field:alpha'], window.display_panel.threshold.value())
 
     def test_manual_slider_range_clamps_threshold_and_preserves_layout_state(self):
         window = self.window
         window.analysis_form.fields['geometry_delta'].setText('.001')
         cameras = window.scene.camera_state()
-        window.auto_threshold_range.setChecked(False)
-        window.threshold_slider_upper.setText('1e-2')
+        window.display_panel.auto_threshold_range.setChecked(False)
+        window.display_panel.threshold_slider_upper.setText('1e-2')
         with patch.object(window.scene, 'update_display', wraps=window.scene.update_display) as update:
-            window.threshold_slider_upper.editingFinished.emit()
+            window.display_panel.threshold_slider_upper.editingFinished.emit()
             update.assert_called_once()
-        self.assertEqual(window.threshold.value(), .01)
-        self.assertEqual(window.threshold_slider_max, .01)
-        window.threshold_slider.setValue(250)
-        self.assertEqual(window.threshold.value(), .0025)
+        self.assertEqual(window.display_panel.threshold.value(), .01)
+        self.assertEqual(window.display_panel.threshold_slider_max, .01)
+        window.display_panel.threshold_slider.setValue(250)
+        self.assertEqual(window.display_panel.threshold.value(), .0025)
         window.set_layout('three_d_slice')
-        self.assertEqual(window.threshold_slider_max, .01)
+        self.assertEqual(window.display_panel.threshold_slider_max, .01)
         self.assertEqual(window.scene.camera_state(), cameras)
         self.assertFalse(self.runner.requests)
         self.assertEqual(window.analysis_form.fields['geometry_delta'].text(), '.001')
         # A larger explicit threshold extends the manual range without losing the input.
-        window.threshold.setValue(.05)
+        window.display_panel.threshold.setValue(.05)
         self.assertEqual(window.scene.view['threshold_slider_limits']['field:alpha'], .05)
-        window.auto_threshold_range.setChecked(True)
+        window.display_panel.auto_threshold_range.setChecked(True)
         self.assertNotIn('field:alpha', window.scene.view['threshold_slider_limits'])
-        self.assertAlmostEqual(window.threshold_slider_max, 8.08)
-        self.assertEqual(window.threshold.value(), .05)
-        self.assertFalse(window.threshold_slider_upper.isEnabled())
+        self.assertAlmostEqual(window.display_panel.threshold_slider_max, 8.08)
+        self.assertEqual(window.display_panel.threshold.value(), .05)
+        self.assertFalse(window.display_panel.threshold_slider_upper.isEnabled())
 
     def test_manual_slider_range_survives_case_diagnostic_and_session_changes(self):
         window = self.window
-        window.auto_threshold_range.setChecked(False)
-        window.threshold_slider_upper.setText('20')
-        window.threshold_slider_upper.editingFinished.emit()
+        window.display_panel.auto_threshold_range.setChecked(False)
+        window.display_panel.threshold_slider_upper.setText('20')
+        window.display_panel.threshold_slider_upper.editingFinished.emit()
         window.select('case', window.group['cases'][1]['id'])
         updated = deepcopy(self.result)
         updated['case'] = window.group['cases'][1]['id']
         self.runner.events = [(self.runner.token, 'result', updated)]
         window.poll()
-        self.assertEqual(window.threshold_slider_max, 20.)
+        self.assertEqual(window.display_panel.threshold_slider_max, 20.)
         window.select('component', 'eta')
         updated.update(component='eta', scale={'limit': 1., 'peak': 1., 'threshold': .25})
         self.runner.events = [(self.runner.token, 'result', updated)]
         window.poll()
-        self.assertTrue(window.auto_threshold_range.isChecked())
-        self.assertAlmostEqual(window.threshold_slider_max, 1.01)
+        self.assertTrue(window.display_panel.auto_threshold_range.isChecked())
+        self.assertAlmostEqual(window.display_panel.threshold_slider_max, 1.01)
         window.select('component', 'alpha')
         updated.update(component='alpha', scale=self.result['scale'])
         self.runner.events = [(self.runner.token, 'result', updated)]
         window.poll()
-        self.assertEqual(window.threshold_slider_max, 20.)
+        self.assertEqual(window.display_panel.threshold_slider_max, 20.)
         saved = window.saved_recipe()
         self.assertEqual(saved['groups'][0]['view']['threshold_slider_limits'], {'field:alpha': 20.})
         window.new_session(saved)
-        self.assertFalse(window.auto_threshold_range.isEnabled())
-        self.assertFalse(window.threshold_slider_upper.isEnabled())
+        self.assertFalse(window.display_panel.auto_threshold_range.isEnabled())
+        self.assertFalse(window.display_panel.threshold_slider_upper.isEnabled())
         self.runner.events = [(self.runner.token, 'result', updated)]
         window.poll()
-        self.assertFalse(window.auto_threshold_range.isChecked())
-        self.assertTrue(window.threshold_slider_upper.isEnabled())
-        self.assertEqual(window.threshold_slider_max, 20.)
-        self.assertEqual(window.threshold.value(), 2.)
+        self.assertFalse(window.display_panel.auto_threshold_range.isChecked())
+        self.assertTrue(window.display_panel.threshold_slider_upper.isEnabled())
+        self.assertEqual(window.display_panel.threshold_slider_max, 20.)
+        self.assertEqual(window.display_panel.threshold.value(), 2.)
 
     def test_manual_slider_range_rejects_invalid_input_and_accepts_small_scales(self):
         window = self.window
-        window.auto_threshold_range.setChecked(False)
-        previous = window.threshold_slider_max
+        window.display_panel.auto_threshold_range.setChecked(False)
+        previous = window.display_panel.threshold_slider_max
         for text in ('', 'bad', '0', '-1', 'nan', 'inf', '1e101'):
             with self.subTest(text=text):
-                window.threshold_slider_upper.setText(text)
-                window.threshold_slider_upper.editingFinished.emit()
+                window.display_panel.threshold_slider_upper.setText(text)
+                window.display_panel.threshold_slider_upper.editingFinished.emit()
                 self.assertIn('Slider upper bound must', window.status.text())
-                self.assertEqual(window.threshold_slider_max, previous)
-                self.assertEqual(window.threshold.value(), 2.)
-        window.threshold_slider_upper.setText('1e-12')
-        window.threshold_slider_upper.editingFinished.emit()
-        self.assertEqual(window.threshold_slider_max, 1e-12)
-        self.assertEqual(window.threshold.value(), 1e-12)
-        window.threshold_slider.setValue(500)
-        self.assertEqual(window.threshold.value(), 5e-13)
+                self.assertEqual(window.display_panel.threshold_slider_max, previous)
+                self.assertEqual(window.display_panel.threshold.value(), 2.)
+        window.display_panel.threshold_slider_upper.setText('1e-12')
+        window.display_panel.threshold_slider_upper.editingFinished.emit()
+        self.assertEqual(window.display_panel.threshold_slider_max, 1e-12)
+        self.assertEqual(window.display_panel.threshold.value(), 1e-12)
+        window.display_panel.threshold_slider.setValue(500)
+        self.assertEqual(window.display_panel.threshold.value(), 5e-13)
         self.assertFalse(self.runner.requests)
 
     def test_changed_display_units_reset_manual_slider_range(self):
         window = self.window
-        window.auto_threshold_range.setChecked(False)
-        window.threshold_slider_upper.setText('20')
-        window.threshold_slider_upper.editingFinished.emit()
+        window.display_panel.auto_threshold_range.setChecked(False)
+        window.display_panel.threshold_slider_upper.setText('20')
+        window.display_panel.threshold_slider_upper.editingFinished.emit()
         window.analysis_form.fields['length_unit'].setText('km')
         window.apply()
         updated = deepcopy(self.result)
@@ -418,8 +418,8 @@ class TestGeometryGUI(unittest.TestCase):
         self.runner.events = [(self.runner.token, 'result', updated)]
         window.poll()
         self.assertEqual(window.scene.view['threshold_slider_limits'], {})
-        self.assertTrue(window.auto_threshold_range.isChecked())
-        self.assertAlmostEqual(window.threshold_slider_max, 8.08)
+        self.assertTrue(window.display_panel.auto_threshold_range.isChecked())
+        self.assertAlmostEqual(window.display_panel.threshold_slider_max, 8.08)
 
     def test_cancel_and_save_keep_committed_analysis(self):
         self.window.analysis_form.fields['geometry_delta'].setText('.001')
@@ -543,6 +543,21 @@ class TestGeometryGUI(unittest.TestCase):
                 self.window.apply()
                 self.assertEqual(self.runner.requests[-1]['cases'][0]['source']['kind'], model)
 
+    def test_display_panel_requires_a_prepared_result(self):
+        from mageometry.session import empty_session
+
+        session = deepcopy(self.window.session)
+        self.window.new_session(empty_session())
+        self.assertFalse(self.window.display_panel.isEnabled())
+        self.assertFalse(self.window.display_panel.auto_limit.isEnabled())
+        self.assertFalse(self.window.display_panel.layers['plane'].isEnabled())
+        self.window.new_session(session)
+        self.assertFalse(self.window.display_panel.isEnabled())
+        self.window.accept_result(self.result)
+        self.assertTrue(self.window.display_panel.isEnabled())
+        self.assertTrue(self.window.display_panel.auto_limit.isEnabled())
+        self.assertTrue(self.window.display_panel.layers['plane'].isEnabled())
+
     def test_new_file_group_can_start_with_any_model_and_model_units(self):
         from mageometry.session import empty_session
         from mageometry.session.specs import model_source
@@ -584,7 +599,7 @@ class TestGeometryGUI(unittest.TestCase):
                 self.window.accept_result(result)
                 self.assertIn(label, self.window.header.text())
                 self.assertIn(label, self.window.plotter.renderers[0].actors['title'].GetInput())
-                self.assertFalse(self.window.layers['arrows'].isEnabled())
+                self.assertFalse(self.window.display_panel.layers['arrows'].isEnabled())
                 self.assertEqual(self.window.saved_recipe()['groups'][0]['view']['component'], component)
 
     def test_window_size_and_dock_state_are_saved_and_restored(self):

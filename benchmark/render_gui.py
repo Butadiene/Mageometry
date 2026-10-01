@@ -59,34 +59,34 @@ def check_3d_navigation(window):
 def check_threshold_controls(window):
     """Exercise numeric entry and slider keys through real Qt input events."""
     tabs = window.settings_dock.widget()
-    original = window.threshold.value()
+    original = window.display_panel.threshold.value()
     cameras = window.scene.camera_state()
     tabs.setCurrentIndex(1)
     QApplication.processEvents()
     try:
-        window.threshold.setFocus()
-        window.threshold.selectAll()
-        QTest.keyClicks(window.threshold, '0.25')
-        QTest.keyClick(window.threshold, Qt.Key.Key_Return)
-        assert window.threshold.value() == .25, 'Manual threshold entry failed'
-        window.threshold_slider.setFocus()
-        QTest.keyClick(window.threshold_slider, Qt.Key.Key_Right)
-        assert window.threshold.value() > .25, 'Threshold slider did not update the numeric input'
-        window.auto_threshold_range.setChecked(False)
-        window.threshold_slider_upper.setFocus()
-        window.threshold_slider_upper.selectAll()
-        QTest.keyClicks(window.threshold_slider_upper, '1e-1')
-        QTest.keyClick(window.threshold_slider_upper, Qt.Key.Key_Return)
-        assert window.threshold_slider_max == .1, 'Manual slider range entry failed'
-        assert window.threshold.value() == .1, 'Threshold was not clamped to the smaller range'
-        window.threshold_slider.setFocus()
-        QTest.keyClick(window.threshold_slider, Qt.Key.Key_Left)
-        assert window.threshold.value() < .1, 'Slider did not use the manual range'
+        window.display_panel.threshold.setFocus()
+        window.display_panel.threshold.selectAll()
+        QTest.keyClicks(window.display_panel.threshold, '0.25')
+        QTest.keyClick(window.display_panel.threshold, Qt.Key.Key_Return)
+        assert window.display_panel.threshold.value() == .25, 'Manual threshold entry failed'
+        window.display_panel.threshold_slider.setFocus()
+        QTest.keyClick(window.display_panel.threshold_slider, Qt.Key.Key_Right)
+        assert window.display_panel.threshold.value() > .25, 'Threshold slider did not update the numeric input'
+        window.display_panel.auto_threshold_range.setChecked(False)
+        window.display_panel.threshold_slider_upper.setFocus()
+        window.display_panel.threshold_slider_upper.selectAll()
+        QTest.keyClicks(window.display_panel.threshold_slider_upper, '1e-1')
+        QTest.keyClick(window.display_panel.threshold_slider_upper, Qt.Key.Key_Return)
+        assert window.display_panel.threshold_slider_max == .1, 'Manual slider range entry failed'
+        assert window.display_panel.threshold.value() == .1, 'Threshold was not clamped to the smaller range'
+        window.display_panel.threshold_slider.setFocus()
+        QTest.keyClick(window.display_panel.threshold_slider, Qt.Key.Key_Left)
+        assert window.display_panel.threshold.value() < .1, 'Slider did not use the manual range'
         assert not window.busy, 'Threshold input submitted numerical work'
         assert window.scene.camera_state() == cameras, 'Threshold input moved the camera'
     finally:
-        window.auto_threshold_range.setChecked(True)
-        window.set_threshold(original)
+        window.display_panel.auto_threshold_range.setChecked(True)
+        window.display_panel.set_threshold(original)
         window.sync_display()
         tabs.setCurrentIndex(0)
     print('Qt numeric threshold entry, manual slider range and slider input OK', flush=True)
@@ -95,23 +95,23 @@ def check_threshold_controls(window):
 def check_value_sign_control(window):
     """Select each sign through Qt and retain the prepared result and cameras."""
     tabs = window.settings_dock.widget()
-    original = window.value_sign.currentIndex()
+    original = window.display_panel.value_sign.currentIndex()
     result = window.scene.result
     cameras = window.scene.camera_state()
     tabs.setCurrentIndex(1)
     QApplication.processEvents()
     try:
-        window.value_sign.setFocus()
-        QTest.keyClick(window.value_sign, Qt.Key.Key_Home)
+        window.display_panel.value_sign.setFocus()
+        QTest.keyClick(window.display_panel.value_sign, Qt.Key.Key_Home)
         for mode, excluded in (('positive', 'negative'), ('negative', 'positive')):
-            QTest.keyClick(window.value_sign, Qt.Key.Key_Down)
+            QTest.keyClick(window.display_panel.value_sign, Qt.Key.Key_Down)
             assert window.scene.view['value_sign'] == mode, 'Value sign selection failed'
             assert excluded not in window.plotter.renderers[0].actors, 'Unselected region remains'
             assert window.saved_recipe()['groups'][0]['view']['value_sign'] == mode
             assert window.scene.result is result and not window.busy, 'Sign selection submitted numerical work'
             assert window.scene.camera_state() == cameras, 'Sign selection moved the camera'
     finally:
-        window.value_sign.setCurrentIndex(original)
+        window.display_panel.value_sign.setCurrentIndex(original)
         tabs.setCurrentIndex(0)
     print('Qt positive/negative value selection and saved display state OK', flush=True)
 
@@ -160,13 +160,13 @@ def check_display_ranges(window, output):
         QApplication.processEvents()
 
     try:
-        window.threshold_mode.setCurrentIndex(window.threshold_mode.findData('interval'))
-        enter(window.value_interval, '-0.5 0.5')
-        window.auto_slice_color.setChecked(False)
-        enter(window.slice_color_range, '-0.6 0.9')
-        window.auto_slice_extent.setChecked(False)
-        enter(window.slice_horizontal, '-5 5')
-        enter(window.slice_vertical, '-4 4')
+        window.display_panel.threshold_mode.setCurrentIndex(window.display_panel.threshold_mode.findData('interval'))
+        enter(window.display_panel.value_interval, '-0.5 0.5')
+        window.display_panel.auto_slice_color.setChecked(False)
+        enter(window.display_panel.slice_color_range, '-0.6 0.9')
+        window.display_panel.auto_slice_extent.setChecked(False)
+        enter(window.display_panel.slice_horizontal, '-5 5')
+        enter(window.display_panel.slice_vertical, '-4 4')
         key = result['kind'] + ':' + result['component']
         assert scene.view['value_intervals'][key] == [-.5, .5]
         assert scene.view['slice_color_ranges'][key] == [-.6, .9]
@@ -243,12 +243,12 @@ def main():
                 window.grab().save(str(args.output / 'workspace-display.png'))
                 save_session(window.saved_recipe(), args.output / 'workspace-display.session.json')
                 for value_sign in ('positive', 'negative'):
-                    window.value_sign.setCurrentIndex(window.value_sign.findData(value_sign))
+                    window.display_panel.value_sign.setCurrentIndex(window.display_panel.value_sign.findData(value_sign))
                     app.processEvents()
                     stem = f'workspace-display-{value_sign}'
                     window.grab().save(str(args.output / f'{stem}.png'))
                     save_session(window.saved_recipe(), args.output / f'{stem}.session.json')
-                window.value_sign.setCurrentIndex(window.value_sign.findData('both'))
+                window.display_panel.value_sign.setCurrentIndex(window.display_panel.value_sign.findData('both'))
                 window.settings_dock.widget().setCurrentIndex(0)
             print(f'Rendered {mode}', flush=True)
             state['index'] += 1

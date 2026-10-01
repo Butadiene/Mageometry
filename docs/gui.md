@@ -1,7 +1,7 @@
 # Desktop geometry workspace
 
 [Documentation index](README.md) · [Scientific definitions](fac_anisotropy_theory.md)
-· [Standalone viewers](viewer.md) · [Design reference](gui_design.md)
+· [Standalone viewers](viewer.md) · [Developer architecture](gui_architecture.md)
 · [日本語詳細ガイド](gui_ja.md)
 
 The desktop workspace brings model generation, simulation input, all 21
@@ -149,6 +149,8 @@ displayed case does not change the reference. Undefined values remain blank.
 
 ## Layout and display
 
+Display controls are enabled once a prepared result is available.
+
 | Control | Behavior |
 | --- | --- |
 | All panels | 3D overview, face-on slice and three signed peak projections |
@@ -281,8 +283,7 @@ The slice, 3D regions, and signed peak projections share the eta scale.
 ![Same Qt result in Slice focus mode, with the case and analysis controls visible](images/gui-slice.png)
 
 Slice focus: the same committed result and YZ plane enlarged. These are
-actual Qt window captures, separate from the [standalone viewer images](viewer.md)
-and the schematic [HTML mockup](gui_mockup.html).
+actual Qt window captures; the [standalone viewer](viewer.md) has its own controls.
 
 ![Qt workspace in 3D + Slice mode, with the synchronized slice beside the 3D scene](images/gui-three-d-slice.png)
 

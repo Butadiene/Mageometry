@@ -11,6 +11,15 @@ from ..io import GriddedField, load_hdf5, load_vtk, load_xdmf
 from .specs import MODEL_KINDS, MODEL_PARAMETERS, validate_source
 
 
+def source_label(source):
+    """Describe the actual source used for model/file provenance."""
+    if source['kind'] in MODEL_KINDS:
+        return source['kind'].upper() + ' + dipole'
+    if source['kind'] == 'dipole':
+        return 'Dipole'
+    return source['path']
+
+
 def model_field(source):
     validate_source(source)
     parameters = source['parameters']
@@ -106,7 +115,7 @@ def load_source(source, mask_radius=0., check=lambda: None):
                   'bz': 'IMF Bz [nT]', 'g1': 'G1', 'g2': 'G2'}
         display = {labels.get(key, key.upper()): p[key] for key in MODEL_PARAMETERS[source['kind']]}
         display['Dipole tilt [rad]'] = float(ps)
-        metadata = dict(model=source['kind'].upper() + ' + dipole', coordinate_system='GSM',
+        metadata = dict(model=source_label(source), coordinate_system='GSM',
                         length_unit='Re', field_unit='nT',
                         epoch=p['epoch'], dipole_tilt=float(ps), parameters=display)
         metadata.update({{'by': 'imf_by', 'bz': 'imf_bz'}.get(key, key): value

@@ -402,299 +402,59 @@ The first command generates six independent T96 + dipole grids with IMF By
 `[-5, -3, -1, 1, 3, 5]` nT; other conditions stay fixed. No input data file
 is needed. The default directly evaluates the model with a 0.002 Re
 difference step and a 65 × 49 × 49 display grid, matching the single-case
-model example's numerical settings. See the [comparison guide](docs/data_comparison.md) for Python
+model example's numerical settings. See the [comparison guide](docs/viewer.md#compare-datasets-in-python) for Python
 and file-input recipes, units, shared scales, memory limits, and screenshots.
 
-#### Comparing current components (notebook 10)
+#### Comparing current components
 
-[General magnetic geometry viewing](docs/transverse_geometry.md) adds `alpha`,
-`beta_g`, `delta_g`, `gamma`, `omega_c`, and `eta` through `viz3d.geometry_view` and
-`python -m mageometry.viz3d --component beta_g --slice x --slice-only`.
-The calculation is also available as `mageometry.geometry.field_line_transverse_geometry`
-and the top-level `mageometry.field_line_transverse_geometry`.
-
-The [flux-tube decomposition figure](docs/transverse_decomposition_figure.md)
-and [directional-rotation figure](docs/directional_rotation_figure.md) connect
-the transverse matrix to 3D field lines, cross-section changes, and the
-azimuthal mean ⟨Ω⟩_φ = α/2. Both provide English/Japanese vector and PNG downloads.
-
-`viz3d.current_view` extends the FAC layout with a **component selector**.
-Click the top **dropdown** to choose a named component, or use **F5 / F6**
-(previous / next), to switch the 3D regions,
-arrows, peak maps, and slices together. It also works in the clean **F4**
-slice-only view, retaining the plane position, camera, pan, and zoom.
-The menu highlights the current selection. Click an item to select it;
-click outside or press Esc to dismiss. Up/Down and Enter also work while
-the menu is open. Menu gestures do not rotate or zoom the scene.
-See the [component dropdown](docs/images/current-component-menu.png),
-[normal-current overview](docs/images/current-components.png), and
-[binormal-current slice](docs/images/current-components-slice.png).
+`geometry_view` and `current_view` provide a diagnostic dropdown (F5/F6),
+shared camera/slice controls and per-diagnostic thresholds. Select currents,
+transverse rotation/shear, or along-field alpha/FAC derivatives:
 
 ```bash
-python -m mageometry.viz3d --component mu0J_n --slice x --slice-origin -6 0 0 --slice-only
+python -m mageometry.viz3d --component mu0J_b --slice x --slice-only
+python -m mageometry.viz3d --component dalpha_ds --slice x --no-trace
+python -m mageometry.viz3d --background dipole --component eta --contribution residual
 ```
 
-```python
-from mageometry import viz3d
+![Standalone total-field eta with source parameters, 3D regions, slice and peak maps](docs/images/viewer-eta-overview.png)
 
-viz3d.current_view(grid, component='mu0J_b', field=field, delta=0.002,
-                  current_scale=0.125, current_unit='nA/m^2', length_unit='Re',
-                  slice_normal='x', slice_origin=(-6, 0, 0), slice_only=True)
-```
+The [component table](docs/viewer.md#read-the-colours-arrows-and-projections)
+defines all 21 choices, arrow directions and units. Red/blue encode the sign
+in the selected basis. `B_twist_diff` is the signed shear difference of the
+two parallel-current terms; their **sum** remains the parallel current.
+Geometry rates and eta do not receive current conversion. Check numeric
+legends when comparing different diagnostics.
 
-The conversion above assumes a model field in nT and coordinates in Re.
-Omit `field`, `delta`, and the unit-conversion options for a simulation grid
-in native units. The selectable quantities follow
-[notebook 10](examples/notebooks/10_current_density_from_geometry.ipynb):
-
-| Component | Displayed quantity | Signed arrow direction |
-| --- | --- | --- |
-| `fac` | Independent Cartesian curl(B) · T | T (along / against B) |
-| `mu0J_T` | Parallel current from field-line twist | T |
-| `B_dT_dn_b` | Parallel term 1: B(∂T/∂n)·b | T |
-| `B_dn_db_T` | Parallel term 2: B(∂n/∂b)·T | T |
-| `B_twist_diff` | D = Bβ_g = B(∂T/∂n)·b − B(∂n/∂b)·T | None (shear diagnostic) |
-| `mu0J_n` | Normal current: ∂\|B\|/∂b | n (principal normal) |
-| `mu0J_b` | Binormal current: \|B\|κ − ∂\|B\|/∂n | b (T × n, not B) |
-| `mu0J_x/y/z` | Cartesian components of the Frenet reconstruction | x / y / z |
-| `alpha` | Cartesian μ₀j∥ / \|B\| | None (scalar, not current density) |
-| `beta_g` | Signed transverse shear p+q = D/B in the Frenet frame | None |
-| `delta_g` | Transverse normal-strain difference a−d | None |
-| `gamma` | Basis-independent anisotropy √(beta_g²+delta_g²) | None |
-| `omega_c` | Signed local coiling rate | None |
-| `eta` | (alpha²−gamma²)/(alpha²+gamma²), dimensionless | None |
-| `B_kappa` | Curvature contribution to μ₀J_b: +\|B\|κ | b |
-| `minus_dB_dn` | Pressure contribution to μ₀J_b: −∂\|B\|/∂n | b |
-
-Red/blue mean positive/negative **in the selected basis**, not always along/
-against B. All five transverse rates keep inverse-length units and are never
-multiplied by `current_scale`. Eta is also unscaled and defaults to a fixed
-[−1, 1] colour range. `current_unit` labels scaled currents; it does not perform
-conversion. The legacy `current_label` overrides only the `fac` label.
-
-Both viewing modes show declared source metadata and parameters. The T96
-examples include the model, Pdyn, Dst, IMF By/Bz, tilt and epoch; simulations
-can supply their own labelled conditions through the same generic metadata
-interface. See [source information](docs/viewer.md#source-information).
-
-![Standalone PyVista viewer showing total-field eta, source parameters, 3D regions, a face-on slice, and signed peak maps](docs/images/viewer-eta-overview.png)
-
-This T96 + dipole example shows `eta` with its fixed [−1, 1] colour scale.
-Positive values indicate rotation-dominated geometry and negative values
-indicate shear-dominated geometry; neither establishes finite-distance winding.
-The [enlarged slice](docs/images/viewer-eta-focus.png) retains the same
-source parameters and colour scale.
-
-Choose a background directly in the standalone PyVista viewer. Start it normally, then
-select **BACKGROUND → Dipole** and **CONTRIBUTION → Residual gradient**.
-Choose eta or gamma in **COMPONENT**. No background CLI option is required.
-
-```bash
-python -m mageometry.viz3d
-```
-
-![BACKGROUND menu in the standalone PyVista viewer](docs/images/viewer-background-menu.png)
-
-**None (total field)** restores the regular viewer. **Load background file...**
-opens a folder browser inside the same menu for XDMF or VTK snapshots; use
-folder rows, parent/home/root, page controls and Cancel (or Escape).
-Simulation viewers offer file selection without assuming a dipole.
-Backgrounds must match the total grid's axes and declared coordinates/units;
-failed loads leave the current view intact and show a message. Enabling a
-background from a current diagnostic selects eta automatically.
-
-You can still preselect the dipole and contribution at launch:
-
-```bash
-python -m mageometry.viz3d --background dipole --component eta --contribution residual --slice x --slice-origin -6 0 0
-```
-
-![Residual-gradient eta in the total-field frame, with shared scale and total magnetic lines](docs/images/contribution-eta-residual.png)
-
-F7/F8 switches total, background and residual gradients; F5/F6 switches the
-six transverse diagnostics. The magnetic lines, slice, camera and scales
-stay shared. Compare the captured views:
-
-These controls and screenshots belong to the standalone viewer. In the
-[Qt workspace](docs/gui.md#background-contributions-across-cases), assign
-backgrounds in **Cases and sources**, select **Gradient attribution**, and
-Apply; F7/F8 switch datasets and Alt+Left/Alt+Right switch contributions.
-
-| Diagnostic | Total field | Dipole gradient | Residual gradient |
-| --- | --- | --- | --- |
-| eta | [Total](docs/images/contribution-eta-total.png) | [Background](docs/images/contribution-eta-background.png) | [Residual](docs/images/contribution-eta-residual.png) |
-| gamma | [Total](docs/images/contribution-gamma-total.png) | [Background](docs/images/contribution-gamma-background.png) | [Residual](docs/images/contribution-gamma-residual.png) |
-
-A current-free dipole can already have nonzero gamma and eta = −1. This view
-subtracts gradients before forming tensors and scalar diagnostics; it does
-not subtract scalar gamma or eta. All contributions use the **total field's
-frame and magnitude**. Residual eta describes that projected gradient
-contribution, not the standalone residual field's winding. A zero residual
-has undefined eta. The API is
-`geometry.field_line_transverse_decomposition(total, background, x, y, z)`;
-`viz3d.transverse_contribution_view` accepts callable or gridded backgrounds.
-For simulations, supply matching background data with `--background-xmf`
-or `--background-vtk`. See the [derivation and API guide](docs/transverse_geometry.md#background-gradient-contributions).
-Regenerate the background menu and six comparison images with
-`python benchmark/transverse_contribution_screenshots.py`.
-
-The two entries immediately below `J_T` in the dropdown split its parallel
-current: **`B_dT_dn_b + B_dn_db_T = mu0J_T`** to round-off. Here B is the
-magnetic-field magnitude; lowercase b is the Frenet binormal. Both terms
-are signed contributions **along T**, not currents along n or b. They use
-the same current conversion and validity mask as `mu0J_T`, and are returned
-by `field_line_current_density` without additional field evaluations. Both
-names also work with `viz.plot_geometry_map` and other named-quantity viewers.
-
-```bash
-python -m mageometry.viz3d --component B_dT_dn_b --slice x --slice-origin -6 0 0 --slice-only
-# Select "J_T term 2: B(dn/db).T" to compare the second contribution.
-```
-
-See the [first parallel-current contribution on a slice](docs/images/parallel-current-terms.png).
-
-Choose **`D = B beta_g - Signed shear`** to view
-`B_twist_diff = B_dT_dn_b - B_dn_db_T`. This subtracts the signed terms,
-not their absolute values; the total parallel current remains their **sum**.
-The difference uses the same units, masks, and current conversion as the
-terms. It has no current arrows, because the difference represents shear.
-Like the individual terms, it has its own colour scale and works in both
-slice modes. Start directly with:
-
-```bash
-python -m mageometry.viz3d --component B_twist_diff --slice x --slice-origin -6 0 0 --slice-only
-```
-
-See the [parallel-term difference distribution](docs/images/parallel-current-difference.png).
-
-The transverse rates are evaluated and cached as one group; selecting a
-legacy current component also computes the Frenet-frame current group.
-Subsequent component changes and slice drags reuse those values. Magnetic
-context lines stay fixed for comparison. Each component remembers its own
-threshold and uses its own fixed, symmetric 98th-percentile colour scale:
-**equal colours across different components need not mean equal amplitudes**.
-Nonnegative `gamma` uses only the positive half of that diverging scale.
-Compare the numeric legends when inspecting cancellation of `B_kappa` and
-`minus_dB_dn` in `mu0J_b`.
-
-Undefined frames or stencil samples remain blank. Unlike the independent
-`fac` diagnostic, the notebook reconstruction requires a valid Frenet frame,
-even for its Cartesian components. Grid-only geometry uses the masked
-preview's linear interpolant and a scalar step equal to its smallest spacing;
-set `geometry_delta` (CLI: `--geometry-delta`) to check convergence. With an
-explicit field, it defaults to `min(delta)`, or the smallest preview spacing
-when delta is omitted. Smooth, fully finite grids can instead supply
-`field=grid.field('cubic')` and an appropriate `delta`. Coarsening and linear
-interpolation affect derivatives; do not interpret preview structure without
-resolution and step-size checks.
-
-The CLI viewers also enable a face-on slice panel beside the main view
-(`slice_panel=True`). In the Python API this extra panel is disabled by
-default; the draggable 3D slice starts hidden unless requested.
+For total/background/residual comparisons, use the
+[background selection workflow](docs/viewer.md#background-contribution-comparison).
+Attribution subtracts magnetic gradients before constructing diagnostics in
+the total-field frame; scalar gamma/eta subtraction is not valid. Mathematical
+interpretation is in the [transverse API guide](docs/transverse_geometry.md)
+and [theory](docs/fac_anisotropy_theory.md); executable checks are in
+[notebook 10](examples/notebooks/10_current_density_from_geometry.ipynb) and
+[notebook 11](examples/notebooks/11_transverse_geometry_and_fac.ipynb).
 
 #### Finding field-aligned currents
 
-![Standalone T96 plus dipole viewer with FAC selected: source parameters, signed 3D regions, YZ slice, and peak maps](docs/images/fac-overview.png)
-
-The standalone FAC, current-component, and total-field eta screenshots were
-regenerated on 2026-09-25 using the
-`geometry_view` UI and the single-model preset (now in
-`mageometry.session.presets.model_snapshot`): T96 + dipole,
-Pdyn = 2 nPa, Dst = −20 nT, IMF By = 0 nT, IMF Bz = −5 nT, epoch = 100
-Unix seconds, a 65 × 49 × 49 grid, and a 0.002 Re derivative step.
-The default 120,000-node budget produces the displayed 59 × 44 × 44
-preview. The screenshots use the CLI's companion slice panel and a YZ
-plane at x = −6 Re. Regenerate the FAC, current-component, dropdown, and
-eta images with `python benchmark/readme_screenshots.py` after installing
-`.[viz3d]`. The [viewer guide](docs/viewer.md#regenerate-the-readme-screenshots)
-describes the capture sequence.
-
-`fac_view` opens a FAC overview: red regions carry current **along B**, blue
-regions **against B**, and arrows show the parallel-current direction. Thin
-grey magnetic field lines show connectivity. The slider selects a minimum
-absolute current strength; `x`/`y`/`z` change the viewing direction, `r` resets
-the view, `l` toggles magnetic lines, `a` toggles current arrows, and `s`
-toggles the translucent regions to reveal the arrows inside them.
-
-```python
-from mageometry import viz3d
-
-plotter = viz3d.fac_view(grid)   # model grid above; native nT/Re, automatic threshold
-# Or: viz3d.fac_view(grid, threshold=0.05, max_points=None)
-```
-
-Press **`c`** to show a draggable FAC slice in the left 3D view. The amber
-widget moves and rotates the plane; **`F1` / `F2` / `F3`** align it to
-**YZ / XZ / XY** while retaining its position. Press `c` again to hide it,
-or `s` to hide the surrounding current regions and focus on the cross-section.
-To open with a slice already visible:
-
-```python
-viz3d.fac_view(grid, slice_normal='x', slice_origin=(-6, 0, 0))
-# Arbitrary orientation: slice_normal=(1, 1, 0)
-```
-
-The slice shows **all FAC strengths**, independently of the region threshold,
-using the same fixed colour scale as the peak maps. It interpolates the cached
-preview values inside valid cells; masked or missing cells remain holes.
-Dragging the plane does not recompute the field or reset the camera. The
-right-hand peak maps retain their overview. Slices start hidden by default.
-See the [T96 + dipole cross-section example](docs/images/fac-slice.png).
-
-Press **`F4`** for a clean, face-on view of **only the slice**. It fills the
-viewer window with the cross-section and its colour scale, hiding the 3D
-regions, field lines, planet, handles, and overview panels. A dedicated
-**position slider** scans the plane along its normal without changing the
-colour scale; `F1`/`F2`/`F3` still select YZ/XZ/XY. Use shift+drag to pan,
-the wheel to zoom, and `r` to fit the slice. Scanning retains your zoom and
-pan. Press `F4` again to restore the previous 3D camera and visibility, or
-`c` to return with the slice hidden. With an external multi-panel plotter,
-only the FAC subplot is isolated; other subplots remain visible.
-
-```python
-viz3d.fac_view(grid, slice_normal='x', slice_origin=(-6, 0, 0), slice_only=True)
-```
-
-The command-line equivalent is:
+![Standalone FAC with source parameters, signed 3D regions, YZ slice and peak maps](docs/images/fac-overview.png)
 
 ```bash
 python -m mageometry.viz3d --component fac --slice x --slice-origin -6 0 0 --slice-only
 ```
 
-Without an explicit normal, the initial slice is XZ. The isolated view uses
-the same cached FAC values and masks. See the
-[slice-only screen example](docs/images/fac-slice-only.png).
+`fac` computes curl(B)·T independently of the Frenet normal. It remains
+defined on straight nonzero field lines, while invalid stencils remain blank.
+Native units represent μ₀j_parallel in field/length. For nT and Re, an explicit
+factor 0.125 approximately converts to nA/m²; file inputs keep native units.
+Regions and arrows use an absolute threshold, slices show all finite values,
+and peak maps select the strongest signed value along each sightline.
 
-The three right-hand maps show the **signed peak of |FAC| along each viewing
-axis**. They expose off-centre structures without positioning slice planes;
-they are neither slices nor integrated currents. When opposite signs overlap,
-only the strongest sample appears on that sightline. The 3D view retains both.
-
-The diagnostic is `mu0 J_parallel = curl(B) dot B / |B|`, with Cartesian
-differences, so it remains defined on straight field lines. Simulation grids
-use their nonuniform axis spacing; invalid stencils and boundary nodes are
-blank. For an analytic model, pass `field=field, delta=0.002` to evaluate
-central differences directly. The reusable calculation is
-`field_aligned_current_density(field, x, y, z, delta=...)`, also available as
-the `'fac'` quantity in other viewers.
-
-Values default to **field-unit/length-unit**, representing `mu0 J_parallel`.
-For a geopack field in nT and Re, pass `current_scale=0.125`,
-`current_label='J parallel [nA/m^2]'`, and `length_unit='Re'`. Red/blue encode
-direction relative to B, not universally upward/downward. The curl-B estimate
-neglects displacement current. The automatic threshold is a display percentile,
-not a test of physical significance: inspect grid-resolution and derivative-step
-convergence before interpreting weak features. The preview is capped at 120,000
-nodes by default; coarsening changes derivative resolution. Its dimensions are
-shown in the window. Use `max_points=None` for the full grid, and reader-side
-`region`/`stride` to control the memory needed to load large snapshots.
-
-Run `python -m mageometry.viz3d --component fac` for T96 + dipole, or
-`python -m mageometry.viz3d --component fac --xmf snapshot.xmf --stride 4` for your data.
-`--h5` can override the XDMF heavy-data file; direct HDF5 input requires
-`--origin` and `--spacing`. Use `--screenshot /tmp/fac.png` for an off-screen PNG.
-Add `--slice y` (XZ plane), or `--slice x --slice-origin -6 0 0`, to start
-with a cross-section visible.
+See [viewer controls](docs/viewer.md#select-a-diagnostic-and-a-slice),
+[resolution and memory](docs/viewer.md#resolution-memory-and-derivatives),
+and [capture conditions](docs/images/README.md) for the full workflow.
+For editable sources and saved comparison sessions, use the
+[desktop workspace](docs/gui.md).
 
 ### Simulation Data (`mageometry.io`)
 
@@ -735,7 +495,7 @@ reader options above for other names or layouts.
 
 Without source options the common CLI opens a T96 + dipole demonstration.
 `--by` selects a model comparison. The example launchers now open the
-[desktop workspace presets](docs/viewer.md#desktop-example-launchers). See
+[desktop workspace presets](examples/README.md#desktop-example-launchers). See
 [viewer controls and geometry definitions](docs/transverse_geometry.md).
 
 #### Analyze a snapshot in Python
@@ -926,31 +686,21 @@ figures described [below](#performance-benchmarks).
 
 ### Tutorial Notebooks
 
-Example notebooks are available in `examples/notebooks/` (index:
-[`examples/notebooks/README.md`](examples/notebooks/README.md)). Install
-their dependencies with `python -m pip install -e '.[examples]'`; add
-`viz3d` to the extra list for interactive 3D examples.
+The [notebook index](examples/notebooks/README.md) gives a learning path through
+frames and derivatives, sampled input, Python plotting, current/along-field
+derivatives, and transverse geometry/background attribution. Coordinate, model
+and generic-tracing tutorials provide the prerequisites. The eight notebooks
+use small reproducible examples with analytic checks and no external data.
 
-Start with the analysis library:
+Install `.[examples]`, then execute them in fresh kernels with:
 
-- `07_fieldline_geometry_and_derivatives` — Field line geometry with Mageometry: field callables, Frenet-Serret frame, the nine directional derivatives, validity/NaN conventions, choosing δ, geometry along traced lines, maps
-- `08_simulation_data_geometry` — Simulation data pipeline: write a compatible XDMF/HDF5 file, load it, interpolate, compute curvature, trace through the data, Frenet frame and directional derivatives on gridded data vs the model
-- `09_visualization` — `mageometry.viz`: geometry maps on planes, field lines coloured by a quantity (2D/3D), profiles along lines, Frenet frames, custom quantities, the same plots on gridded data
-- `10_current_density_from_geometry` — |B| gradients, current-density decomposition, Cartesian-curl validation, dipole cancellation, and divergence diagnostics
+```bash
+python benchmark/check_notebooks.py --output /tmp/mageometry-notebooks
+```
 
-The geopack field engine:
-
-- `01_coordinate_transformations_guide` — Coordinate system transforms
-- `02_magnetic_field_models_guide` — Field model usage (T89, T96, T01, T04)
-- `03_performance_comparison` — Scalar vs vectorized benchmarks
-- `04_accuracy_validation` — Numerical accuracy verification
-- `05_field_line_tracing_guide` — Engine tracer tutorial (+ `trace_field_lines` section)
-- `06_field_line_tracing_validation` — Tracing accuracy validation
-
-### Advanced Examples (`examples/notebooks/directional_derivatives_maps/`)
-
-- `dipole_field_directional_derivatives` — Dipole field directional derivative maps
-- `t96_field_directional_derivatives` — T96 model directional derivative and FAC maps
+The [baseline theory](docs/fac_anisotropy_theory.md) and its
+[日本語訳](docs/fac_anisotropy_theory_ja.md) define the shared notation,
+assumptions, identities and proposed R1/R2 research hypotheses.
 
 ## Development and Tests
 
@@ -1033,7 +783,7 @@ break-even size is interpolated from measured scalar/vectorized timings:
   end-to-end speedup at every array size, and small-array timing is not
   strictly linear.
 
-Regenerate this table with [`benchmark/readme_overhead_decomposition.py`](benchmark/readme_overhead_decomposition.py) (`--plain` for plain text output). A step-by-step version with figures is in [`examples/notebooks/03_performance_comparison.ipynb`](examples/notebooks/03_performance_comparison.ipynb), Section 3c.
+Regenerate this table with [`benchmark/readme_overhead_decomposition.py`](benchmark/readme_overhead_decomposition.py) (`--plain` for plain text output). The script is the maintained source for this decomposition; tutorials do not duplicate benchmark loops.
 
 ## Accuracy Validation
 

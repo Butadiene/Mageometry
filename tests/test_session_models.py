@@ -115,6 +115,17 @@ class TestSessionModels(unittest.TestCase):
                 save_session(session, path)
                 self.assertEqual(load_session(path)['groups'], session['groups'])
 
+    def test_model_background_provenance_uses_assigned_model(self):
+        group = model_session()['groups'][0]
+        group['cases'][0]['source'] = small_source('t96')
+        group['analysis'].update(kind='attribution', trace_enabled=False, max_points=125)
+        for model in MODEL_KINDS:
+            with self.subTest(background=model):
+                group['cases'][0]['background'] = small_source(model)
+                result = SessionEngine(group).prepare(dict(group['view'], component='gamma'))
+                self.assertEqual(result['metadata']['parameters']['Background'],
+                                 model.upper() + ' + dipole')
+
     def test_invalid_model_parameters(self):
         for name, key, value in (
             ('t89', 'iopt', 0), ('t89', 'iopt', 8), ('t89', 'iopt', 2.5), ('t89', 'iopt', True),

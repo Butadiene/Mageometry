@@ -25,7 +25,7 @@ def plot_frenet_frame(field, x, y, z, delta=0.01, ax=None, plane='xz', length=1.
     ----------
     field : callable
     x, y, z : float or array_like
-        Points at which to draw the frame.
+        Broadcast coordinates at which to draw the frame.
     delta : float, optional
         Finite-difference step.
     ax : matplotlib Axes, optional
@@ -49,7 +49,8 @@ def plot_frenet_frame(field, x, y, z, delta=0.01, ax=None, plane='xz', length=1.
         ``{'T': quiver, 'n': quiver, 'b': quiver}`` for the drawn vectors.
     """
     ax = get_axes(ax)
-    x, y, z = (np.atleast_1d(np.asarray(c, dtype=np.float64)).ravel() for c in (x, y, z))
+    x, y, z = (c.ravel() for c in np.broadcast_arrays(
+        *[np.asarray(c, dtype=np.float64) for c in (x, y, z)]))
     frame = field_line_frenet_frame(field, x, y, z, delta=delta)
     comps = {'T': frame[0:3], 'n': frame[3:6], 'b': frame[6:9]}
     out = {}

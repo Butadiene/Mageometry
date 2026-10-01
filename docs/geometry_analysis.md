@@ -24,7 +24,7 @@ from mageometry import (
     field_line_curvature, field_line_torsion, field_line_frenet_frame,
     field_line_frame_quality, field_line_directional_derivatives,
     field_magnitude_derivatives, field_line_current_density,
-    field_aligned_current_density, field_line_transverse_geometry,
+    field_aligned_current_density, field_aligned_current_derivatives, field_line_transverse_geometry,
     trace_field_lines,
 )
 
@@ -117,6 +117,7 @@ np.testing.assert_allclose(rates['alpha'], 2 / (x**2 + 1), rtol=1e-5)
 | `field_magnitude_derivatives` | `B`, `dB_dT`, `dB_dn`, `dB_db` | Field; derivatives in field/length |
 | `field_line_current_density` | `mu0J_T/n/b`, `mu0J_x/y/z`, parallel terms, `B_twist_diff`, `alpha`, `B`, `curvature` | Currents in field/length; alpha and curvature in 1/length |
 | `field_aligned_current_density` | Cartesian curl(B)·T | Field/length |
+| `field_aligned_current_derivatives` | `dalpha_ds`, `dalpha_ds_over_B`, `dfac_ds` | 1/length²; 1/(field × length²); field/length² |
 | `field_line_transverse_geometry` | `alpha`, `beta_g`, `delta_g`, `gamma`, `omega_c`, `eta`, `curvature` | 1/length except dimensionless eta |
 
 The current API returns **μ₀J**, not J in SI units. In particular,
@@ -137,6 +138,33 @@ for the validity and interpretation of each rate.
 Frenet-frame estimate of ∇·B. `grid.divergence(relative=False)` evaluates
 Cartesian differences on grid nodes. Neither is expected to be exactly
 zero for an arbitrary empirical field or interpolant.
+
+## Along-field alpha and FAC derivatives
+
+`field_aligned_current_derivatives` computes T·∇ with T = B/|B|. It requires
+no Frenet normal. `delta` is a positive scalar: it sets the tangent displacement
+and the Cartesian curl step for alpha. Optional `fac_delta` (one or three
+Cartesian steps) changes only the FAC values being differentiated.
+
+```python
+def varying_twist(x, y, z):
+    x, y, z = np.broadcast_arrays(x, y, z)
+    return -y*z, x*z, np.ones_like(z)
+
+gradients = field_aligned_current_derivatives(varying_twist, 0., 0., 1., delta=1e-3)
+for value in gradients.values():
+    np.testing.assert_allclose(value, 2., atol=1e-8)
+```
+
+`dfac_ds` differentiates native μ₀j_parallel. Only that output receives the
+current-density conversion when displayed. In native units,
+∂s FAC = B ∂s alpha + alpha ∂s B, so `dfac_ds` is generally not
+`B*dalpha_ds`. Missing inner/outer stencils produce NaN; these involve second
+magnetic-field derivatives and require a convergence check. The viewer's
+grid path uses central differences of preview arrays for the outer derivative;
+see [viewer derivatives](viewer.md#read-the-colours-arrows-and-projections).
+For a nonconstant analytic check, use
+[notebook 10](../examples/notebooks/10_current_density_from_geometry.ipynb).
 
 ## Undefined geometry and step size
 
