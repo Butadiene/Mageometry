@@ -75,7 +75,7 @@ def _valid_volume(mesh, values):
 
 
 def current_view(gridded_field, component='mu0J_T', **kwargs):
-    """Explore notebook-10 current components in the FAC viewer layout.
+    """Explore notebook-7 current components in the FAC viewer layout.
 
     Parameters
     ----------
@@ -115,7 +115,7 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
     -----
     Legacy current components use ``field_line_current_density``,
     ``field_magnitude_derivatives``, and ``field_line_frenet_frame`` exactly
-    as in notebook 10; they are cached together at first selection. Undefined
+    as in notebook 7; they are cached together at first selection. Undefined
     frames/stencils remain NaN, including Cartesian reconstructions on
     straight lines. ``fac`` does not require a normal and remains available.
     ``B_kappa + minus_dB_dn = mu0J_b`` where the required frames are valid.
@@ -236,7 +236,7 @@ def fac_view(gridded_field, field=None, delta=None, threshold=None,
         With no unit override, labels describe native mu0 J. Twist alpha
         always retains inverse-length units and is not current-scaled.
     geometry_delta : float, optional
-        Scalar finite-difference step for notebook-10 components. See
+        Scalar finite-difference step for notebook-7 components. See
         :func:`current_view`; unused for FAC-only viewing.
 
     Returns

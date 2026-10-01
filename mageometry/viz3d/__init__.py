@@ -12,7 +12,7 @@ Linux (including WSL2 with WSLg), Windows, and macOS.
   volume (three orthogonal planes, or one free plane)
 - `explore` — one call: slices plus field lines traced from seed points
 - `fac_view` — signed FAC regions, current arrows, and peak-projection maps
-- `current_view` — switch notebook-10 current components in the same viewer
+- `current_view` — switch notebook-7 current components in the same viewer
 - `geometry_view` — explore magnetic currents and transverse geometry
 - `compare_geometry` — switch labelled snapshots with shared comparison scales
 - `transverse_contribution_view` — compare gradients in the total-field frame

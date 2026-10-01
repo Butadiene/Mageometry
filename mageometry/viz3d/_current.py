@@ -1,4 +1,4 @@
-"""Cached notebook-10 current components, independent of rendering."""
+"""Cached notebook-7 current components, independent of rendering."""
 
 import numpy as np
 
@@ -10,7 +10,7 @@ from ..geometry import (field_aligned_current_derivatives,
 # key: (display symbol, basis, explanation). b is the Frenet binormal, not B.
 COMPONENTS = {
     'fac': ('J parallel', 'T', 'FAC: Cartesian curl(B) dot T'),
-    'mu0J_T': ('J_T', 'T', 'J_T: field-line twist (notebook 10)'),
+    'mu0J_T': ('J_T', 'T', 'J_T: field-line twist (notebook 7)'),
     'B_dT_dn_b': ('parallel term 1', 'T', 'J_T term 1: B (dT/dn) dot b'),
     'B_dn_db_T': ('parallel term 2', 'T', 'J_T term 2: B (dn/db) dot T'),
     'B_twist_diff': ('D', None,

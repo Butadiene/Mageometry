@@ -1073,7 +1073,7 @@ python -m mageometry.gui --session saved-session.json --screenshot restored.png
 - [磁束管の分解図](transverse_decomposition_figure.md)：日本語・英語の SVG、PDF、PNG。
 - [方向別回転の図](directional_rotation_figure.md)：Ωₙ、Ωᵦ、α/2 の関係と日本語・英語の図。
 - [Simulation data formats](simulation_data_formats.md)：入力格子・配列・読み込みの詳細。
-- [Notebook 10](../examples/notebooks/10_current_density_from_geometry.ipynb)：Frenet 基底による電流の分解例。
+- [Notebook 7](../examples/notebooks/07_current_density_from_geometry.ipynb)：Frenet 基底による電流の分解例。
 
 現在の UI 項目は [window.py](../mageometry/gui/window.py) と [forms.py](../mageometry/gui/forms.py)、
 診断量の登録は [_current.py](../mageometry/viz3d/_current.py)、

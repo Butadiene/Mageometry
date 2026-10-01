@@ -291,7 +291,7 @@ and the reconstructed current is finite. A current-free dipole tests
 cancellation of Bκ and ∂B/∂n. `verify_divergence_identity` returns
 ∂B/∂T + B(dT_dn_n + dT_db_b); tests compare it with a direct Cartesian
 divergence, including nonzero divergence in the sampled empirical field.
-See [notebook 10](examples/notebooks/10_current_density_from_geometry.ipynb).
+See [notebook 7](examples/notebooks/07_current_density_from_geometry.ipynb).
 
 ### Transverse Rotation and Shear
 
@@ -347,7 +347,7 @@ blank. The functions accept existing axes and return artists, except
 `plot_line_profiles`, which accepts `axes=` and returns the profile axes.
 Named quantities in these general plotters use the legacy current API's
 `alpha`; transverse `beta_g`, `delta_g`, `gamma`, and `omega_c` can be supplied as
-custom quantity callables. See [notebook 9](examples/notebooks/09_visualization.ipynb).
+custom quantity callables. See [notebook 6](examples/notebooks/06_visualization.ipynb).
 
 ### Interactive 3D Visualization (`mageometry.viz3d`)
 
@@ -432,8 +432,8 @@ Attribution subtracts magnetic gradients before constructing diagnostics in
 the total-field frame; scalar gamma/eta subtraction is not valid. Mathematical
 interpretation is in the [transverse API guide](docs/transverse_geometry.md)
 and [theory](docs/fac_anisotropy_theory.md); executable checks are in
-[notebook 10](examples/notebooks/10_current_density_from_geometry.ipynb) and
-[notebook 11](examples/notebooks/11_transverse_geometry_and_fac.ipynb).
+[notebook 7](examples/notebooks/07_current_density_from_geometry.ipynb) and
+[notebook 8](examples/notebooks/08_transverse_geometry_and_fac.ipynb).
 
 #### Finding field-aligned currents
 

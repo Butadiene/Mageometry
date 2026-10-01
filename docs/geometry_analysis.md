@@ -164,7 +164,7 @@ magnetic-field derivatives and require a convergence check. The viewer's
 grid path uses central differences of preview arrays for the outer derivative;
 see [viewer derivatives](viewer.md#read-the-colours-arrows-and-projections).
 For a nonconstant analytic check, use
-[notebook 10](../examples/notebooks/10_current_density_from_geometry.ipynb).
+[notebook 7](../examples/notebooks/07_current_density_from_geometry.ipynb).
 
 ## Undefined geometry and step size
 

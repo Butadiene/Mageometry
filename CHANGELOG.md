@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Renumber the eight retained notebooks consecutively from 01 to 08, order
+  the notebook index accordingly, and update current links and number references.
+
 - Fix Frenet-frame plotting for broadcast coordinate arrays, preserving
   per-vector validity masks, and label model backgrounds with the assigned
   model instead of unconditionally reporting a dipole.
