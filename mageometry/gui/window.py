@@ -8,17 +8,18 @@ from PySide6 import QtCore as C, QtGui as G, QtWidgets as W
 from pyvistaqt import QtInteractor
 
 from ..session import empty_session, model_session, load_session, save_session, validate_session
-from ..session.specs import new_group, new_id, default_analysis
+from ..session.specs import MODEL_KINDS, model_case_label, new_group, new_id, default_analysis
 from ..session.jobs import JobRunner
 from ..viz3d._current import COMPONENTS, COMPONENT_LABELS, TRANSVERSE_COMPONENTS
 from ..viz3d._contribution_data import CONTRIBUTIONS
 from ..viz3d._source_info import _source_lines
-from ..viz3d.scene import GeometryScene, difference_step_label, display_key
+from ..viz3d.scene import GeometryScene, difference_step_label, display_key, slice_axes
 from .forms import AnalysisForm, SourceDialog, numbers, line
 
 DISPLAY_KEYS = ('normal', 'origin', 'layout', 'previous_layout', 'panels_hidden',
-                'thresholds', 'threshold_slider_limits', 'color_limits', 'cameras',
-                'lines', 'arrows', 'regions', 'plane')
+                'thresholds', 'threshold_slider_limits', 'threshold_modes', 'value_intervals',
+                'color_limits', 'slice_color_ranges', 'slice_extent', 'cameras',
+                'lines', 'arrows', 'regions', 'plane', 'value_sign')
 
 
 class MainWindow(W.QMainWindow):
@@ -199,7 +200,54 @@ class MainWindow(W.QMainWindow):
         self._button('Discard edits', self.discard, buttons)
         tabs.addTab(box, 'Analysis')
         display = W.QWidget()
-        form = W.QFormLayout(display)
+        display_layout = W.QVBoxLayout(display)
+        display_layout.setContentsMargins(6, 6, 6, 6)
+        display_layout.setSpacing(12)
+
+        def section(title):
+            group = W.QGroupBox(title)
+            form = W.QFormLayout(group)
+            form.setContentsMargins(8, 8, 8, 8)
+            form.setRowWrapPolicy(W.QFormLayout.RowWrapPolicy.WrapLongRows)
+            form.setFieldGrowthPolicy(W.QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            display_layout.addWidget(group)
+            return form
+
+        shared_form = section('Shared')
+        self.value_sign = W.QComboBox()
+        for label, value in [('All values', 'both'), ('Positive only (> 0)', 'positive'),
+                              ('Negative only (< 0)', 'negative')]:
+            self.value_sign.addItem(label, value)
+        self.value_sign.setAccessibleName('Value sign')
+        self.value_sign.setToolTip(
+            'Filter regions, arrows, slices and peak maps by sign. '
+            'Peak maps select the strongest value of the chosen sign along each sightline. '
+            'Applied immediately without recalculating the field.')
+        self.value_sign.setEnabled(False)
+        shared_form.addRow('Value sign', self.value_sign)
+        self.auto_limit = W.QCheckBox('Automatic shared colour range')
+        self.auto_limit.setChecked(True)
+        shared_form.addRow(self.auto_limit)
+        self.color_limit = W.QDoubleSpinBox()
+        self.color_limit.setDecimals(9)
+        self.color_limit.setRange(1e-9, 1e100)
+        self.color_limit.setValue(1.)
+        shared_form.addRow('Symmetric colour limit', self.color_limit)
+        shared_tip = ('Value sign applies to all panels. Shared colours apply to arrows and peak maps, '
+                      'and to slices when Slice uses shared colour range is checked.')
+        self.auto_limit.setToolTip(shared_tip)
+        self.color_limit.setToolTip(shared_tip)
+
+        form = section('3D and peak maps')
+        self.threshold_mode = W.QComboBox()
+        self.threshold_mode.addItem('Absolute threshold', 'absolute')
+        self.threshold_mode.addItem('Value interval [a, b]', 'interval')
+        form.addRow('3D / peak filter', self.threshold_mode)
+        self.value_interval = W.QLineEdit()
+        self.value_interval.setAccessibleName('Value interval a b')
+        self.value_interval.setToolTip('Signed inclusive bounds a b, with a < b. Scientific notation accepted. '
+                                       'Filter 3D regions, arrows and peak maps; slice values remain unchanged.')
+        form.addRow('Value interval: a b', self.value_interval)
         self.threshold = W.QDoubleSpinBox()
         self.threshold.setDecimals(9)
         self.threshold.setRange(0., 1e100)
@@ -232,26 +280,70 @@ class MainWindow(W.QMainWindow):
                          'the shared peak across cases and contributions. A higher threshold expands the range.')
         self.threshold.setToolTip(threshold_tip)
         self.threshold_slider.setToolTip(threshold_tip)
-        self.auto_limit = W.QCheckBox('Automatic shared colour range')
-        self.auto_limit.setChecked(True)
-        form.addRow(self.auto_limit)
-        self.color_limit = W.QDoubleSpinBox()
-        self.color_limit.setDecimals(9)
-        self.color_limit.setRange(1e-9, 1e100)
-        self.color_limit.setValue(1.)
-        form.addRow('Symmetric colour limit', self.color_limit)
         self.layers = {}
-        for name in ('lines', 'arrows', 'regions', 'plane'):
+        for name in ('lines', 'arrows', 'regions'):
             check = W.QCheckBox('Show ' + name)
             check.setChecked(True)
             check.toggled.connect(lambda enabled, key=name: self.set_layer(key, enabled))
             form.addRow(check)
             self.layers[name] = check
-        text = W.QLabel('Threshold affects regions, arrows and signed peak maps. Slices show all finite values. '
-                        'Gradient attribution uses the total-field frame; residual gamma/eta are not scalar differences.')
+        text = W.QLabel('Filters regions, arrows and peak maps. Slices retain all strengths of the selected sign.')
         text.setWordWrap(True)
         form.addRow(text)
-        tabs.addTab(display, 'Display')
+
+        slice_form = section('Slice')
+        text = W.QLabel('Colour and extent apply to both the 3D plane and the face-on slice.')
+        text.setWordWrap(True)
+        slice_form.addRow(text)
+        self.auto_slice_color = W.QCheckBox('Slice uses shared colour range')
+        self.auto_slice_color.setChecked(True)
+        slice_form.addRow(self.auto_slice_color)
+        self.slice_color_range = W.QLineEdit()
+        self.slice_color_range.setAccessibleName('Slice colour min max')
+        self.slice_color_range.setToolTip('Colour-bar minimum and maximum for both slice panels. '
+                                          'Values outside the range keep the endpoint colours. '
+                                          'Does not filter data or change 3D/peak colour limits.')
+        slice_form.addRow('Slice colour: min max', self.slice_color_range)
+        self.auto_slice_extent = W.QCheckBox('Full slice extent')
+        self.auto_slice_extent.setChecked(True)
+        slice_form.addRow(self.auto_slice_extent)
+        self.slice_horizontal = W.QLineEdit()
+        self.slice_vertical = W.QLineEdit()
+        self.slice_horizontal.setAccessibleName('Slice horizontal min max')
+        self.slice_vertical.setAccessibleName('Slice vertical min max')
+        self.slice_horizontal_label = W.QLabel('Slice horizontal: min max')
+        self.slice_vertical_label = W.QLabel('Slice vertical: min max')
+        for label, widget in ((self.slice_horizontal_label, self.slice_horizontal),
+                              (self.slice_vertical_label, self.slice_vertical)):
+            label.setWordWrap(True)
+            widget.setToolTip('Crop both slice panels to this coordinate interval. For oblique planes, '
+                              'coordinates are projections onto the face-on horizontal/vertical axes '
+                              'measured from the world origin. Scientific notation accepted.')
+            slice_form.addRow(label, widget)
+        self.layers['plane'] = W.QCheckBox('Show plane in 3D')
+        self.layers['plane'].setChecked(True)
+        self.layers['plane'].setToolTip('Show the slice and its handle in 3D. The face-on slice stays visible.')
+        self.layers['plane'].toggled.connect(lambda enabled: self.set_layer('plane', enabled))
+        slice_form.addRow(self.layers['plane'])
+        display_layout.addStretch()
+        for section_form in (shared_form, form, slice_form):
+            for row in range(section_form.rowCount()):
+                item = section_form.itemAt(row, W.QFormLayout.ItemRole.LabelRole)
+                if item is not None and isinstance(item.widget(), W.QLabel):
+                    item.widget().setWordWrap(True)
+        display_scroll = W.QScrollArea()
+        display_scroll.setWidgetResizable(True)
+        display_scroll.setHorizontalScrollBarPolicy(C.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        display_scroll.setWidget(display)
+        tabs.addTab(display_scroll, 'Display')
+        self.value_sign.currentIndexChanged.connect(self.set_value_sign)
+        self.threshold_mode.currentIndexChanged.connect(lambda: self._guard(self.set_value_interval))
+        self.value_interval.editingFinished.connect(lambda: self._guard(self.set_value_interval))
+        self.auto_slice_color.toggled.connect(lambda: self._guard(self.set_slice_color_range))
+        self.slice_color_range.editingFinished.connect(lambda: self._guard(self.set_slice_color_range))
+        self.auto_slice_extent.toggled.connect(lambda: self._guard(self.set_slice_extent))
+        self.slice_horizontal.editingFinished.connect(lambda: self._guard(self.set_slice_extent))
+        self.slice_vertical.editingFinished.connect(lambda: self._guard(self.set_slice_extent))
         self.threshold.valueChanged.connect(self.set_threshold)
         self.threshold_slider.valueChanged.connect(self.move_threshold_slider)
         self.auto_threshold_range.toggled.connect(lambda value: self._guard(self.set_threshold_slider_limit))
@@ -263,6 +355,7 @@ class MainWindow(W.QMainWindow):
             signal.connect(self.mark_draft)
         self.analysis_form.seeds.textChanged.connect(self.mark_draft)
         self.analysis_form.fac_override.toggled.connect(self.mark_draft)
+        self.analysis_form.trace_enabled.toggled.connect(self.mark_draft)
         self.settings_dock.setWidget(tabs)
         self.addDockWidget(C.Qt.DockWidgetArea.RightDockWidgetArea, self.settings_dock)
 
@@ -326,10 +419,18 @@ class MainWindow(W.QMainWindow):
             self.background_info.setText('Background: none')
             return
         source = case['source']
-        if source['kind'] == 't96':
+        if source['kind'] in MODEL_KINDS:
             p = source['parameters']
-            details = (f"Epoch: {p['epoch']:g} Unix s\nPdyn: {p['pdyn']:g} nPa | Dst: {p['dst']:g} nT\n"
-                       f"IMF By/Bz: {p['by']:g} / {p['bz']:g} nT")
+            details = f"Epoch: {p['epoch']:g} Unix s\n"
+            if source['kind'] == 't89':
+                details += f"Activity bin iopt: {p['iopt']}"
+            else:
+                details += (f"Pdyn: {p['pdyn']:g} nPa | Dst: {p['dst']:g} nT\n"
+                            f"IMF By/Bz: {p['by']:g} / {p['bz']:g} nT")
+                if source['kind'] == 't01':
+                    details += f"\nG1/G2: {p['g1']:g} / {p['g2']:g}"
+                elif source['kind'] == 't04':
+                    details += '\nW1-W6: ' + ' / '.join(f"{p[f'w{i}']:g}" for i in range(1, 7))
         else:
             details = '\n'.join(f'{name}: {value}' for name, value in source.get('metadata', {}).items())
         self.source_info.setText(source.get('path', source['kind']) + '\n' + details)
@@ -441,12 +542,15 @@ class MainWindow(W.QMainWindow):
             if any(self.displayed['analysis'][key] != candidate['analysis'][key] for key in unit_keys):
                 candidate['view']['thresholds'] = {}
                 candidate['view']['threshold_slider_limits'] = {}
+                candidate['view']['threshold_modes'] = {}
+                candidate['view']['value_intervals'] = {}
                 candidate['view']['color_limits'] = {}
+                candidate['view']['slice_color_ranges'] = {}
         candidate['view']['thresholds'].setdefault(display_key(result), result['scale']['threshold'])
         same_group = self.displayed is not None and self.displayed['id'] == candidate['id']
         self.scene.set_result(result, candidate['view'], preserve_camera=same_group)
         candidate['resolved'] = result['resolved']
-        if candidate['analysis']['seeds'] is None:
+        if candidate['analysis'].get('trace_enabled', True) and candidate['analysis']['seeds'] is None:
             candidate['analysis']['seeds'] = result['resolved']['seeds']
             self.group['analysis']['seeds'] = result['resolved']['seeds']
             if not self.analysis_form.seeds.toPlainText().strip():
@@ -534,14 +638,14 @@ class MainWindow(W.QMainWindow):
         if dialog.exec() == W.QDialog.DialogCode.Accepted:
             empty = not self.group['cases']
             for source in dialog.sources:
-                label = f"IMF By = {source['parameters']['by']:+g} nT" if source['kind'] == 't96' else Path(source['path']).name
+                label = model_case_label(source) if source['kind'] in MODEL_KINDS else Path(source['path']).name
                 self.group['cases'].append(dict(id=new_id(), label=label, source=source, background=None))
             if empty:
                 self.group['reference'] = self.group['view']['case'] = self.group['cases'][0]['id']
-                self.group['analysis'] = default_analysis(dialog.sources[0]['kind'] == 't96')
-                if dialog.sources[0]['kind'] != 't96':
+                self.group['analysis'] = default_analysis(dialog.sources[0]['kind'] in MODEL_KINDS)
+                if dialog.sources[0]['kind'] not in MODEL_KINDS:
                     self.group['analysis']['length_unit'] = dialog.sources[0].get('metadata', {}).get('length_unit', 'grid unit')
-                self.group['view']['origin'] = [-6., 0., 0.] if dialog.sources[0]['kind'] == 't96' else None
+                self.group['view']['origin'] = [-6., 0., 0.] if dialog.sources[0]['kind'] in MODEL_KINDS else None
                 self.analysis_form.set_analysis(self.group['analysis'])
             self._source_edited()
 
@@ -553,9 +657,13 @@ class MainWindow(W.QMainWindow):
         if dialog.exec() == W.QDialog.DialogCode.Accepted:
             if len(dialog.sources) != 1:
                 raise ValueError('Edit one case at a time; use Add model for a scan.')
+            old_source = case['source']
             case['source'] = dialog.sources[0]
+            if (old_source['kind'] in MODEL_KINDS and case['source']['kind'] in MODEL_KINDS
+                    and case['label'] == model_case_label(old_source)):
+                case['label'] = model_case_label(case['source'])
             background = case.get('background')
-            if background and background.get('follow_case_epoch') and case['source']['kind'] == 't96':
+            if background and background.get('follow_case_epoch') and case['source']['kind'] in MODEL_KINDS:
                 background['parameters']['epoch'] = case['source']['parameters']['epoch']
             self._source_edited()
 
@@ -623,14 +731,14 @@ class MainWindow(W.QMainWindow):
         if case:
             initial = case.get('background')
             if initial is None:
-                initial = dict(kind='dipole', parameters={'epoch': case['source']['parameters']['epoch']}) if case['source']['kind'] == 't96' else dict(kind='xdmf', path='', options={})
+                initial = dict(kind='dipole', parameters={'epoch': case['source']['parameters']['epoch']}) if case['source']['kind'] in MODEL_KINDS else dict(kind='xdmf', path='', options={})
             dialog = SourceDialog(self, initial, background=True)
             if dialog.exec() == W.QDialog.DialogCode.Accepted:
                 case['background'] = dialog.sources[0]
                 self._source_edited()
 
     def assign_dipoles(self):
-        if any(c['source']['kind'] != 't96' for c in self.group['cases']):
+        if any(c['source']['kind'] not in MODEL_KINDS for c in self.group['cases']):
             raise ValueError('Dipole assignment requires model cases with explicit epochs.')
         for case in self.group['cases']:
             case['background'] = dict(kind='dipole', parameters={'epoch': case['source']['parameters']['epoch']},
@@ -649,9 +757,13 @@ class MainWindow(W.QMainWindow):
 
     def sync_display(self):
         ready = self.scene.result is not None
+        self.value_sign.setEnabled(ready)
         self.threshold.setEnabled(ready)
         self.threshold_slider.setEnabled(ready)
         self.auto_threshold_range.setEnabled(ready)
+        for widget in (self.threshold_mode, self.value_interval, self.auto_slice_color,
+                       self.slice_color_range, self.auto_slice_extent, self.slice_horizontal, self.slice_vertical):
+            widget.setEnabled(ready)
         if self.scene.result is None:
             self.threshold_range.clear()
             self.threshold_slider_upper.clear()
@@ -660,11 +772,21 @@ class MainWindow(W.QMainWindow):
         self.syncing = True
         try:
             view, result = self.scene.view, self.scene.result
+            self.value_sign.setCurrentIndex(self.value_sign.findData(view['value_sign']))
             key = display_key(result)
             self.sync_threshold(view['thresholds'].get(key, result['scale']['threshold']), reset_range=True)
+            self.threshold_mode.setCurrentIndex(self.threshold_mode.findData(view['threshold_modes'].get(key, 'absolute')))
+            limit = view['color_limits'].get(key, result['scale']['limit'])
+            self.value_interval.setText(line(view['value_intervals'].get(key, [-limit, limit])))
+            self._sync_filter_enabled()
             self.auto_limit.setChecked(key not in view['color_limits'])
             self.color_limit.setValue(view['color_limits'].get(key, result['scale']['limit']))
             self.color_limit.setEnabled(not self.auto_limit.isChecked())
+            self.auto_slice_color.setChecked(key not in view['slice_color_ranges'])
+            self.slice_color_range.setText(line(view['slice_color_ranges'].get(key, [-limit, limit])))
+            self.slice_color_range.setEnabled(not self.auto_slice_color.isChecked())
+            self.auto_slice_extent.setChecked(view['slice_extent'] is None)
+            self.sync_slice_extent()
             for name, widget in self.layers.items():
                 widget.setChecked(view[name])
             self.layers['arrows'].setEnabled(result['basis'] is not None)
@@ -695,8 +817,28 @@ class MainWindow(W.QMainWindow):
                 self.offset.setSingleStep((hi - lo) / 100)
                 self.offset.setValue(value)
                 self.slider.setValue(round(1000 * (value - lo) / (hi - lo)))
+                self.sync_slice_extent()
         finally:
             self.syncing = previous
+
+    def sync_slice_extent(self):
+        if self.scene.mesh is None:
+            return
+        axes = slice_axes(self.scene.view['normal'])
+        bounds = np.asarray(self.scene.mesh.bounds).reshape(3, 2)
+        corners = np.array(np.meshgrid(*bounds, indexing='ij')).reshape(3, -1).T
+        extent = self.scene.view['slice_extent']
+        for index, (axis, widget, label) in enumerate(zip(axes,
+                (self.slice_horizontal, self.slice_vertical),
+                (self.slice_horizontal_label, self.slice_vertical_label))):
+            name = next(('xyz'[i] for i in range(3) if np.allclose(axis, np.eye(3)[i])),
+                        'u' if index == 0 else 'v')
+            direction = 'horizontal' if index == 0 else 'vertical'
+            unit = self.scene.result['analysis']['length_unit']
+            label.setText(f'Slice {direction} {name} [{unit}]: min max')
+            values = extent[2*index:2*index+2] if extent is not None else [float((corners @ axis).min()), float((corners @ axis).max())]
+            widget.setText(line(values))
+            widget.setEnabled(extent is not None)
 
     def set_plane(self):
         if self.scene.result is not None:
@@ -793,6 +935,11 @@ class MainWindow(W.QMainWindow):
             else:
                 self.sync_threshold(value)
 
+    def set_value_sign(self):
+        if not self.syncing and self.scene.result is not None:
+            self.scene.view['value_sign'] = self.value_sign.currentData()
+            self.scene.update_display()
+
     def set_threshold(self, value):
         if not self.syncing and self.scene.result is not None:
             self.sync_threshold(value)
@@ -808,6 +955,60 @@ class MainWindow(W.QMainWindow):
                 self.scene.view['color_limits'][key] = self.color_limit.value()
             self.color_limit.setEnabled(not self.auto_limit.isChecked())
             self.scene.update_display()
+            if self.auto_slice_color.isChecked():
+                self.slice_color_range.setText(line([-self.scene.limit, self.scene.limit]))
+
+    @staticmethod
+    def _range(text, label):
+        values = numbers(text, 2)
+        if not np.all(np.isfinite(values)) or values[0] >= values[1]:
+            raise ValueError(label + ' requires finite min < max.')
+        return values
+
+    def _sync_filter_enabled(self):
+        absolute = self.threshold_mode.currentData() == 'absolute'
+        for widget in (self.threshold, self.threshold_slider, self.auto_threshold_range):
+            widget.setEnabled(absolute)
+        self.threshold_slider_upper.setEnabled(absolute and not self.auto_threshold_range.isChecked())
+        self.value_interval.setEnabled(not absolute)
+
+    def set_value_interval(self):
+        if self.syncing or self.scene.result is None:
+            return
+        key = display_key(self.scene.result)
+        mode = self.threshold_mode.currentData()
+        self._sync_filter_enabled()
+        if mode == 'interval':
+            values = self._range(self.value_interval.text(), 'Value interval')
+            self.scene.view['value_intervals'][key] = values
+        self.scene.view['threshold_modes'][key] = mode
+        self.scene.update_display()
+
+    def set_slice_color_range(self):
+        if self.syncing or self.scene.result is None:
+            return
+        key = display_key(self.scene.result)
+        self.slice_color_range.setEnabled(not self.auto_slice_color.isChecked())
+        if self.auto_slice_color.isChecked():
+            self.scene.view['slice_color_ranges'].pop(key, None)
+            self.slice_color_range.setText(line([-self.scene.limit, self.scene.limit]))
+        else:
+            values = self._range(self.slice_color_range.text(), 'Slice colour range')
+            self.scene.view['slice_color_ranges'][key] = values
+        self.scene.update_slice()
+
+    def set_slice_extent(self):
+        if self.syncing or self.scene.result is None:
+            return
+        for widget in (self.slice_horizontal, self.slice_vertical):
+            widget.setEnabled(not self.auto_slice_extent.isChecked())
+        extent = None if self.auto_slice_extent.isChecked() else (
+            self._range(self.slice_horizontal.text(), 'Slice horizontal range')
+            + self._range(self.slice_vertical.text(), 'Slice vertical range'))
+        self.scene.view['slice_extent'] = extent
+        self.scene.last_normal = None
+        self.sync_slice_extent()
+        self.scene.update_slice()
 
     def set_layer(self, key, value):
         if not self.syncing and self.scene.result is not None:

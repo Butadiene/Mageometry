@@ -10,7 +10,16 @@ from ..viz3d._current import COMPONENTS, TRANSVERSE_COMPONENTS
 
 SCHEMA_VERSION = 2
 DEFAULT_GEOMETRY_DELTA = 0.002
-SOURCE_KINDS = ('t96', 'dipole', 'xdmf', 'hdf5', 'vtk')
+MODEL_KINDS = ('t89', 't96', 't01', 't04')
+MODEL_PARAMETERS = {
+    't89': ('epoch', 'iopt'),
+    't96': ('epoch', 'pdyn', 'dst', 'by', 'bz'),
+    't01': ('epoch', 'pdyn', 'dst', 'by', 'bz', 'g1', 'g2'),
+    't04': ('epoch', 'pdyn', 'dst', 'by', 'bz', 'w1', 'w2', 'w3', 'w4', 'w5', 'w6'),
+}
+MODEL_DEFAULTS = dict(epoch=100., iopt=2, pdyn=2., dst=-20., by=0., bz=-5.,
+                      g1=0., g2=0., w1=0., w2=0., w3=0., w4=0., w5=0., w6=0.)
+SOURCE_KINDS = MODEL_KINDS + ('dipole', 'xdmf', 'hdf5', 'vtk')
 VIEW_LAYOUTS = ('all', 'three_d_slice', 'three_d', 'slice')
 
 
@@ -22,8 +31,9 @@ def default_view():
     return dict(case=None, component='alpha', contribution='total',
                 layout='all', previous_layout='all', panels_hidden=False,
                 normal=[1., 0., 0.], origin=[-6., 0., 0.],
-                thresholds={}, threshold_slider_limits={}, color_limits={}, cameras={},
-                lines=True, arrows=True, regions=True, plane=True)
+                thresholds={}, threshold_slider_limits={}, threshold_modes={}, value_intervals={},
+                color_limits={}, slice_color_ranges={}, slice_extent=None, cameras={},
+                lines=True, arrows=True, regions=True, plane=True, value_sign='both')
 
 
 def default_analysis(model=False):
@@ -36,7 +46,7 @@ def default_analysis(model=False):
                 current_unit='nA/m^2' if model else None,
                 length_unit='Re' if model else 'grid unit',
                 seeds=[[x, y, 1.] for x in (-6., -10.) for y in (-2., 0., 2.)]
-                if model else None, n_lines=10,
+                if model else None, n_lines=10, trace_enabled=True,
                 trace=dict(ds=0.15, max_steps=350, r0=2.5) if model else {})
 
 
@@ -52,28 +62,57 @@ def empty_session():
     return dict(schema_version=SCHEMA_VERSION, active_group=group['id'], groups=[group])
 
 
-def model_source(by=0.):
-    return dict(kind='t96', parameters=dict(epoch=100., pdyn=2., dst=-20.,
-                                           by=float(by), bz=-5.),
-                bounds=[[-15., 5.], [-8., 8.], [-8., 8.]], shape=[65, 49, 49])
+def model_source(by=0., *, model='t96', parameters=None):
+    if model not in MODEL_KINDS:
+        raise ValueError(f'Unsupported model: {model!r}.')
+    values = {key: MODEL_DEFAULTS[key] for key in MODEL_PARAMETERS[model]}
+    if model != 't89':
+        values['by'] = float(by)
+    elif by != 0.:
+        raise ValueError('T89 uses iopt, not IMF By.')
+    values.update(parameters or {})
+    source = dict(kind=model, parameters=values,
+                  bounds=[[-15., 5.], [-8., 8.], [-8., 8.]], shape=[65, 49, 49])
+    validate_source(source)
+    return source
 
 
-def model_session(by_values=(0.,)):
-    """Create a T96 + dipole recipe with independently identified By cases.
+def model_case_label(source):
+    kind, parameters = source['kind'], source['parameters']
+    if kind == 't89':
+        return f"T89 iopt = {parameters['iopt']}"
+    prefix = '' if kind == 't96' else kind.upper() + ': '
+    return prefix + f"IMF By = {parameters['by']:+g} nT"
+
+
+def model_session(by_values=(0.,), *, model='t96', parameters=None):
+    """Create model + dipole recipes with independently identified cases.
 
     Parameters
     ----------
     by_values : sequence of float
-        IMF By inputs in nT.
+        IMF By inputs in nT. T89 accepts only the default single zero entry.
+    model : {'t89', 't96', 't01', 't04'}, optional
+        External field model. Default T96.
+    parameters : dict, optional
+        Shared model inputs, excluding By (use by_values). Defaults include
+        iopt=2 for T89, G1=G2=0 for T01, and W1 through W6=0 for T04.
+        The zero driving indices are demonstration inputs, not inferred history.
 
     Returns
     -------
     dict
         JSON-compatible session with common numerical and viewing conditions.
     """
-    group = new_group('T96 By comparison' if len(by_values) > 1 else 'T96 snapshot', True)
-    group['cases'] = [dict(id=new_id(), label=f'IMF By = {by:+g} nT',
-                           source=model_source(by), background=None) for by in by_values]
+    if parameters and 'by' in parameters:
+        raise ValueError('Use by_values to specify IMF By.')
+    if model == 't89' and tuple(by_values) != (0.,):
+        raise ValueError('T89 uses iopt, not an IMF By comparison.')
+    group = new_group(model.upper() + (' By comparison' if len(by_values) > 1 else ' snapshot'), True)
+    for by in by_values:
+        source = model_source(by, model=model, parameters=parameters)
+        group['cases'].append(dict(id=new_id(), label=model_case_label(source),
+                                    source=source, background=None))
     if group['cases']:
         group['reference'] = group['view']['case'] = group['cases'][0]['id']
     session = dict(schema_version=SCHEMA_VERSION, active_group=group['id'], groups=[group])
@@ -98,12 +137,18 @@ def validate_source(source):
     if not isinstance(source, dict) or source.get('kind') not in SOURCE_KINDS:
         raise ValueError('Unsupported source kind.')
     kind = source['kind']
-    if kind in ('t96', 'dipole'):
+    if kind in MODEL_KINDS or kind == 'dipole':
         parameters = source.get('parameters', {})
         finite(parameters.get('epoch'), 'epoch')
-        if kind == 't96':
-            for key in ('pdyn', 'dst', 'by', 'bz'):
-                finite(parameters.get(key), key, positive=key == 'pdyn')
+        if kind in MODEL_KINDS:
+            if set(parameters) - set(MODEL_PARAMETERS[kind]):
+                raise ValueError(f'Unsupported {kind.upper()} parameters: '
+                                 f'{set(parameters) - set(MODEL_PARAMETERS[kind])}.')
+            for key in MODEL_PARAMETERS[kind]:
+                finite(parameters.get(key), key, positive=key == 'pdyn',
+                       minimum=0 if key.startswith(('g', 'w')) else None)
+            if kind == 't89' and (type(parameters['iopt']) is not int or not 1 <= parameters['iopt'] <= 7):
+                raise ValueError('T89 iopt must be an integer from 1 to 7.')
             shape = source.get('shape', [])
             if len(shape) != 3 or any(type(n) is not int or n < 3 for n in shape):
                 raise ValueError('Model shape must contain three integers >= 3.')
@@ -161,10 +206,12 @@ def validate_session(session):
             if case.get('background') is not None:
                 validate_source(case['background'])
         a = group['analysis']
+        if type(a.setdefault('trace_enabled', True)) is not bool:
+            raise ValueError('Trace enabled must be a boolean.')
         if a['kind'] not in ('field', 'attribution') or a['evaluation'] not in ('grid', 'direct'):
             raise ValueError('Invalid analysis kind or evaluation mode.')
         if a['evaluation'] == 'direct':
-            if any(c['source']['kind'] != 't96' for c in cases):
+            if any(c['source']['kind'] not in MODEL_KINDS for c in cases):
                 raise ValueError('Direct evaluation requires model sources for every case.')
             if a['delta'] is not None or result['schema_version'] == 1:
                 steps = a['delta'] if isinstance(a['delta'], list) else [a['delta']]
@@ -215,6 +262,8 @@ def validate_session(session):
             raise ValueError('Unknown contribution.')
         if view['layout'] not in VIEW_LAYOUTS:
             raise ValueError('Unknown view layout.')
+        if view.setdefault('value_sign', 'both') not in ('both', 'positive', 'negative'):
+            raise ValueError('Value sign must be both, positive or negative.')
         if view.get('previous_layout', 'all') not in VIEW_LAYOUTS[:-1]:
             raise ValueError('Previous layout must be a non-slice layout.')
         vector(view['normal'], 'slice normal')
@@ -231,6 +280,29 @@ def validate_session(session):
             raise ValueError('Threshold slider limits must be a mapping.')
         for value in slider_limits.values():
             finite(value, 'threshold slider upper bound', positive=True)
+        modes = view.setdefault('threshold_modes', {})
+        intervals = view.setdefault('value_intervals', {})
+        if not isinstance(modes, dict) or not isinstance(intervals, dict):
+            raise ValueError('Threshold modes and value intervals must be mappings.')
+        for key, mode in modes.items():
+            if mode not in ('absolute', 'interval') or (mode == 'interval' and key not in intervals):
+                raise ValueError('An interval filter requires a valid value interval.')
+        for interval in intervals.values():
+            vector(interval, 'value interval', 2)
+            if interval[0] >= interval[1]:
+                raise ValueError('Value interval requires lower < upper.')
+        slice_ranges = view.setdefault('slice_color_ranges', {})
+        if not isinstance(slice_ranges, dict):
+            raise ValueError('Slice colour ranges must be a mapping.')
+        for bounds in slice_ranges.values():
+            vector(bounds, 'slice colour range', 2)
+            if bounds[0] >= bounds[1]:
+                raise ValueError('Slice colour range requires lower < upper.')
+        extent = view.setdefault('slice_extent', None)
+        if extent is not None:
+            vector(extent, 'slice extent', 4)
+            if extent[0] >= extent[1] or extent[2] >= extent[3]:
+                raise ValueError('Slice extent requires horizontal/vertical min < max.')
         for values, positive in ((view['thresholds'], False), (view['color_limits'], True)):
             for value in values.values():
                 finite(value, 'display limit', minimum=0, positive=positive)

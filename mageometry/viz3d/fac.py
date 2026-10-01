@@ -87,7 +87,8 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
         ``gamma``, ``omega_c``, ``eta``, ``B_kappa``,
         ``minus_dB_dn``, the parallel terms ``B_dT_dn_b`` / ``B_dn_db_T``,
         their signed difference ``B_twist_diff``, or the independent
-        Cartesian ``fac`` diagnostic.
+        Cartesian ``fac`` diagnostic. Along-field scalar derivatives are
+        ``dalpha_ds``, ``dalpha_ds_over_B``, and ``dfac_ds``.
         Switch with the top dropdown or F5/F6, including in slice-only mode.
     **kwargs
         All :func:`fac_view` options, including slices, masks, and tracing.
@@ -126,6 +127,15 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
     Transverse rates use first Cartesian B derivatives via
     ``field_line_transverse_geometry``. Viewer alpha now uses that estimate,
     including on straight lines; legacy current API values are unchanged.
+    Along-field derivatives use T = B/|B|. With an explicit field, nested
+    central differences use geometry_delta along T, geometry_delta for
+    alpha's curl, and delta for FAC's curl. Without a field, differentiate
+    the preview's alpha/FAC arrays using central Cartesian differences and
+    project onto T; boundaries and incomplete stencils remain NaN.
+    The alpha derivatives are unscaled, with units 1/length^2 and
+    1/(field unit * length^2). Only dfac_ds uses current_scale, with units
+    current_unit/length (native field unit/length^2). None has arrows or
+    background-gradient attribution. Field-unit labels use grid metadata.
     Display scales are percentile-based, not a test of physical significance.
     Check derivative-step and preview-resolution convergence before analysis.
     """
@@ -328,8 +338,12 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
     fac_label = current_label
     scalar_name = component
 
+    def native_label(key):
+        return _component_label(key, current_unit, length_unit, fac_label,
+                                field_unit=data.metadata(case).get('field_unit', 'field unit'))
+
     def display_label(key):
-        label = _component_label(key, current_unit, length_unit, fac_label)
+        label = native_label(key)
         return label + ' / shared scale' if data.comparison else label
 
     values, basis = initial.values, initial.basis
@@ -424,7 +438,7 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
                                    vertical=False, width=0.85, height=0.16,
                                    position_x=0.08, position_y=0.02, fmt='%.2g', n_labels=3)
             bar.SetVerticalTitleSeparation(6)
-            bar.SetTitle(_component_label(component, current_unit, length_unit, fac_label))
+            bar.SetTitle(native_label(component))
         plane = ('YZ', 'XZ', 'XY')[axis]
         plotter.add_text(f'{plane} / peak along {"xyz"[axis]}', font_size=11,
                          color=_INK, position='upper_left')
@@ -686,7 +700,7 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
                                    vertical=False, width=0.85, height=0.16,
                                    position_x=0.08, position_y=0.02, fmt='%.2g', n_labels=3, render=False)
             bar.SetVerticalTitleSeparation(6)
-            bar.SetTitle(_component_label(component, current_unit, length_unit, fac_label))
+            bar.SetTitle(native_label(component))
             activate_main()
         describe_component()
         if case_changed:

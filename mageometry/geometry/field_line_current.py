@@ -111,6 +111,77 @@ def field_aligned_current_density(field, x, y, z, delta=0.01):
     return _finish(scalar_input, np.where(valid & (magnitude > 0), result, np.nan))
 
 
+def field_aligned_current_derivatives(field, x, y, z, delta=0.01, *, fac_delta=None):
+    """Differentiate alpha and parallel current along ``T = B / |B|``.
+
+    Parameters
+    ----------
+    field : callable
+        ``field(x, y, z) -> (bx, by, bz)``, accepting NumPy arrays.
+    x, y, z : float or array_like
+        Coordinates in the field's length unit; inputs are broadcast.
+    delta : float, optional
+        Positive finite displacement along the base-point T, and Cartesian
+        difference step used to evaluate alpha. Default 0.01.
+    fac_delta : float or (3,) array_like, optional
+        Cartesian curl steps for the FAC values being differentiated.
+        Defaults to delta. Does not affect either alpha derivative.
+
+    Returns
+    -------
+    dict of float or ndarray
+        ``dalpha_ds`` is T dot grad(alpha), in inverse length squared;
+        ``dalpha_ds_over_B`` divides that value by the base-point |B|, in
+        inverse field unit / length squared; ``dfac_ds`` is
+        T dot grad(curl(B) dot T), in field unit / length squared.
+        Native FAC is mu0 J_parallel; apply the same current conversion
+        as FAC to dfac_ds to obtain current-density / length units.
+
+    Notes
+    -----
+    Alpha is ``T dot curl(B) / |B|``. Evaluate it and native FAC at
+    ``r +/- delta * T(r)`` and take a central difference. This estimates a
+    derivative with respect to arc length in the direction of B, not
+    ``B dot grad``. No Frenet normal is needed. These are second derivatives
+    of the magnetic field; check convergence with respect to delta.
+    Nulls and non-finite required samples return NaN.
+    """
+    if not np.isscalar(delta) or not np.isfinite(delta) or delta <= 0:
+        raise ValueError('delta must be a positive finite scalar.')
+    steps = np.broadcast_to(np.asarray(delta if fac_delta is None else fac_delta,
+                                       dtype=float), (3,))
+    if not np.all(np.isfinite(steps) & (steps > 0)):
+        raise ValueError('fac_delta must contain positive finite step sizes.')
+    scalar_input, x, y, z = _as_arrays(x, y, z)
+    coords = (x, y, z)
+    valid = np.isfinite(x) & np.isfinite(y) & np.isfinite(z)
+    b = np.full(x.shape + (3,), np.nan)
+    if np.any(valid):
+        b[valid] = np.stack(np.broadcast_arrays(
+            *field(*(c[valid] for c in coords)), x[valid])[:3], axis=-1)
+    magnitude = np.linalg.norm(b, axis=-1)
+    valid &= np.isfinite(magnitude) & (magnitude > 0)
+    result = {key: np.full(x.shape, np.nan)
+              for key in ('dalpha_ds', 'dalpha_ds_over_B', 'dfac_ds')}
+    if np.any(valid):
+        tangent = b[valid] / magnitude[valid, None]
+        samples = []
+        for sign in (1, -1):
+            shifted = tuple(c[valid] + sign * delta * tangent[:, axis]
+                            for axis, c in enumerate(coords))
+            fac = field_aligned_current_density(field, *shifted, delta=delta)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                alpha = fac / _bmag(field, *shifted)
+            if not np.all(steps == delta):
+                fac = field_aligned_current_density(field, *shifted, delta=steps)
+            samples.append((alpha, fac))
+        result['dalpha_ds'][valid] = (samples[0][0] - samples[1][0]) / (2 * delta)
+        result['dalpha_ds_over_B'][valid] = result['dalpha_ds'][valid] / magnitude[valid]
+        result['dfac_ds'][valid] = (samples[0][1] - samples[1][1]) / (2 * delta)
+    return {key: _finish(scalar_input, np.where(np.isfinite(value), value, np.nan))
+            for key, value in result.items()}
+
+
 def field_magnitude_derivatives(field, x, y, z, delta=0.01,
                                 orthogonality_tol=DEFAULT_ORTHOGONALITY_TOL):
     """

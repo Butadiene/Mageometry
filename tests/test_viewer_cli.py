@@ -11,6 +11,14 @@ from mageometry.viz3d import cli
 
 
 class TestViewerCLI(unittest.TestCase):
+    def test_no_trace_passes_empty_seeds_and_zero_automatic_count(self):
+        with patch.object(cli, 'make_cases', return_value={'case': object()}), \
+                patch.object(cli, 'make_fields'), \
+                patch.object(cli.viz3d, 'compare_geometry') as render, patch('builtins.print'):
+            cli.main(['--by', '-5', '5', '--no-trace'])
+        self.assertEqual(render.call_args.kwargs['seeds'], [])
+        self.assertEqual(render.call_args.kwargs['n_lines'], 0)
+
     def test_module_help_does_not_import_rendering_dependencies(self):
         code = """
 import importlib.abc
@@ -108,8 +116,11 @@ runpy.run_module('mageometry.viz3d', run_name='__main__')
     def test_comparison_example_reuses_shared_model_helpers(self):
         from examples import compare_t96_by
         from mageometry.session import presets
-        self.assertIs(compare_t96_by.make_cases, presets.make_cases)
-        self.assertIs(compare_t96_by.make_fields, presets.make_fields)
+        with patch.object(presets, 'make_cases') as cases, patch.object(presets, 'make_fields') as fields:
+            self.assertIs(compare_t96_by.make_cases(shape=(9, 7, 7)), cases.return_value)
+            self.assertIs(compare_t96_by.make_fields(), fields.return_value)
+        cases.assert_called_once_with((-10., -5., 0., 5., 10.), (9, 7, 7), dst=-30., bz=-10.)
+        fields.assert_called_once_with((-10., -5., 0., 5., 10.), dst=-30., bz=-10.)
 
 
 if __name__ == '__main__':

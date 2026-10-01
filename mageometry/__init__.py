@@ -60,6 +60,7 @@ from .geometry import (
     verify_unit_vectors,
     # |B| gradients and current density
     field_aligned_current_density,
+    field_aligned_current_derivatives,
     field_magnitude_derivatives,
     field_line_current_density,
     field_line_transverse_geometry,
@@ -109,6 +110,7 @@ __all__ = [
 
     # |B| gradients and current density
     "field_aligned_current_density",
+    "field_aligned_current_derivatives",
     "field_magnitude_derivatives",
     "field_line_current_density",
     "field_line_transverse_geometry",

@@ -1,4 +1,4 @@
-"""Explore a T96 model, simulation snapshot, or IMF By comparison.
+"""Explore a magnetic model, simulation snapshot, or IMF By comparison.
 
 Examples:
     python -m mageometry.viz3d --component gamma
@@ -18,6 +18,7 @@ from ..session.presets import (DEFAULT_SHAPE, MODEL_DELTA, case_label, make_case
                                make_fields, model_snapshot, model_view_options)
 from ._background import _load_background
 from ..session.cli import viewer_parser as _parser, validate_viewer_options as _validate
+from ..session.cli import model_overrides
 
 
 def _single_snapshot(args):
@@ -30,8 +31,8 @@ def _single_snapshot(args):
         grid = load_hdf5(args.h5, origin=tuple(args.origin), spacing=tuple(args.spacing),
                          stride=args.stride)
     else:
-        print('Model: T96 + dipole; native nT/Re converted to nA/m^2.', flush=True)
-        overrides = {}
+        print(f'Model: {(args.model or "t96").upper()} + dipole; native nT/Re converted to nA/m^2.', flush=True)
+        overrides = model_overrides(args)
         if args.shape is not None:
             overrides['shape'] = tuple(args.shape)
         if args.evaluation != 'direct':
@@ -61,13 +62,14 @@ def _single_snapshot(args):
 
 def _comparison(args):
     shape = tuple(args.shape) if args.shape is not None else DEFAULT_SHAPE
-    print(f'Sampling T96 + dipole: IMF By={args.by} nT; grid {shape} in Re.', flush=True)
-    cases = make_cases(args.by, shape)
-    fields = make_fields(args.by) if args.evaluation == 'direct' else None
+    print(f'Sampling {(args.model or "t96").upper()} + dipole: IMF By={args.by} nT; grid {shape} in Re.', flush=True)
+    overrides = model_overrides(args)
+    cases = make_cases(args.by, shape, **overrides)
+    fields = make_fields(args.by, **overrides) if args.evaluation == 'direct' else None
     options = model_view_options(comparison=True)
     options.update(fields=fields,
                    delta=(MODEL_DELTA if args.delta is None else args.delta) if fields is not None else None,
-                   initial_case=None if args.initial_by is None else case_label(args.initial_by),
+                   initial_case=None if args.initial_by is None else case_label(args.initial_by, args.model or 't96'),
                    color_limits=None if args.color_limit is None else {args.component: args.color_limit},
                    cache_size=2 if args.cache_size is None else args.cache_size)
     if args.slice_normal is None:
@@ -82,12 +84,14 @@ def main(argv=None, *, default_component='alpha', description=None,
     """Run the shared CLI; keyword presets support the compatibility launchers."""
     parser = _parser(description or __doc__, default_component)
     args = parser.parse_args(argv)
-    if args.by is None:
+    if args.by is None and args.model != 't89':
         args.by = default_by
     has_background = bool(args.background or args.background_xmf or args.background_vtk)
     args.component = args.component or ('eta' if has_background else default_component)
     _validate(parser, args, require_source)
     viewer, data, options = _comparison(args) if args.by is not None else _single_snapshot(args)
+    if args.no_trace:
+        options.update(seeds=[], n_lines=0)
     if args.screenshot:
         import pyvista as pv
         pv.OFF_SCREEN = True

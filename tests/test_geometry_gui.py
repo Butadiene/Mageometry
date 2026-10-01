@@ -129,6 +129,145 @@ class TestGeometryGUI(unittest.TestCase):
         self.assertEqual(saved['analysis']['geometry_delta'], .002)
         self.assertEqual(saved['view']['thresholds']['field:alpha'], window.threshold.value())
 
+    def test_value_sign_updates_display_without_applying_analysis(self):
+        window = self.window
+        window.analysis_form.fields['geometry_delta'].setText('.001')
+        cameras = window.scene.camera_state()
+        self.assertEqual(window.value_sign.currentData(), 'both')
+        for mode, excluded in (('positive', 'negative'), ('negative', 'positive')):
+            with self.subTest(mode=mode):
+                with patch.object(window.scene, 'update_display', wraps=window.scene.update_display) as update:
+                    window.value_sign.setCurrentIndex(window.value_sign.findData(mode))
+                    update.assert_called_once()
+                self.assertEqual(window.scene.view['value_sign'], mode)
+                self.assertIn(mode, window.plotter.renderers[0].actors)
+                self.assertNotIn(excluded, window.plotter.renderers[0].actors)
+                self.assertEqual(window.scene.camera_state(), cameras)
+                self.assertFalse(self.runner.requests)
+                saved = window.saved_recipe()['groups'][0]
+                self.assertEqual(saved['view']['value_sign'], mode)
+                self.assertEqual(saved['analysis']['geometry_delta'], .002)
+        self.assertEqual(window.analysis_form.fields['geometry_delta'].text(), '.001')
+
+    def test_interval_and_slice_ranges_are_display_only_and_survive_pending_result(self):
+        window = self.window
+        window.analysis_form.fields['geometry_delta'].setText('.001')
+        window.value_interval.setText('-.4 1.2')
+        window.threshold_mode.setCurrentIndex(window.threshold_mode.findData('interval'))
+        self.assertFalse(window.threshold.isEnabled())
+        self.assertTrue(window.value_interval.isEnabled())
+        window.slice_color_range.setText('-.2 .8')
+        window.auto_slice_color.setChecked(False)
+        window.slice_horizontal.setText('-1 1')
+        window.slice_vertical.setText('-.5 .5')
+        window.auto_slice_extent.setChecked(False)
+        self.assertFalse(self.runner.requests)
+        saved = window.saved_recipe()['groups'][0]
+        self.assertEqual(saved['analysis']['geometry_delta'], .002)
+        self.assertEqual(saved['view']['threshold_modes']['field:alpha'], 'interval')
+        self.assertEqual(saved['view']['value_intervals']['field:alpha'], [-.4, 1.2])
+        self.assertEqual(saved['view']['slice_color_ranges']['field:alpha'], [-.2, .8])
+        self.assertEqual(saved['view']['slice_extent'], [-1., 1., -.5, .5])
+        window.select('component', 'eta')
+        window.value_interval.setText('-.3 .9')
+        window.set_value_interval()
+        updated = deepcopy(self.result)
+        updated.update(component='eta', scale={'limit': 1., 'peak': 1., 'threshold': .25})
+        self.runner.events = [(self.runner.token, 'result', updated)]
+        window.poll()
+        self.assertEqual(window.threshold_mode.currentData(), 'absolute')
+        self.assertTrue(window.auto_slice_color.isChecked())
+        self.assertFalse(window.auto_slice_extent.isChecked())
+        self.assertEqual(window.scene.view['value_intervals']['field:alpha'], [-.3, .9])
+        window.select('component', 'alpha')
+        self.runner.events = [(self.runner.token, 'result', self.result)]
+        window.poll()
+        self.assertEqual(window.threshold_mode.currentData(), 'interval')
+        self.assertEqual(window.value_interval.text(), '-0.3 0.9')
+        self.assertEqual(window.slice_color_range.text(), '-0.2 0.8')
+        saved = window.saved_recipe()
+        window.new_session(saved)
+        self.runner.events = [(self.runner.token, 'result', self.result)]
+        window.poll()
+        self.assertEqual(window.scene.view['slice_extent'], [-1., 1., -.5, .5])
+        self.assertEqual(window.threshold_mode.currentData(), 'interval')
+        self.assertFalse(window.auto_slice_color.isChecked())
+
+    def test_invalid_ranges_leave_applied_display_state_and_axes_labels_follow_plane(self):
+        window = self.window
+        window.value_interval.setText('1 1')
+        window.threshold_mode.setCurrentIndex(window.threshold_mode.findData('interval'))
+        self.assertNotIn('field:alpha', window.scene.view['threshold_modes'])
+        self.assertTrue(window.value_interval.isEnabled())
+        window.value_interval.setText('-.5 .5')
+        window.set_value_interval()
+        window.auto_slice_color.setChecked(False)
+        window.auto_slice_extent.setChecked(False)
+        previous = deepcopy(window.scene.view)
+        for widget, action in ((window.value_interval, window.set_value_interval),
+                               (window.slice_color_range, window.set_slice_color_range),
+                               (window.slice_horizontal, window.set_slice_extent)):
+            original = widget.text()
+            for text in ('1 1', '3 2', 'nan 2', '0 inf', '1'):
+                widget.setText(text)
+                with self.subTest(text=text), self.assertRaises(ValueError):
+                    action()
+                self.assertEqual(window.scene.view, previous)
+            widget.setText(original)
+        window.align_axis(2)
+        self.assertIn('horizontal x', window.slice_horizontal_label.text())
+        self.assertIn('vertical y', window.slice_vertical_label.text())
+        window.scene._drag_plane([1., 1., 1.], [0., 0., 0.])
+        self.assertIn('horizontal u', window.slice_horizontal_label.text())
+        self.assertIn('vertical v', window.slice_vertical_label.text())
+
+    def test_disabling_traces_requires_apply_and_retains_automatic_seed_choice(self):
+        window = self.window
+        window.analysis_form.seeds.clear()
+        window.analysis_form.trace_enabled.setChecked(False)
+        self.assertFalse(window.analysis_form.seeds.isEnabled())
+        self.assertFalse(window.analysis_form.fields['ds'].isEnabled())
+        self.assertFalse(self.runner.requests)
+        self.assertTrue(window.saved_recipe()['groups'][0]['analysis']['trace_enabled'])
+        window.apply()
+        submitted = self.runner.requests[-1]
+        self.assertFalse(submitted['analysis']['trace_enabled'])
+        self.assertIsNone(submitted['analysis']['seeds'])
+        updated = deepcopy(self.result)
+        updated['analysis'] = deepcopy(submitted['analysis'])
+        updated['resolved']['seeds'] = None
+        self.runner.events = [(self.runner.token, 'result', updated)]
+        window.poll()
+        self.assertFalse(window.saved_recipe()['groups'][0]['analysis']['trace_enabled'])
+        self.assertIsNone(window.saved_recipe()['groups'][0]['analysis']['seeds'])
+        self.assertEqual(window.analysis_form.seeds.toPlainText(), '')
+        window.analysis_form.trace_enabled.setChecked(True)
+        window.apply()
+        self.assertTrue(self.runner.requests[-1]['analysis']['trace_enabled'])
+        self.assertIsNone(self.runner.requests[-1]['analysis']['seeds'])
+
+
+    def test_value_sign_survives_pending_result_and_session_restore(self):
+        window = self.window
+        window.select('component', 'eta')
+        # A display edit made during a calculation must take precedence on completion.
+        window.value_sign.setCurrentIndex(window.value_sign.findData('negative'))
+        updated = deepcopy(self.result)
+        updated.update(component='eta', scale={'limit': 1., 'peak': 1., 'threshold': .25})
+        self.runner.events = [(self.runner.token, 'result', updated)]
+        window.poll()
+        self.assertEqual(window.scene.view['value_sign'], 'negative')
+        self.assertEqual(window.value_sign.currentData(), 'negative')
+        self.assertNotIn('positive', window.plotter.renderers[0].actors)
+        saved = window.saved_recipe()
+        window.new_session(saved)
+        self.assertFalse(window.value_sign.isEnabled())
+        self.runner.events = [(self.runner.token, 'result', updated)]
+        window.poll()
+        self.assertTrue(window.value_sign.isEnabled())
+        self.assertEqual(window.value_sign.currentData(), 'negative')
+        self.assertEqual(window.scene.view['value_sign'], 'negative')
+
     def test_manual_threshold_expands_slider_and_keeps_range_stable(self):
         window = self.window
         window.threshold.setValue(20.)
@@ -376,6 +515,77 @@ class TestGeometryGUI(unittest.TestCase):
                 self.window.accept_result(result)
                 self.assertIn(label, self.window.header.text())
                 self.assertIn(label, self.window.plotter.renderers[0].actors['title'].GetInput())
+
+    def test_model_source_edits_and_dipole_epochs_work_for_every_model(self):
+        from mageometry.session.specs import model_source, model_case_label
+        from PySide6.QtWidgets import QDialog
+        for model in ('t89', 't01', 't04', 't96'):
+            with self.subTest(model=model):
+                self.window.assign_dipoles()
+                source = model_source(model=model, parameters={'epoch': 1234.})
+                with patch('mageometry.gui.window.SourceDialog') as dialog:
+                    dialog.return_value.exec.return_value = QDialog.DialogCode.Accepted
+                    dialog.return_value.sources = [source]
+                    self.window.edit_source()
+                selected = self.window.selected_case()
+                self.assertEqual(selected['source'], source)
+                self.assertEqual(selected['label'], model_case_label(source))
+                self.assertEqual(selected['background']['parameters']['epoch'], 1234.)
+                self.assertIn(model, self.window.source_info.text())
+                self.assertIn('1234', self.window.source_info.text())
+                if model == 't89':
+                    self.assertIn('iopt', self.window.source_info.text())
+                    self.assertNotIn('IMF', self.window.source_info.text())
+                elif model == 't01':
+                    self.assertIn('G1/G2', self.window.source_info.text())
+                elif model == 't04':
+                    self.assertIn('W1-W6', self.window.source_info.text())
+                self.window.apply()
+                self.assertEqual(self.runner.requests[-1]['cases'][0]['source']['kind'], model)
+
+    def test_new_file_group_can_start_with_any_model_and_model_units(self):
+        from mageometry.session import empty_session
+        from mageometry.session.specs import model_source
+        from PySide6.QtWidgets import QDialog
+        for model in ('t89', 't01', 't04'):
+            with self.subTest(model=model):
+                self.window.new_session(empty_session())
+                with patch('mageometry.gui.window.SourceDialog') as dialog:
+                    dialog.return_value.exec.return_value = QDialog.DialogCode.Accepted
+                    dialog.return_value.sources = [model_source(model=model)]
+                    self.window.add_source()
+                analysis = self.window.group['analysis']
+                self.assertEqual(analysis['evaluation'], 'direct')
+                self.assertEqual(analysis['current_scale'], .125)
+                self.assertEqual(analysis['current_unit'], 'nA/m^2')
+                self.assertIn('2 nT/Re', self.window.analysis_form.fields['current_scale'].toolTip())
+                self.window.apply()
+                self.assertEqual(self.runner.requests[-1]['cases'][0]['source']['kind'], model)
+
+    def test_along_field_diagnostics_select_and_show_derivative_steps(self):
+        for component, evaluation, label in (
+            ('dalpha_ds', 'direct', 'alpha and along-B steps 0.002'),
+            ('dalpha_ds_over_B', 'direct', 'alpha and along-B steps 0.002'),
+            ('dfac_ds', 'direct', 'along-B step 0.002; FAC steps 0.01, 0.02, 0.03'),
+            ('dalpha_ds', 'grid', 'along-B gradient: preview axis spacing; alpha step 0.002'),
+            ('dfac_ds', 'grid', 'along-B gradient: preview axis spacing'),
+        ):
+            with self.subTest(component=component, evaluation=evaluation):
+                index = self.window.components.findData(component)
+                self.assertGreaterEqual(index, 0)
+                self.window.components.setCurrentIndex(index)
+                self.assertEqual(self.runner.requests[-1]['view']['component'], component)
+                result = deepcopy(self.result)
+                result['component'] = component
+                result['analysis']['evaluation'] = evaluation
+                result['resolved']['fac_delta'] = [.01, .02, .03]
+                self.window.pending = deepcopy(self.window.group)
+                self.window.pending['analysis'] = result['analysis']
+                self.window.accept_result(result)
+                self.assertIn(label, self.window.header.text())
+                self.assertIn(label, self.window.plotter.renderers[0].actors['title'].GetInput())
+                self.assertFalse(self.window.layers['arrows'].isEnabled())
+                self.assertEqual(self.window.saved_recipe()['groups'][0]['view']['component'], component)
 
     def test_window_size_and_dock_state_are_saved_and_restored(self):
         self.window.resize(1650, 1000)

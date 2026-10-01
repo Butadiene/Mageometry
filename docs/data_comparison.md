@@ -35,8 +35,10 @@ directly. The display grid and derivative step match the single-snapshot
 model example: 65 × 49 × 49 input nodes and 0.002 Re, with the same 120000-node
 preview budget. Colour scales and trace seeds remain shared across cases.
 The `python examples/compare_t96_by.py` command now opens the
-[Qt desktop workspace](gui.md) with the six By values above (requires
-`.[gui]`). Add `--layout three_d_slice` to show only 3D and the face-on slice.
+[Qt desktop workspace](gui.md) with five By values (−10, −5, 0, +5, +10 nT),
+Dst = −30 nT and IMF Bz = −10 nT (requires `.[gui]`). Its importable
+`make_cases` and `make_fields` helpers use those same conditions.
+Add `--layout three_d_slice` to show only 3D and the face-on slice.
 
 ```bash
 python -m mageometry.viz3d --by -10 -5 0 5 10 --component gamma
@@ -58,7 +60,7 @@ preview-axis differences for FAC; its default geometry step is the smallest
 preview spacing. The earlier coarse-grid example can be reproduced with
 `--evaluation grid --shape 41 33 33`.
 
-| Fixed example condition | Value |
+| Fixed standalone condition | Value |
 | --- | --- |
 | External / internal field | T96 / dipole |
 | Epoch | 100 Unix seconds (matching the single-snapshot model example) |

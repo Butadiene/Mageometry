@@ -1,5 +1,8 @@
 # Standalone viewer guide
 
+For Japanese explanations of the shared diagnostics and the Qt desktop
+controls, see [3D viewer 日本語詳細ガイド](gui_ja.md).
+
 [Documentation index](README.md) · [Input formats](simulation_data_formats.md)
 · [Geometry analysis](geometry_analysis.md) · [Transverse definitions](transverse_geometry.md)
 
@@ -47,7 +50,7 @@ The example scripts now open the [Qt desktop workspace](gui.md) and require
 | --- | --- |
 | `examples/geometry_gui.py` | Standard entry point: single model, `alpha` |
 | `examples/geometry_viewer_simulation.py` | Requires an explicit `--xmf`, `--vtk`, `--h5`, or saved `--session` |
-| `examples/compare_t96_by.py` | Defaults to `--by -5 -3 -1 1 3 5` |
+| `examples/compare_t96_by.py` | Dst = −30 nT, IMF Bz = −10 nT; defaults to `--by -10 -5 0 5 10` |
 
 They accept `--layout three_d_slice` for 3D and slice only, and
 `--component fac` to start on FAC. To open the standalone interface described
@@ -174,6 +177,11 @@ specifies the grid, derivative step, and regeneration command.
 
 ## Read the colours, arrows, and projections
 
+Both desktop and standalone launchers support `--model t89`, `t96` (default),
+`t01`, and `t04`, each combined with the internal dipole. T89 uses `--iopt`,
+T01 adds `--g1`/`--g2`, and T04 adds `--w W1 W2 W3 W4 W5 W6`.
+See the [model inputs and examples](gui.md#model-and-file-workflows).
+
 | Component group | Meaning | Arrows |
 | --- | --- | --- |
 | `fac` | Independent Cartesian curl(B)·T | Along/against T |
@@ -183,12 +191,49 @@ specifies the grid, derivative step, and regeneration command.
 | `B_kappa`, `minus_dB_dn` | Curvature and magnitude-gradient terms of `mu0J_b` | b |
 | `B_twist_diff` | D = Bβ_g, the signed difference of the two parallel terms | None |
 | `alpha`, `beta_g`, `delta_g`, `gamma`, `omega_c` | Transverse rates; see [definitions](transverse_geometry.md) | None |
+| `dalpha_ds` | T·∇α: alpha gradient along B, in inverse length squared | None |
+| `dalpha_ds_over_B` | (T·∇α)/B, in inverse field unit / length squared | None |
+| `dfac_ds` | T·∇FAC: signed parallel-current gradient, in FAC units / length | None |
 | `eta` | (alpha²−gamma²)/(alpha²+gamma²), dimensionless rotation/shear balance | None |
 
 Red and blue indicate the sign in the selected basis. Only T-directed
 components represent current along or against B. `B_twist_diff` is a
 shear diagnostic with field/length units; it is not total parallel current.
 When current conversion is enabled, its displayed label is `D / mu0`.
+
+The along-field derivatives use arc length in the direction **T = B/|B|**.
+A positive derivative means the signed scalar increases along B; it does
+not specify the current direction. Only `dfac_ds` receives `current_scale`.
+The two alpha derivatives remain in native geometry/field units. Magnetic
+units for their labels come from the grid's `field_unit` metadata, with
+`field unit` as the fallback. Gradient attribution supports the original
+six transverse diagnostics only.
+
+For direct fields, nested central differences evaluate alpha and FAC at
+`r ± geometry_delta*T(r)`. The inner alpha curl uses `geometry_delta`; the
+inner FAC curl uses `delta` (the desktop's optional FAC override). For grid
+evaluation, the viewer takes central Cartesian differences of the displayed
+preview alpha/FAC arrays and projects onto T, using the actual, possibly
+nonuniform axis spacing. The grid alpha calculation still uses
+`geometry_delta`. Required missing samples, magnetic nulls, and incomplete
+boundary stencils remain NaN. These quantities involve second magnetic-field
+derivatives, so check both difference-step and grid-resolution convergence.
+For exact derivatives, `∂s FAC = B ∂s alpha + alpha ∂s B` in native units;
+`dfac_ds` is not generally `B*dalpha_ds`.
+
+```bash
+python examples/geometry_viewer_simulation.py --xmf ea01sw000.xmf \
+  --stride 4 --component dalpha_ds_over_B --slice x --layout three_d_slice
+```
+
+Use `--component dalpha_ds` or `--component dfac_ds` for the other derivatives.
+The numerical callable API is
+`mageometry.geometry.field_aligned_current_derivatives(field, x, y, z, delta=..., fac_delta=...)`.
+
+![Along-field alpha derivative divided by magnetic strength, with a YZ slice at x = -6 Re](images/gui-alpha-gradient.png)
+
+The [capture recipe](images/README.md#qt-desktop-workspace) specifies the T96
+parameters and numerical settings for this desktop plot export.
 
 The overview maps select the signed value with the largest absolute
 magnitude along each sightline. They are peak projections, not slices or
@@ -213,6 +258,7 @@ range before displaying that diagnostic; it does not rescale on selection.
 | `--max-points N` | Limit the displayed/analysed preview; default 120000, minimum 27 |
 | `--geometry-delta H` | Derivative step for transverse rates and Frenet components, in coordinate units |
 | `--threshold VALUE` | Initial absolute cutoff in the displayed component's units |
+| `--no-trace` | Skip field-line tracing; diagnostic fields, slices and regions are still computed |
 
 Retain at least three nodes on each axis. Reader stride changes which nodes
 are loaded; preview coarsening happens afterwards and does not reduce the

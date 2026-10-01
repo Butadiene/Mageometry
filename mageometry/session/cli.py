@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 
 from .presets import _validate_by, _validate_shape
-from .specs import VIEW_LAYOUTS
+from .specs import MODEL_KINDS, VIEW_LAYOUTS, model_source
 from ..viz3d._current import COMPONENTS, TRANSVERSE_COMPONENTS, _component_name
 
 
@@ -20,6 +20,16 @@ def viewer_parser(description, default_component, *, desktop=False):
     parser.add_argument('--spacing', type=float, nargs=3, help='dx dy dz for direct HDF5')
     parser.add_argument('--stride', type=int, default=1, help='read every nth grid node (default: 1)')
     model = parser.add_argument_group('model and comparison')
+    model.add_argument('--model', choices=MODEL_KINDS, help='external field plus dipole (default: t96)')
+    model.add_argument('--epoch', type=float, help='model epoch in Unix seconds (default: 100)')
+    model.add_argument('--iopt', type=int, help='T89 activity bin, integer 1-7 (default: 2)')
+    model.add_argument('--pdyn', type=float, help='T96/T01/T04 solar-wind pressure in nPa (default: 2)')
+    model.add_argument('--dst', type=float, help='T96/T01/T04 Dst in nT (default: -20)')
+    model.add_argument('--bz', type=float, help='T96/T01/T04 IMF Bz in nT (default: -5)')
+    model.add_argument('--g1', type=float, help='T01 G1 driving index (demonstration default: 0)')
+    model.add_argument('--g2', type=float, help='T01 G2 driving index (demonstration default: 0)')
+    model.add_argument('--w', type=float, nargs=6, metavar=('W1', 'W2', 'W3', 'W4', 'W5', 'W6'),
+                       help='T04 driving indices (demonstration defaults: all 0)')
     model.add_argument('--by', type=float, nargs='+', help='compare these IMF By inputs in nT')
     model.add_argument('--initial-by', type=float, help='initial case, among --by values')
     model.add_argument('--shape', type=int, nargs=3, metavar=('NX', 'NY', 'NZ'),
@@ -44,6 +54,7 @@ def viewer_parser(description, default_component, *, desktop=False):
     parser.add_argument('--contribution', choices=('total', 'background', 'residual'),
                          help='initial gradient contribution (requires a background)')
     parser.add_argument('--threshold', type=float, help='absolute cutoff for the initial diagnostic')
+    parser.add_argument('--no-trace', action='store_true', help='skip field-line tracing')
     parser.add_argument('--geometry-delta', type=float,
                          help='shared derivative step (default: 0.002 for direct models, preview spacing for grids)'
                          if desktop else 'derivative step for geometry diagnostics')
@@ -63,10 +74,33 @@ def viewer_parser(description, default_component, *, desktop=False):
     return parser
 
 
+def model_overrides(args):
+    """Return only explicitly supplied model options, shared by both CLIs."""
+    parameters = {key: getattr(args, key) for key in
+                  ('epoch', 'iopt', 'pdyn', 'dst', 'bz', 'g1', 'g2')
+                  if getattr(args, key) is not None}
+    if args.w is not None:
+        parameters.update(zip((f'w{i}' for i in range(1, 7)), args.w))
+    overrides = {'parameters': parameters} if parameters else {}
+    if args.model is not None:
+        overrides['model'] = args.model
+    return overrides
+
+
 def validate_viewer_options(parser, args, require_source, *, desktop=False):
     has_file = bool(args.xmf or args.vtk or args.h5)
     comparing = args.by is not None
     has_background = bool(args.background or args.background_xmf or args.background_vtk)
+    overrides = model_overrides(args)
+    if has_file and overrides:
+        parser.error('--model and model parameters require a model source')
+    if args.model == 't89' and (args.by is not None or args.initial_by is not None):
+        parser.error('T89 uses --iopt, not --by or --initial-by')
+    if not has_file:
+        try:
+            model_source(**overrides)
+        except ValueError as error:
+            parser.error(str(error))
     if args.stride < 1:
         parser.error('--stride must be positive')
     if args.vtk and args.h5:

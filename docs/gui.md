@@ -2,8 +2,9 @@
 
 [Documentation index](README.md) · [Scientific definitions](fac_anisotropy_theory.md)
 · [Standalone viewers](viewer.md) · [Design reference](gui_design.md)
+· [日本語詳細ガイド](gui_ja.md)
 
-The desktop workspace brings model generation, simulation input, all 18
+The desktop workspace brings model generation, simulation input, all 21
 viewer diagnostics, dataset comparison, background-gradient attribution,
 and session persistence into one Qt window. The numerical geometry APIs and
 the standalone PyVista entry point remain available without Qt.
@@ -30,7 +31,8 @@ python -m mageometry.gui --session saved-session.json
 ```
 
 The three interactive examples launch this workspace: `geometry_gui.py`
-starts a single model, `compare_t96_by.py` starts six IMF By cases, and
+starts a single model, `compare_t96_by.py` starts five IMF By cases
+(−10, −5, 0, +5, +10 nT) at Dst = −30 nT and IMF Bz = −10 nT, and
 `geometry_viewer_simulation.py` requires an explicit file or saved session.
 Start on FAC with `python examples/geometry_gui.py --component fac`, or
 choose **fac** from **Diagnostic**. See the [examples index](../examples/README.md)
@@ -49,10 +51,42 @@ does not install Qt. Use `.[dev,gui]` to run the optional GUI tests.
 ## Model and file workflows
 
 **New model** and **New By comparison** start the T96 + dipole presets.
-**Edit selected source** edits epoch, Pdyn, Dst, IMF By/Bz, domain bounds and
-grid shape. Tilt follows the epoch. **Add model / files** can create several
-cases from a list of By values. Use duplicate/rename/remove and the reference
+In **Edit selected source** or **Add model / files**, choose **Source type**
+`t89`, `t96`, `t01`, or `t04`. Each combines the selected external field with
+the internal dipole. All use GSM coordinates in Re and magnetic fields in nT.
+Tilt follows the epoch. The form displays only the selected model's inputs:
+
+| Model | Inputs in addition to epoch, bounds and grid shape |
+| --- | --- |
+| [T89 input form](images/gui-source-t89.png) | `iopt`, an integer activity bin from 1 to 7; default 2. No Pdyn, Dst or IMF inputs. |
+| T96 | Pdyn [nPa], Dst [nT], IMF By/Bz [nT] |
+| [T01 input form](images/gui-source-t01.png) | T96's input quantities plus the G1 and G2 driving indices |
+| [T04 input form](images/gui-source-t04.png) | T96's input quantities plus six driving indices W1 through W6 |
+
+T89 `iopt` is a bin number: 1 corresponds to Kp 0/0+, 2 to 1−/1/1+,
+through 6 for 5−/5/5+, and 7 for Kp ≥ 6−. The G1/G2 and W1–W6 defaults
+are zero for demonstration. Enter indices appropriate to your event; the
+application does not calculate driving histories from the epoch or from
+instantaneous IMF values. T01/T04 are calibrated sunward of x = −15 Re;
+keep their model limits in mind when choosing a domain.
+The application's T01/T04 sources return NaN at x < −15 Re, including
+derivative stencil samples, instead of using the underlying API's clipped
+coordinates. Grid samples or diagnostics requiring that region remain blank.
+
+**Add model / files** can create several T96/T01/T04 cases from a list of By
+values. For a T89 activity comparison, duplicate cases and edit `iopt`.
+Use duplicate/rename/remove and the reference
 button to organize comparisons. Removing a case never deletes an input file.
+
+```bash
+python -m mageometry.gui --model t89 --iopt 4
+python -m mageometry.gui --model t01 --dst -30 --bz -10 --g1 1.2 --g2 0.7
+python -m mageometry.gui --model t04 --dst -30 --bz -10 --w 0.1 0.2 0.3 0.4 0.5 0.6
+```
+
+These are example inputs. The same model arguments work with
+`python -m mageometry.viz3d`; `--by -10 -5 0 5 10` adds a By comparison for
+T96/T01/T04. Models, inputs and assigned backgrounds survive session save/restore.
 
 **New file session** starts with an empty comparison group. Add an XDMF,
 HDF5 or VTK source and set its reader options in the source dialog. Plain
@@ -67,6 +101,20 @@ restores that group's plane, cameras and layout. No automatic grid alignment
 or data-unit conversion is performed. Unit declarations alone do not change
 arrays; the current multiplier is an explicit display conversion.
 
+**Default multiplier 0.125:** T96 and the other built-in models use magnetic
+fields in nT and distances in Re (Earth radii). The calculated current
+quantity is μ₀J in nT/Re. Multiplying its numerical value by approximately
+`0.125` converts it to **current density in nA/m²**; for example,
+`2 nT/Re → approximately 0.25 nA/m²`. This factor includes division by μ₀
+and the unit conversions. Enter it as **Current display multiplier** and
+use **Current display unit** `nA/m^2`. Changing the unit label alone does
+not convert values. The positive multiplier preserves signs.
+
+File sessions default to multiplier `1`, retaining native numerical values
+until a conversion appropriate to the input units is supplied. Alpha and
+its two along-field derivatives remain unscaled. The multiplier also applies
+to `dfac_ds`, whose model display unit is `(nA/m²)/Re`.
+
 Press **Apply and recompute** after editing sources or numerical conditions.
 Dataset, diagnostic and contribution selection reuse prepared settings and
 start any missing calculations automatically. The result header describes
@@ -75,7 +123,7 @@ the header to inspect its full source metadata.
 
 ## Background contributions across cases
 
-For the T96 group, **Assign dipole to model group** assigns a dipole at each
+For a group of T89/T96/T01/T04 cases, **Assign dipole to model group** assigns a dipole at each
 case's epoch. That assignment follows subsequent epoch edits through the
 source editor. Alternatively, **Assign background to case** opens the same
 source form for an explicit model or file background; file backgrounds must
@@ -138,8 +186,36 @@ their appearance. Trace seeds also matter: the desktop model preset uses
 six fixed seeds, while the standalone single-model preset selects seeds
 automatically from the displayed diagnostic.
 
-Display controls provide thresholds, automatic/manual colour limits, and
-layer visibility. In **Analysis and display → Display**, **Absolute threshold**
+**Analysis and display → Display** groups its controls into three bordered
+sections:
+
+| Section | Controls and scope |
+| --- | --- |
+| **Shared** | **Value sign** for every panel; the shared colour range for arrows, peak maps and linked slices. |
+| **3D and peak maps** | Absolute threshold or value interval, slider range, and visibility of 3D lines, arrows and regions. |
+| **Slice** | Colour range and horizontal/vertical extent for both slice views; **Show plane in 3D** controls the 3D plane and handle. |
+
+In **Shared**, **Value sign** selects **All values**
+(the default), **Positive only (> 0)**, or **Negative only (< 0)**. This
+filters the 3D regions, current arrows, both slices, and peak maps immediately,
+without **Apply and recompute**. Zero is excluded in either single-sign mode.
+The plane, cameras, context field lines, thresholds and shared colour range
+are preserved. The selection applies across diagnostics, cases and
+contributions in the group and is saved with the session. Older sessions
+default to **All values**.
+
+Display controls also provide thresholds, automatic/manual colour limits, and
+layer visibility. **3D / peak filter** selects **Absolute threshold** (the
+default) or **Value interval [a, b]**. In interval mode, enter two finite
+signed bounds with `a < b`, for example `-0.5 0.2`. Scientific notation is
+accepted. Regions and arrows use `a <= value <= b`; peak maps select the
+largest absolute sample *within that interval*. **Value sign** further
+restricts this selection. Bounds are in the displayed diagnostic's units,
+after any current conversion. Slices remain independent of this filter.
+The interval and filter mode are saved per diagnostic and analysis kind,
+shared across cases and contributions.
+
+In absolute mode, **Absolute threshold**
 has both a numeric input and a slider directly below it. They stay synchronized;
 press Enter or leave the numeric field to commit typed values. Both controls
 update the display immediately without **Apply and recompute**.
@@ -159,11 +235,41 @@ Re-enable the automatic option to return to the data-derived range, expanded
 to include the current threshold if necessary. Existing sessions without
 manual ranges use automatic ranges.
 
-Thresholds affect regions, arrows and peak maps; slices
-show all finite strengths. Peak maps select the signed sample of greatest
-absolute magnitude along each sightline, not an integral. Changes to the
+For a manual slice colour range, uncheck **Slice uses shared colour range**
+and enter **Slice colour: min max**, for example `-0.2 0.8`. Both the 3D
+plane and the face-on slice use those colour-bar limits. Values outside
+the range saturate at the endpoint colours; they are not removed. Arrows
+and peak maps retain their shared colour range. With asymmetric bounds,
+the neutral colour lies at the interval midpoint, not necessarily zero;
+read the colour bar. Recheck the box to restore the shared range. Manual
+slice colours are saved per diagnostic and analysis kind.
+
+To crop the slice's spatial area, uncheck **Full slice extent**, then enter
+the horizontal and vertical **min max** pairs. The labels show coordinate
+axes and units: a YZ slice uses horizontal y and vertical z, XZ uses x and z,
+and XY uses x and y. Oblique planes use u/v coordinates projected onto the
+face-on horizontal/vertical unit vectors, measured from the world origin.
+Both slice panels are cropped and the face-on camera fits the requested
+rectangle. Subsequent colour/filter edits retain pan and zoom. The extent
+is shared across diagnostics and cases; changing plane orientation reuses
+the same numeric intervals on the new axes. Recheck **Full slice extent**
+to restore the full cross-section. Display ranges take effect on Enter or
+leaving the input, without numerical **Apply**, and are saved in the session.
+
+Thresholds affect regions, arrows and peak maps; slices show all finite
+strengths of the selected sign. Peak maps select the sample of greatest
+absolute magnitude **among values of the selected sign** along each
+sightline, not an integral. A stronger sample of the hidden sign therefore
+does not hide a weaker sample of the selected sign. A slice or sightline
+with no matching values remains blank. Changes to the
 display conversion or unit labels reset remembered numeric thresholds,
-manual slider ranges and colour limits to avoid reusing values in a different display convention.
+value intervals, manual slider ranges and colour limits to avoid reusing
+values in a different display convention.
+
+![Signed interval and manual slice colour/spatial ranges in the Display tab](images/gui-display-ranges.png)
+
+This example uses a residual eta interval of [−0.5, 0.5], a slice colour
+range of [−0.6, 0.9], y ∈ [−5, 5] Re and z ∈ [−4, 4] Re at x = −6 Re.
 
 ## Screenshots and regeneration
 
@@ -183,10 +289,13 @@ and the schematic [HTML mockup](gui_mockup.html).
 3D + Slice: the same result with the three peak projections hidden. The
 plane, selections and cameras are preserved when switching layouts.
 
-![Display tab with synchronized numeric threshold input and slider](images/gui-display.png)
+![Display tab with value-sign selection, numeric threshold input and slider](images/gui-display.png)
 
-Display tab: adjust **Absolute threshold** with either the numeric field or
-the slider. Uncheck **Automatic threshold slider range** to edit its upper bound.
+Display tab: select **Value sign**, and adjust **Absolute threshold** with
+either the numeric field or the slider. Uncheck **Automatic threshold slider
+range** to edit its upper bound. Compare the same scene with
+[positive values only](images/gui-display-positive.png) and
+[negative values only](images/gui-display-negative.png).
 
 All captures come from [`benchmark/render_gui.py`](../benchmark/render_gui.py):
 
@@ -205,7 +314,7 @@ All captures come from [`benchmark/render_gui.py`](../benchmark/render_gui.py):
 This small grid and shortened tracing are for UI verification; these are
 not resolution-converged scientific results or the default launch settings.
 From the repository root, with `.[gui]` and a working desktop/OpenGL display,
-regenerate all four layouts and the Display-tab capture into a separate directory:
+regenerate all four layouts and the Display-tab captures into a separate directory:
 
 ```bash
 python benchmark/render_gui.py --output /tmp/mageometry-gui
@@ -214,8 +323,9 @@ python benchmark/render_gui.py --output /tmp/mageometry-gui
 The script also checks Qt mouse rotation in All panels, 3D + Slice and 3D focus,
 including repeated drags and a round trip through Slice focus, before
 restoring the cameras for the captures.
-It also checks numeric threshold entry, manual slider ranges and slider
-keyboard input through Qt.
+It also checks numeric threshold entry, manual slider ranges, slider
+keyboard input, positive/negative value selection, signed intervals and
+manual slice ranges through Qt. The final Apply/restore check disables tracing.
 The capture and restore sequence has a 300-second timeout; use
 `--timeout 600` on slower machines if needed.
 
@@ -224,16 +334,22 @@ The capture and restore sequence has a 300-second timeout; use
 | `workspace-all.png` | `docs/images/gui-workspace.png` |
 | `workspace-three_d_slice.png` | `docs/images/gui-three-d-slice.png` |
 | `workspace-display.png` | `docs/images/gui-display.png` |
+| `workspace-display-positive.png` | `docs/images/gui-display-positive.png` |
+| `workspace-display-negative.png` | `docs/images/gui-display-negative.png` |
+| `workspace-display-ranges.png` | `docs/images/gui-display-ranges.png` |
+| `workspace-no-trace.png` | `docs/images/gui-no-trace.png` |
 | `workspace-slice.png` | `docs/images/gui-slice.png` |
 | `workspace-three_d.png` | Additional 3D-focus check; not embedded in the guides |
 
-Inspect the generated images, then update the four referenced assets:
+Inspect the generated images, then update the referenced assets:
 
 ```bash
 cp /tmp/mageometry-gui/workspace-all.png docs/images/gui-workspace.png
 cp /tmp/mageometry-gui/workspace-slice.png docs/images/gui-slice.png
 cp /tmp/mageometry-gui/workspace-three_d_slice.png docs/images/gui-three-d-slice.png
 cp /tmp/mageometry-gui/workspace-display.png docs/images/gui-display.png
+cp /tmp/mageometry-gui/workspace-display-positive.png docs/images/gui-display-positive.png
+cp /tmp/mageometry-gui/workspace-display-negative.png docs/images/gui-display-negative.png
 ```
 
 The `plot-*.png` files show only the plots, as **Export PNG** does; they do
@@ -259,6 +375,21 @@ values in coordinate units. A blank field, or disabling the override,
 makes FAC follow Geometry step. Changing the FAC override does not change
 `alpha`, `beta_g`, `delta_g`, `gamma`, `eta`, or Frenet current components.
 The FAC result header and plot titles show the effective FAC steps.
+
+The **Diagnostic** selector also includes `dalpha/ds - Along B`,
+`(dalpha/ds) / |B| - Along B`, and `dFAC/ds - Along B`. These use the unit
+tangent T = B/|B|. Their units are inverse length squared, inverse magnetic
+field / length squared, and FAC units / length, respectively. Only the FAC
+derivative uses the current display multiplier. They are scalar field
+diagnostics, without arrows or background-gradient attribution.
+
+In direct evaluation, Geometry step sets the displacement along T and the
+inner alpha curl step. The FAC override also applies to the inner FAC curl
+used by `dfac_ds`, without changing either alpha derivative. In grid mode,
+the outer derivatives use central differences of the preview alpha/FAC
+arrays and the actual axis spacings. Invalid stencils and boundaries remain
+blank. These second derivatives of B require resolution and step-convergence
+checks; see the [definitions and CLI example](viewer.md#read-the-colours-arrows-and-projections).
 
 FAC is `(curl B) · T = μ₀ J_parallel`, before the explicit current display
 conversion. Grid evaluation always obtains FAC from preview axis spacing;
@@ -293,6 +424,17 @@ Trace seeds accept one `x y z` row per line. Blank means automatic; `none`
 disables tracing. Automatic seeds are resolved once from the reference case
 and saved as coordinates. The model presets use fixed physical seeds.
 
+Uncheck **Calculate field-line traces** in **Analysis**, then press
+**Apply and recompute**, to skip both seed selection and field-line
+integration. Diagnostic fields and slices are still computed. The seed
+coordinates/automatic choice and integration settings are retained for
+re-enabling. This calculation setting is saved with the session; older
+sessions default to enabled. **Display → Show lines** only changes the
+visibility of already calculated paths. Both viewer CLIs also accept
+`--no-trace`, for example `python -m mageometry.gui --no-trace`.
+
+![Analysis with field-line calculation disabled](images/gui-no-trace.png)
+
 A single spawned numerical process evaluates geopack cases serially and
 restores their epochs. Qt/VTK rendering stays on the GUI thread. Progress and
 Cancel remain accessible above the plot even with side panels hidden.
@@ -319,8 +461,10 @@ and the FAC step is retained, preserving the previous calculation.
 Groups that have not been prepared can be saved as source recipes without
 resolved results. The session includes model parameters or reader options,
 per-case backgrounds, reference/selection, numerical settings, resolved seeds
-and steps, preview shapes, scales, thresholds, manual slider ranges, cameras, layout and dock
-visibility. It stores paths relative to the session where possible; source
+and steps, preview shapes, scales, thresholds, value-sign selection, manual
+slider ranges, interval filters, slice colour/spatial ranges, trace enablement,
+cameras, layout and dock visibility. It stores paths relative
+to the session where possible; source
 arrays and executable callables are not embedded.
 
 File preparation records SHA-256 identities, sizes and timestamps, including

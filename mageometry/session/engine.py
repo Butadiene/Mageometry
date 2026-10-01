@@ -167,9 +167,11 @@ class SessionEngine:
         if self.analysis['kind'] == 'field' and branch != 'total':
             raise ValueError('Field analysis requires the total branch.')
         scale = self._scale(component)
-        self._resolve_seeds(component)
+        tracing = self.analysis.get('trace_enabled', True)
+        if tracing:
+            self._resolve_seeds(component)
         prepared, values, basis = self._get(key, branch, component)
-        if key not in self.traces:
+        if tracing and key not in self.traces:
             self.progress(f"Tracing {self.cases[key]['label']}")
             options = dict(direction='both', ds=prepared.spacing / 2,
                            bounds=prepared.preview.bounds, max_steps=600)
@@ -182,7 +184,8 @@ class SessionEngine:
             self.traces[key] = paths
             while len(self.traces) > self.analysis['cache_size']:
                 self.traces.popitem(last=False)
-        self.traces.move_to_end(key)
+        if tracing:
+            self.traces.move_to_end(key)
         self.check()
         grid = prepared.preview
         metadata = deepcopy(self.grids[key].metadata)
@@ -193,11 +196,12 @@ class SessionEngine:
         return dict(case=key, case_label=self.cases[key]['label'], component=component,
                     contribution=branch, kind=self.analysis['kind'],
                     axes=(grid.x, grid.y, grid.z), values=values, basis=basis,
-                    paths=self.traces[key], metadata=metadata, scale=scale,
+                    paths=self.traces[key] if tracing else [], metadata=metadata, scale=scale,
                     label=_component_label(component, self.analysis['current_unit'],
-                                           self.analysis['length_unit']),
+                                           self.analysis['length_unit'],
+                                           field_unit=metadata.get('field_unit', 'field unit')),
                     analysis=deepcopy(self.analysis),
-                    resolved=dict(inputs=deepcopy(self.inputs), seeds=self.seeds.tolist(),
+                    resolved=dict(inputs=deepcopy(self.inputs), seeds=self.seeds.tolist() if tracing else None,
                                   fac_delta=deepcopy(self.options['delta']),
                                   geometry_delta=float(prepared.cache.delta) if hasattr(prepared.cache, 'delta')
                                   else float(self.options['geometry_delta'] or prepared.spacing),

@@ -12,8 +12,33 @@ def display_key(result):
     return result['kind'] + ':' + result['component']
 
 
+def _values_for_sign(values, value_sign):
+    """Mask the unselected sign without changing prepared scientific arrays."""
+    if value_sign == 'both':
+        return values
+    selected = values > 0 if value_sign == 'positive' else values < 0
+    return np.where(selected & np.isfinite(values), values, np.nan)
+
+
+def slice_axes(normal):
+    """Return the horizontal/vertical unit vectors of the face-on slice."""
+    direction, up = _face_camera(normal, np.zeros(3), 1.)
+    return np.cross(up, direction), np.asarray(up)
+
+
 def difference_step_label(result):
     geometry_step = result['resolved']['geometry_delta']
+    component = result['component']
+    if component in ('dalpha_ds', 'dalpha_ds_over_B', 'dfac_ds'):
+        if result['analysis']['evaluation'] == 'grid':
+            detail = '' if component == 'dfac_ds' else f'; alpha step {geometry_step:g}'
+            return 'along-B gradient: preview axis spacing' + detail
+        if component != 'dfac_ds':
+            return f'alpha and along-B steps {geometry_step:g}'
+        steps = result['resolved'].get('fac_delta', result['analysis']['delta'])
+        steps = geometry_step if steps is None else steps
+        return (f'along-B step {geometry_step:g}; FAC steps '
+                + ', '.join(f'{step:g}' for step in np.atleast_1d(steps)))
     if result['component'] != 'fac':
         return f'geometry step {geometry_step:g}'
     if result['analysis']['evaluation'] == 'grid':
@@ -44,6 +69,7 @@ class GeometryScene:
         self.view = None
         self.widget = None
         self.last_normal = self.last_origin = None
+        self.last_extent = None
         self.mesh = self.volume = None
         self.projections = []
         self.limit = 1.
@@ -94,6 +120,7 @@ class GeometryScene:
         self.mesh = self.volume = None
         self.projections = []
         self.last_normal = self.last_origin = None
+        self.last_extent = None
 
     def set_result(self, result, view, preserve_camera=True):
         # Build the potentially failing data objects before touching the scene.
@@ -164,6 +191,9 @@ class GeometryScene:
 
     def _title(self, index, subtitle):
         r = self.result
+        value_sign = self.view.get('value_sign', 'both')
+        if value_sign != 'both':
+            subtitle += f'; {value_sign} only'
         text = f"{r['case_label']}; {r['component']}; {r['contribution']}\n{subtitle}"
         if index in (0, 1):
             text += (f"\n{r['analysis']['evaluation']}; {difference_step_label(r)}"
@@ -181,22 +211,44 @@ class GeometryScene:
         key = display_key(r)
         self.limit = view['color_limits'].get(key, r['scale']['limit'])
         cutoff = max(view['thresholds'].get(key, r['scale']['threshold']), np.nextafter(0., 1.))
+        interval = (view.get('value_intervals', {}).get(key)
+                    if view.get('threshold_modes', {}).get(key) == 'interval' else None)
         p.subplot(0)
-        flat = r['values'].ravel(order='F')
+        value_sign = view.get('value_sign', 'both')
+        values = _values_for_sign(r['values'], value_sign)
+        flat = values.ravel(order='F')
         for sign, name, color in ((1, 'positive', '#c94343'), (-1, 'negative', '#2877ba')):
             p.remove_actor(name, reset_camera=False, render=False)
-            if self.volume.n_cells and np.any(sign * flat >= cutoff):
-                region = self.volume.clip_scalar(value=sign * cutoff, scalars='value', invert=sign < 0)
-                if region.n_cells:
-                    actor = self._add(region.extract_surface(), name, color=color,
-                                      opacity=.5, smooth_shading=True)
-                    actor.visibility = view['regions']
+            if value_sign != 'both' and value_sign != name:
+                continue
+            if interval is None:
+                low, high = (cutoff, np.inf) if sign > 0 else (-np.inf, -cutoff)
+            else:
+                low, high = interval
+                low, high = (max(0., low), high) if sign > 0 else (low, min(0., high))
+            finite = flat[np.isfinite(flat)]
+            if (not self.volume.n_cells or low >= high or not finite.size
+                    or not np.any(sign * finite > 0)
+                    or finite.max() < low or finite.min() > high):
+                continue
+            region = self.volume
+            if np.isfinite(low):
+                region = region.clip_scalar(value=low, scalars='value', invert=False)
+            if np.isfinite(high) and region.n_cells:
+                region = region.clip_scalar(value=high, scalars='value', invert=True)
+            if region.n_cells:
+                actor = self._add(region.extract_surface(), name, color=color,
+                                  opacity=.5, smooth_shading=True)
+                actor.visibility = view['regions']
         p.remove_actor('arrows', reset_camera=False, render=False)
         basis = r['basis']
         if basis is not None:
             vectors = basis.reshape((-1, 3), order='F')
             eligible = np.where(np.all(np.isfinite(vectors), axis=-1), flat, np.nan)
-            selected = _region_seeds(self.mesh.points, eligible, cutoff, 32, .07 * self.mesh.length)
+            if interval is not None:
+                eligible = np.where((eligible >= interval[0]) & (eligible <= interval[1]), eligible, np.nan)
+            selected = _region_seeds(self.mesh.points, eligible, cutoff if interval is None else 0.,
+                                     32, .07 * self.mesh.length)
             if len(selected):
                 arrows = self.pv.PolyData(self.mesh.points[selected])
                 arrows['direction'] = np.sign(flat[selected, None]) * vectors[selected]
@@ -206,13 +258,21 @@ class GeometryScene:
                 actor.visibility = view['arrows']
         if 'lines' in p.renderer.actors:
             p.renderer.actors['lines'].visibility = view['lines']
-        self._title(0, f"3D overview; threshold {cutoff:.4g}")
-        count = int(np.count_nonzero(np.isfinite(flat)))
-        p.add_text(f'{count:,} valid nodes; grey: total-field lines', name='validity',
+        description = (f'threshold {cutoff:.4g}' if interval is None else
+                       f'{interval[0]:.4g} <= value <= {interval[1]:.4g}')
+        self._title(0, '3D overview; ' + description)
+        count = int(np.count_nonzero(np.isfinite(r['values'])))
+        context = 'grey: total-field lines' if r['analysis'].get('trace_enabled', True) else 'tracing disabled'
+        p.add_text(f'{count:,} valid nodes; {context}', name='validity',
                    position=(.03, .15), viewport=True, font_size=8, color='#596b7e', render=False)
         for axis, (panel, projected) in enumerate(self.projections):
             p.subplot(axis + 2)
-            panel['value'] = np.where(np.abs(projected) >= cutoff, projected, np.nan)
+            if interval is not None:
+                selected_values = np.where((values >= interval[0]) & (values <= interval[1]), values, np.nan)
+                projected = _peak_projection(selected_values, axis).ravel(order='F')
+            elif value_sign != 'both':
+                projected = _peak_projection(values, axis).ravel(order='F')
+            panel['value'] = projected if interval is not None else np.where(np.abs(projected) >= cutoff, projected, np.nan)
             self._scalar(panel, 'projection')
             self._title(axis + 2, f'{("YZ", "XZ", "XY")[axis]} signed peak along {"xyz"[axis]}')
         self.update_slice(render=False)
@@ -220,22 +280,23 @@ class GeometryScene:
         if render:
             p.render()
 
-    def _scalar(self, data, name):
+    def _scalar(self, data, name, color_range=None):
         # Companion renderers use the same names. Plotter.remove_actor removes
         # matching actors in every renderer, including the shared 3D slice.
         self.p.renderer.remove_actor(name, reset_camera=False, render=False)
+        bar_name = f"{self.result['label']} / shared [{self.p.renderers.active_index}]"
+        if bar_name in self.p.scalar_bars:
+            self.p.remove_scalar_bar(bar_name, render=False)
         actor = self._add(data, name, scalars='value', cmap='RdBu_r',
-                          clim=(-self.limit, self.limit), nan_opacity=0, lighting=False)
+                          clim=(-self.limit, self.limit) if color_range is None else color_range,
+                          nan_opacity=0, lighting=False)
         if actor is not None:
-            # One independent bar per renderer, with the same numerical range.
-            bar_name = f"{self.result['label']} / shared [{self.p.renderers.active_index}]"
-            if bar_name in self.p.scalar_bars:
-                self.p.remove_scalar_bar(bar_name, render=False)
+            # One independent bar per renderer; slice bounds can be overridden.
             bar = self.p.add_scalar_bar(title=bar_name, mapper=actor.mapper,
                                   color='#23344a', title_font_size=10, label_font_size=9,
                                   width=.8, height=.08, position_x=.1, position_y=.04,
                                   n_labels=3, render=False)
-            bar.SetTitle(self.result['label'] + ' / shared')
+            bar.SetTitle(self.result['label'] + (' / shared' if color_range is None else ' / slice range'))
         return actor
 
     def update_slice(self, render=True):
@@ -245,20 +306,32 @@ class GeometryScene:
         normal /= np.linalg.norm(normal)
         origin = np.asarray(self.view['origin'], dtype=float)
         sliced = self.volume.slice(normal=normal, origin=origin) if self.volume.n_cells else self.pv.PolyData()
+        extent = self.view.get('slice_extent')
+        horizontal, vertical = slice_axes(normal)
+        if extent is not None:
+            for axis, low, high in ((horizontal, *extent[:2]), (vertical, *extent[2:])):
+                if sliced.n_cells:
+                    sliced = sliced.clip(normal=axis, origin=axis * low, invert=False)
+                if sliced.n_cells:
+                    sliced = sliced.clip(normal=axis, origin=axis * high, invert=True)
+        if sliced.n_points:
+            sliced['value'] = _values_for_sign(sliced['value'], self.view.get('value_sign', 'both'))
+        color_range = self.view.get('slice_color_ranges', {}).get(display_key(self.result))
         self.p.subplot(0)
-        actor = self._scalar(sliced, 'slice')
+        actor = self._scalar(sliced, 'slice', color_range)
         if actor is not None:
             actor.visibility = self.view['plane']
         self.p.subplot(1)
-        self._scalar(sliced, 'slice')
-        self._title(1, f"Origin {np.round(origin, 3)}; all finite values")
-        if not sliced.n_points:
-            self.p.add_text('No valid data on this plane', name='empty', position=(.03, .15), viewport=True,
+        self._scalar(sliced, 'slice', color_range)
+        self._title(1, f"Origin {np.round(origin, 3)}; all strengths")
+        if not sliced.n_points or not np.any(np.isfinite(sliced['value'])):
+            self.p.add_text('No matching data on this plane', name='empty', position=(.03, .15), viewport=True,
                             color='#596b7e', font_size=10, render=False)
         else:
             self.p.remove_actor('empty', reset_camera=False, render=False)
         camera = self.p.camera
-        if self.last_normal is None or not np.allclose(normal, self.last_normal):
+        if (self.last_normal is None or not np.allclose(normal, self.last_normal)
+                or (extent is None and self.last_extent is not None)):
             position, up = _face_camera(normal, origin, self.mesh.length * 2)
             self.p.camera_position = [position, origin, up]
             self.p.enable_parallel_projection()
@@ -269,8 +342,22 @@ class GeometryScene:
             shift = normal * np.dot(origin - self.last_origin, normal)
             camera.position = np.asarray(camera.position) + shift
             camera.focal_point = np.asarray(camera.focal_point) + shift
+        if extent is not None and (self.last_normal is None or not np.allclose(normal, self.last_normal)
+                                   or extent != self.last_extent):
+            center = (normal * np.dot(origin, normal)
+                      + horizontal * (extent[0] + extent[1]) / 2
+                      + vertical * (extent[2] + extent[3]) / 2)
+            position, up = _face_camera(normal, center, self.mesh.length * 2)
+            self.p.camera_position = [position, center, up]
+            self.p.enable_parallel_projection()
+            viewport = self.p.renderer.GetViewport()
+            width, height = self.p.window_size
+            aspect = max(width * (viewport[2] - viewport[0]) / max(height * (viewport[3] - viewport[1]), 1), .01)
+            camera.parallel_scale = 1.1 * max((extent[3] - extent[2]) / 2,
+                                             (extent[1] - extent[0]) / (2 * aspect))
         camera.clipping_range = (.001 * self.mesh.length, 10 * self.mesh.length)
         self.last_normal, self.last_origin = normal.copy(), origin.copy()
+        self.last_extent = list(extent) if extent is not None else None
         if self.widget is not None:
             self.widget.SetNormal(normal)
             self.widget.SetOrigin(origin)

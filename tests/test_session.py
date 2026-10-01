@@ -30,6 +30,47 @@ def small_session():
 
 
 class TestSessionRecipes(unittest.TestCase):
+    def test_optional_ranges_and_trace_setting_preserve_legacy_defaults(self):
+        session = small_session()
+        group = session['groups'][0]
+        del group['analysis']['trace_enabled']
+        for key in ('threshold_modes', 'value_intervals', 'slice_color_ranges', 'slice_extent'):
+            del group['view'][key]
+        restored = validate_session(session)['groups'][0]
+        self.assertTrue(restored['analysis']['trace_enabled'])
+        self.assertEqual(restored['view']['threshold_modes'], {})
+        self.assertEqual(restored['view']['value_intervals'], {})
+        self.assertEqual(restored['view']['slice_color_ranges'], {})
+        self.assertIsNone(restored['view']['slice_extent'])
+
+    def test_ranges_and_disabled_tracing_round_trip_and_validate(self):
+        session = small_session()
+        group = session['groups'][0]
+        group['analysis'].update(trace_enabled=False, seeds=None)
+        group['view'].update(threshold_modes={'field:alpha': 'interval'},
+                             value_intervals={'field:alpha': [-.1, .2]},
+                             slice_color_ranges={'field:alpha': [-.3, .5]},
+                             slice_extent=[-4., 2., -1., 3.])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'ranges.json'
+            save_session(session, path)
+            self.assertEqual(load_session(path)['groups'], session['groups'])
+        for key, value in (('threshold_modes', {'field:alpha': 'invalid'}),
+                           ('threshold_modes', {'field:fac': 'interval'}),
+                           ('value_intervals', []), ('value_intervals', {'field:alpha': [1, 1]}),
+                           ('value_intervals', {'field:alpha': [float('nan'), 1]}),
+                           ('slice_color_ranges', None), ('slice_color_ranges', {'field:alpha': [2, -1]}),
+                           ('slice_color_ranges', {'field:alpha': [0, float('inf')]}),
+                           ('slice_extent', [0, 1, 2]), ('slice_extent', [0, 1, 2, 2])):
+            invalid = deepcopy(session)
+            invalid['groups'][0]['view'][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                validate_session(invalid)
+        for value in (None, 0, 1, 'false'):
+            group['analysis']['trace_enabled'] = value
+            with self.subTest(trace_enabled=value), self.assertRaises(ValueError):
+                validate_session(session)
+
     def test_legacy_steps_are_preserved_when_loading_and_saving(self):
         for fac, geometry in ((.03, None), ([.03, .02, .04], None), (.03, .01)):
             with self.subTest(fac=fac, geometry=geometry), tempfile.TemporaryDirectory() as directory:
@@ -71,6 +112,20 @@ class TestSessionRecipes(unittest.TestCase):
                 session['groups'][0]['view']['threshold_slider_limits'] = limits
                 validate_session(session)
 
+    def test_optional_value_sign_defaults_to_both_and_rejects_invalid_modes(self):
+        session = small_session()
+        del session['groups'][0]['view']['value_sign']
+        restored = validate_session(session)
+        self.assertEqual(restored['groups'][0]['view']['value_sign'], 'both')
+        self.assertNotIn('value_sign', session['groups'][0]['view'])
+        for mode in ('both', 'positive', 'negative'):
+            session['groups'][0]['view']['value_sign'] = mode
+            self.assertEqual(validate_session(session)['groups'][0]['view']['value_sign'], mode)
+        for mode in ('', 'all', None, True, 1, []):
+            with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, 'Value sign'):
+                session['groups'][0]['view']['value_sign'] = mode
+                validate_session(session)
+
     def test_validation_rejects_invalid_numerics_and_selection(self):
         for key, value in [('delta', 0), ('geometry_delta', float('nan')),
                            ('max_points', 26), ('cache_size', 0), ('current_scale', -1),
@@ -97,7 +152,7 @@ class TestSessionRecipes(unittest.TestCase):
                                                options={'h5_file': str(Path(directory) / 'heavy.h5')}))]
             group['reference'] = group['view']['case'] = 'case-a'
             group['view'].update(layout='three_d_slice', previous_layout='three_d_slice',
-                                 panels_hidden=True, normal=[0., 1., 0.],
+                                 panels_hidden=True, normal=[0., 1., 0.], value_sign='negative',
                                  origin=[-6., 2., 1.], thresholds={'field:alpha': .125},
                                  threshold_slider_limits={'field:alpha': .5})
             save_session(session, path)
@@ -129,6 +184,29 @@ class TestSessionRecipes(unittest.TestCase):
 
 
 class TestSessionPreparation(unittest.TestCase):
+    def test_disabled_tracing_skips_seeds_and_integrator_without_changing_values(self):
+        group = small_session()['groups'][0]
+        baseline = SessionEngine(group).prepare(group['view'])
+        for seeds in (None, [[-6., 2., 1.]]):
+            group['analysis'].update(trace_enabled=False, seeds=seeds)
+            engine = SessionEngine(group)
+            with patch.object(engine, '_resolve_seeds') as resolve, \
+                    patch('mageometry.session.engine.trace_field_lines') as trace:
+                result = engine.prepare(group['view'])
+                resolve.assert_not_called()
+                trace.assert_not_called()
+            self.assertEqual(result['paths'], [])
+            self.assertIsNone(result['resolved']['seeds'])
+            self.assertEqual(result['analysis']['seeds'], seeds)
+            np.testing.assert_allclose(result['values'], baseline['values'], equal_nan=True)
+            self.assertEqual(result['scale'], baseline['scale'])
+        # Re-enabling uses the retained seed configuration.
+        group['analysis']['trace_enabled'] = True
+        group['analysis']['trace']['max_steps'] = 3
+        result = SessionEngine(group).prepare(group['view'])
+        self.assertEqual(len(result['paths']), 1)
+        self.assertEqual(result['resolved']['seeds'], seeds)
+
     def test_geometry_is_the_shared_step_and_fac_override_is_independent(self):
         def field(x, y, z):
             return -np.sin(y), np.sin(x), np.ones_like(z)

@@ -7,7 +7,7 @@ import unittest
 import numpy as np
 
 from mageometry.session.specs import default_analysis, default_view
-from mageometry.viz3d.scene import GeometryScene
+from mageometry.viz3d.scene import GeometryScene, slice_axes
 
 
 def packet():
@@ -71,6 +71,195 @@ class TestSessionScene(unittest.TestCase):
         current = self.plotter.renderers[1].actors['slice'].mapper.dataset
         np.testing.assert_allclose(current['value'], original['value'], equal_nan=True)
         self.assertNotIn('positive', self.plotter.renderers[0].actors)
+
+    def test_value_intervals_clip_regions_and_select_peaks_before_projection(self):
+        result = packet()
+        result['basis'] = np.broadcast_to([1., 0., 0.], result['values'].shape + (3,)).copy()
+        self.scene.set_result(result, self.view)
+        original = self.plotter.renderers[1].actors['slice'].mapper.dataset['value'].copy()
+        cameras = self.scene.camera_state()
+        self.view['threshold_modes']['field:alpha'] = 'interval'
+        self.view['thresholds']['field:alpha'] = 1e6
+        for low, high in ((.4, 1.2), (-2.4, -.3), (-.5, 1.2), (20., 30.)):
+            self.view['value_intervals']['field:alpha'] = [low, high]
+            self.scene.update_display()
+            actors = self.plotter.renderers[0].actors
+            for name in ('positive', 'negative', 'arrows'):
+                if name in actors:
+                    actors[name].mapper.Update()
+                    values = actors[name].mapper.dataset['value']
+                    self.assertGreaterEqual(values.min(), low - 1e-6)
+                    self.assertLessEqual(values.max(), high + 1e-6)
+            if low > 0:
+                self.assertNotIn('negative', actors)
+            if high < 0:
+                self.assertNotIn('positive', actors)
+            values = result['values']
+            selected = np.where((values >= low) & (values <= high), values, np.nan)
+            for axis, renderer in enumerate(self.plotter.renderers[2:]):
+                indices = np.argmax(np.where(np.isfinite(selected), np.abs(selected), -np.inf), axis=axis)
+                expected = np.take_along_axis(selected, np.expand_dims(indices, axis), axis=axis).squeeze(axis)
+                np.testing.assert_allclose(renderer.actors['projection'].mapper.dataset['value'],
+                                           expected.ravel(order='F'), equal_nan=True)
+            np.testing.assert_allclose(self.plotter.renderers[1].actors['slice'].mapper.dataset['value'],
+                                       original, equal_nan=True)
+            self.assertEqual(self.scene.camera_state(), cameras)
+        self.view['value_intervals']['field:alpha'] = [-1., 1.]
+        self.view['value_sign'] = 'negative'
+        self.scene.update_display()
+        self.assertNotIn('positive', self.plotter.renderers[0].actors)
+        self.assertIn('negative', self.plotter.renderers[0].actors)
+
+    def test_interval_interpolates_region_even_without_nodes_inside_bounds(self):
+        result = packet()
+        result['values'] = np.broadcast_to(result['axes'][0][:, None, None], result['values'].shape).copy()
+        self.view['threshold_modes']['field:alpha'] = 'interval'
+        self.view['value_intervals']['field:alpha'] = [.1, .2]
+        self.scene.set_result(result, self.view)
+        region = self.plotter.renderers[0].actors['positive'].mapper.dataset
+        np.testing.assert_allclose([region['value'].min(), region['value'].max()], [.1, .2], atol=1e-6)
+        np.testing.assert_allclose(region.points[:, 0], region['value'], atol=1e-6)
+        for renderer in self.plotter.renderers[2:]:
+            self.assertFalse(np.any(np.isfinite(renderer.actors['projection'].mapper.dataset['value'])))
+        # Zero is a valid interval sample, but has no positive/negative region.
+        result['values'][:] = 0.
+        self.view['value_intervals']['field:alpha'] = [-1., 1.]
+        self.scene.set_result(result, self.view)
+        for name in ('positive', 'negative'):
+            self.assertNotIn(name, self.plotter.renderers[0].actors)
+        for renderer in self.plotter.renderers[2:]:
+            np.testing.assert_allclose(renderer.actors['projection'].mapper.dataset['value'], 0.)
+
+    def test_slice_colour_range_changes_both_bars_without_filtering_values(self):
+        original = self.plotter.renderers[1].actors['slice'].mapper.dataset['value'].copy()
+        cameras = self.scene.camera_state()
+        self.view['slice_color_ranges']['field:alpha'] = [-.2, .8]
+        self.scene.update_slice()
+        for renderer in self.plotter.renderers[:2]:
+            actor = renderer.actors['slice']
+            np.testing.assert_allclose(actor.mapper.scalar_range, [-.2, .8])
+            np.testing.assert_allclose(actor.mapper.dataset['value'], original, equal_nan=True)
+        for renderer in self.plotter.renderers[2:]:
+            np.testing.assert_allclose(renderer.actors['projection'].mapper.scalar_range, [-5., 5.])
+        self.assertEqual(self.scene.camera_state(), cameras)
+        self.view['slice_color_ranges'].clear()
+        self.scene.update_slice()
+        np.testing.assert_allclose(self.plotter.renderers[1].actors['slice'].mapper.scalar_range, [-5., 5.])
+
+    def test_manual_slice_extent_clips_axis_and_oblique_planes_and_clears_empty_bar(self):
+        extent = [-.7, .9, -.4, .8]
+        self.view['slice_extent'] = extent
+        for normal in ([1., 0., 0.], [0., 1., 0.], [0., 0., 1.], [1., 1., 1.]):
+            self.scene._drag_plane(normal, [0., 0., 0.])
+            horizontal, vertical = slice_axes(normal)
+            for renderer in self.plotter.renderers[:2]:
+                sliced = renderer.actors['slice'].mapper.dataset
+                for axis, low, high in ((horizontal, *extent[:2]), (vertical, *extent[2:])):
+                    coords = sliced.points @ axis
+                    self.assertGreaterEqual(coords.min(), low - 1e-6)
+                    self.assertLessEqual(coords.max(), high + 1e-6)
+                x, y, z = sliced.points.T
+                np.testing.assert_allclose(sliced['value'], x + 2*y - z, atol=5e-7)
+            # Display changes retain the user's zoom after fitting the new extent.
+            self.plotter.renderers[1].camera.zoom(1.5)
+            cameras = self.scene.camera_state()
+            self.scene.update_display()
+            self.assertEqual(self.scene.camera_state(), cameras)
+        self.view['slice_extent'] = [20., 30., 20., 30.]
+        self.scene.update_slice()
+        self.assertNotIn('slice', self.plotter.renderers[1].actors)
+        self.assertIn('empty', self.plotter.renderers[1].actors)
+        self.assertNotIn(f"{self.scene.result['label']} / shared [1]", self.plotter.scalar_bars)
+        self.view['slice_extent'] = None
+        self.scene.update_slice()
+        self.assertIn('slice', self.plotter.renderers[1].actors)
+
+    def test_sign_filter_updates_all_panels_and_preserves_prepared_data(self):
+        result = packet()
+        result['basis'] = np.broadcast_to([1., 0., 0.], result['values'].shape + (3,)).copy()
+        result['paths'] = [np.array([[-1., 0., 0.], [1., 0., 0.]])]
+        self.scene.set_result(result, self.view)
+        original = result['values'].copy()
+        original_slice = self.plotter.renderers[1].actors['slice'].mapper.dataset['value'].copy()
+        cameras = self.scene.camera_state()
+        cutoff = result['scale']['threshold']
+        for mode, sign, excluded in (('positive', 1, 'negative'), ('negative', -1, 'positive')):
+            with self.subTest(mode=mode):
+                self.view['value_sign'] = mode
+                self.scene.update_display()
+                actors = self.plotter.renderers[0].actors
+                self.assertIn(mode, actors)
+                self.assertNotIn(excluded, actors)
+                actors['arrows'].mapper.Update()
+                self.assertTrue(np.all(sign * actors['arrows'].mapper.dataset['value'] >= cutoff))
+                np.testing.assert_allclose(actors['arrows'].mapper.dataset['GlyphVector'],
+                                           np.broadcast_to([sign, 0., 0.],
+                                                           actors['arrows'].mapper.dataset['GlyphVector'].shape))
+                self.assertTrue(actors['lines'].visibility)
+                expected_slice = np.where(sign * original_slice > 0, original_slice, np.nan)
+                for renderer in self.plotter.renderers[:2]:
+                    np.testing.assert_allclose(renderer.actors['slice'].mapper.dataset['value'],
+                                               expected_slice, equal_nan=True)
+                for axis, renderer in enumerate(self.plotter.renderers[2:]):
+                    # Select within the requested sign before finding the peak.
+                    strongest = np.max(np.where(sign * original > 0, sign * original, -np.inf), axis=axis)
+                    expected = np.where(strongest >= cutoff, sign * strongest, np.nan)
+                    np.testing.assert_allclose(renderer.actors['projection'].mapper.dataset['value'],
+                                               expected.ravel(order='F'), equal_nan=True)
+                self.assertEqual(cameras, self.scene.camera_state())
+                self.assertEqual(self.scene.limit, result['scale']['limit'])
+                np.testing.assert_allclose(result['values'], original, equal_nan=True)
+                np.testing.assert_allclose(self.scene.mesh['value'], original.ravel(order='F'), equal_nan=True)
+        self.view['value_sign'] = 'both'
+        self.scene.update_display()
+        np.testing.assert_allclose(self.plotter.renderers[1].actors['slice'].mapper.dataset['value'],
+                                   original_slice, equal_nan=True)
+        self.assertIn('positive', self.plotter.renderers[0].actors)
+        self.assertIn('negative', self.plotter.renderers[0].actors)
+
+    def test_sign_filter_recomputes_peaks_within_selected_sign(self):
+        result = packet()
+        result['values'] = np.broadcast_to(np.array([-9., -6., -3., 0., 1., 2., 4.])[:, None, None],
+                                          result['values'].shape).copy()
+        self.scene.set_result(result, self.view)
+        for mode, expected in (('both', -9.), ('positive', 4.), ('negative', -9.), ('both', -9.)):
+            self.view['value_sign'] = mode
+            self.scene.update_display()
+            np.testing.assert_allclose(self.plotter.renderers[2].actors['projection'].mapper.dataset['value'],
+                                       expected)
+
+    def test_sign_filter_handles_zero_missing_and_absent_sign(self):
+        for value in (0., 1., np.nan):
+            with self.subTest(value=value):
+                result = packet()
+                result['values'][:] = value
+                result['basis'] = np.broadcast_to([1., 0., 0.], result['values'].shape + (3,)).copy()
+                self.view['value_sign'] = 'negative'
+                self.scene.set_result(result, self.view)
+                self.assertIn('empty', self.plotter.renderers[1].actors)
+                for name in ('positive', 'negative', 'arrows'):
+                    self.assertNotIn(name, self.plotter.renderers[0].actors)
+                for renderer in self.plotter.renderers[2:]:
+                    self.assertFalse(np.any(np.isfinite(renderer.actors['projection'].mapper.dataset['value'])))
+        result['values'][:] = 0.
+        self.view['value_sign'] = 'positive'
+        self.scene.set_result(result, self.view)
+        self.assertIn('empty', self.plotter.renderers[1].actors)
+        self.view['value_sign'] = 'both'
+        self.scene.update_display()
+        self.assertNotIn('empty', self.plotter.renderers[1].actors)
+
+    def test_sign_filter_applies_after_slice_interpolation_and_survives_dragging(self):
+        self.view['value_sign'] = 'positive'
+        self.view['thresholds']['field:alpha'] = 1e6
+        self.scene._drag_plane([1., 1., 0.], [.25, 0., 0.])
+        sliced = self.plotter.renderers[1].actors['slice'].mapper.dataset
+        x, y, z = sliced.points.T
+        expected = x + 2*y - z
+        expected = np.where(expected > 0, expected, np.nan)
+        # VTK stores the interpolated point coordinates at single precision.
+        np.testing.assert_allclose(sliced['value'], expected, atol=2e-7, equal_nan=True)
+        self.assertTrue(np.any(np.isfinite(sliced['value'])))
 
     def test_case_update_preserves_focus_and_cameras(self):
         self.scene.set_layout('slice')

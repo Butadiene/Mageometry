@@ -59,6 +59,7 @@ Launch the unified desktop application after installing `.[gui]`:
 
 ```bash
 python -m mageometry.gui                          # one T96 + dipole case
+python -m mageometry.gui --model t89 --iopt 4     # T89 + dipole
 python -m mageometry.gui --by -5 -3 -1 1 3 5       # IMF By comparison
 python -m mageometry.gui --empty                  # add your own files
 python -m mageometry.gui --session session.json   # restore a saved recipe
@@ -66,6 +67,9 @@ python -m mageometry.gui --session session.json   # restore a saved recipe
 
 The installed `mageometry-gui` command and `examples/geometry_gui.py` launch
 the same application. A working desktop OpenGL display is required.
+Source forms and `--model` support T89, T96, T01 and T04. Model-specific
+inputs include T89 `iopt`, T01 `--g1`/`--g2`, and T04 `--w W1 W2 W3 W4 W5 W6`;
+see the [model input guide](docs/gui.md#model-and-file-workflows).
 
 Edit sources and numerical conditions, then press **Apply and recompute**.
 Independent **Dataset**, **Diagnostic**, and **Contribution** selectors
@@ -74,6 +78,8 @@ compare cases and total/background/residual gradient contributions. Choose
 session** stores the committed recipe and view as JSON; **Export PNG** saves
 the plot with a matching session recipe. The [workspace guide](docs/gui.md)
 covers background assignment, cancellation, input validation, and restore.
+The [3D viewer 日本語詳細ガイド](docs/gui_ja.md) explains every desktop
+control and all 21 diagnostics in Japanese, including units and sign conventions.
 
 ![Qt desktop workspace showing residual-gradient eta for IMF By = -5 nT, with case and analysis side panels](docs/images/gui-workspace.png)
 
@@ -906,7 +912,7 @@ for workflows and the three desktop example launchers.
 | --- | --- |
 | [`examples/readme_examples.py`](examples/readme_examples.py) | Numerical examples without plotting or input files |
 | [`examples/geometry_gui.py`](examples/geometry_gui.py) | Unified desktop workspace: model/file setup, case/contribution comparison, display layouts and saved sessions; requires `.[gui]`, see the [guide](docs/gui.md) |
-| [`examples/compare_t96_by.py`](examples/compare_t96_by.py) | Same desktop with six IMF By cases: −5, −3, −1, +1, +3, +5 nT |
+| [`examples/compare_t96_by.py`](examples/compare_t96_by.py) | Same desktop with Dst = −30 nT, IMF Bz = −10 nT and five By cases: −10, −5, 0, +5, +10 nT |
 | [`examples/geometry_viewer_simulation.py`](examples/geometry_viewer_simulation.py) | Same desktop, requiring an explicit snapshot file or saved session |
 | [`examples/python_code_samples/mhd_gridded_field_example.py`](examples/python_code_samples/mhd_gridded_field_example.py) | Dipole-oriented diagnostics for a supplied XDMF/HDF5 snapshot |
 

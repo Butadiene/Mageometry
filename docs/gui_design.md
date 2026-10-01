@@ -48,7 +48,7 @@ the [workspace guide](gui.md) documents the delivered features and limitations.
 | Area | Standalone implementation at design time | Planned application work |
 | --- | --- | --- |
 | Single-case viewers | Separate launchers with different defaults or required input | One entry point with startup presets |
-| Model inputs | Fixed T96 + dipole example and configurable By cases | Editable T96 source form and reusable source factory |
+| Model inputs | T96 + dipole default and configurable By cases | Editable T89/T96/T01/T04 source forms and reusable source factory |
 | Simulation input | XDMF, HDF5, VTK readers | File dialogs and reader forms using those readers |
 | Diagnostics | 18 entries in `viz3d._current.COMPONENTS` | Shared registry exposed in a grouped selector |
 | Dataset comparison | `compare_geometry`, identical axes, shared settings and scales | Persistent case list and comparison-group management |
@@ -146,11 +146,12 @@ incompatible datasets. Selecting a case does not change the reference case.
 Adding, duplicating, renaming, removing, and regrouping cases are explicit
 actions; removal from a session does not delete source files.
 
-**Add model** opens a T96 + dipole form: epoch, Pdyn, Dst, IMF By/Bz,
-domain bounds, grid shape, and inner exclusion radius. Dipole tilt is derived
+**Add model** opens a source form with T89/T96/T01/T04 selection, epoch,
+domain bounds and grid shape. T89 uses iopt; T96/T01/T04 use Pdyn, Dst and
+IMF By/Bz; T01 adds G1/G2 and T04 adds W1–W6. Dipole tilt is derived
 from the epoch and shown as a result. This preserves the example's recalc
 convention; an independent tilt override is not introduced implicitly.
-The By field can be expanded into an explicit list of values using
+For T96/T01/T04, the By field can be expanded into an explicit list of values using
 **Create parameter scan**. The resulting cases have separate identities and
 immutable parameter snapshots.
 
@@ -175,7 +176,7 @@ background assignment, contribution, and diagnostic.
 
 | Analysis kind | Available contributions | Available diagnostics |
 | --- | --- | --- |
-| Field geometry and currents | Total field | All 18 current viewer diagnostics |
+| Field geometry and currents | Total field | All 21 current viewer diagnostics |
 | Gradient attribution in total-field frame | Total, background gradient, residual gradient | `alpha`, `beta_g`, `delta_g`, `gamma`, `omega_c`, `eta` |
 
 A background can be assigned without changing the current analysis kind.
@@ -233,7 +234,7 @@ are separate settings.
 | `--by`, `--initial-by`, `--shape` | Model scan, selected case, model grid |
 | `--evaluation`, `--delta`, `--geometry-delta` | Numerics and resolved-step readout |
 | `--max-points`, `--cache-size` | Numerics / resources |
-| `--component` | Diagnostic selector; all 18 canonical keys |
+| `--component` | Diagnostic selector; all 21 canonical keys |
 | `--background`, `--background-xmf`, `--background-vtk` | Background assignment |
 | `--contribution` | Analysis kind / contribution selector |
 | `--threshold`, `--color-limit` | Display, with shared scale scope |
@@ -510,7 +511,7 @@ demo-state JSON is explicitly a separate format, not this session schema.
 Milestones 1 and 2 are intermediate states. The unified application is ready
 only when milestone 3 and the following checks pass:
 
-- Compare all 18 diagnostics with equivalent existing API calls on a small
+- Compare all 21 diagnostics with equivalent existing API calls on a small
   synthetic field, preserving undefined masks and unit behavior.
 - Check three-branch decomposition against
   `field_line_transverse_decomposition`, including zero residual gradients

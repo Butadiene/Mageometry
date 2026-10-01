@@ -177,6 +177,7 @@ const byId = id => document.getElementById(id);
 const transverse = ['alpha', 'beta_g', 'delta_g', 'gamma', 'omega_c', 'eta'];
 const diagnosticGroups = {
   'Transverse geometry': transverse,
+  'Along-field derivatives': ['dalpha_ds', 'dalpha_ds_over_B', 'dfac_ds'],
   'Currents': ['fac', 'mu0J_T', 'mu0J_n', 'mu0J_b', 'mu0J_x', 'mu0J_y', 'mu0J_z'],
   'Current terms and signed shear': ['B_dT_dn_b', 'B_dn_db_T', 'B_twist_diff', 'B_kappa', 'minus_dB_dn']
 };
@@ -208,7 +209,7 @@ function refreshDraft() {
   byId('evaluation').disabled = scenario === 'simulation';
   byId('fac-step').textContent = draft.evaluation === 'direct' ? 'Cartesian FAC step: 0.002 Re (fixed for this mockup).' : 'Cartesian FAC uses preview axis spacing.';
   byId('evaluation-hint').textContent = draft.evaluation === 'grid' ? 'Changing the node budget changes the field used for derivatives and tracing.' : 'The model supplies stencil and trace values. Preview density still limits visible detail.';
-  byId('analysis-hint').textContent = draft.kind === 'attribution' ? 'Requires a background. Only the six transverse diagnostics apply. A current selection will become eta on Apply.' : 'All 18 diagnostics are available; a background assignment can be retained for later.';
+  byId('analysis-hint').textContent = draft.kind === 'attribution' ? 'Requires a background. Only the six transverse diagnostics apply. A current selection will become eta on Apply.' : 'All 21 diagnostics are available; a background assignment can be retained for later.';
   showStatus();
 }
 function showStatus() {

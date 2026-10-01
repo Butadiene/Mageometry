@@ -10,6 +10,7 @@ models, analytic test fields, and interpolated simulation data.
 | Load your data or write a reader | [Simulation data formats](simulation_data_formats.md) |
 | Open a snapshot, select a component, and inspect slices | [Viewer guide](viewer.md) |
 | Run the unified desktop GUI and save analysis sessions | [Desktop workspace](gui.md) |
+| Read Japanese explanations of every desktop control and all 21 diagnostics | [3D viewer 日本語詳細ガイド](gui_ja.md) |
 | Switch datasets using shared scales, thresholds, and slices | [Dataset comparison](data_comparison.md) |
 | Review the accepted GUI design and schematic layout | [GUI design reference](gui_design.md) · [Interactive mockup](gui_mockup.html) |
 | Identify or regenerate documentation images | [Image sources and capture commands](images/README.md) |

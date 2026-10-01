@@ -4,8 +4,8 @@ from copy import deepcopy
 from pathlib import Path
 
 from ..session import empty_session, load_session, model_session, validate_session
-from ..session.cli import viewer_parser, validate_viewer_options
-from ..session.specs import new_id
+from ..session.cli import model_overrides, viewer_parser, validate_viewer_options
+from ..session.specs import MODEL_PARAMETERS, new_id
 
 
 def _file_source(kind, path, stride, **options):
@@ -14,7 +14,7 @@ def _file_source(kind, path, stride, **options):
 
 
 def session_from_args(argv=None, *, default_component='alpha', description=None,
-                      require_source=False, default_by=None):
+                      require_source=False, default_by=None, default_model_parameters=None):
     """Parse and validate a recipe without reading source arrays or importing Qt."""
     parser = viewer_parser(description or 'Unified magnetic geometry workspace',
                            default_component, desktop=True)
@@ -31,12 +31,21 @@ def session_from_args(argv=None, *, default_component='alpha', description=None,
         group = next(g for g in session['groups'] if g['id'] == session['active_group'])
     else:
         has_file = bool(args.xmf or args.vtk or args.h5)
-        if args.by is None and not has_file:
+        if args.by is None and not has_file and args.model != 't89':
             args.by = default_by
         has_background = bool(args.background or args.background_xmf or args.background_vtk)
         args.component = args.component or ('eta' if has_background else default_component)
         validate_viewer_options(parser, args, require_source, desktop=True)
-        session = empty_session() if has_file else model_session(args.by or (0.,))
+        overrides = model_overrides(args)
+        model = overrides.get('model', 't96')
+        parameters = {key: value for key, value in (default_model_parameters or {}).items()
+                      if key in MODEL_PARAMETERS[model]}
+        parameters.update(overrides.get('parameters', {}))
+        try:
+            session = empty_session() if has_file else model_session(args.by or (0.,),
+                                                                     model=model, parameters=parameters)
+        except ValueError as error:
+            parser.error(str(error))
         group = session['groups'][0]
         if has_file:
             if args.xmf:
@@ -65,7 +74,8 @@ def session_from_args(argv=None, *, default_component='alpha', description=None,
                 group['view']['case'] = case['id']
         analysis = group['analysis']
         analysis.update(kind='attribution' if has_background else 'field',
-                        evaluation=args.evaluation, max_points=args.max_points)
+                        evaluation=args.evaluation, max_points=args.max_points,
+                        trace_enabled=not args.no_trace)
         if args.evaluation == 'grid':
             analysis['delta'] = None
             analysis['geometry_delta'] = None
@@ -115,7 +125,7 @@ def export_screenshot(session, path):
         scene.set_result(result, group['view'])
         scene.screenshot(path)
         group['resolved'] = result['resolved']
-        if group['analysis']['seeds'] is None:
+        if group['analysis'].get('trace_enabled', True) and group['analysis']['seeds'] is None:
             group['analysis']['seeds'] = result['resolved']['seeds']
         group['view']['cameras'] = scene.camera_state()
         save_session(session, Path(path).with_suffix('.session.json'))

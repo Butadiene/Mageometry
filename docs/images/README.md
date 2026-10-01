@@ -46,17 +46,41 @@ checks. No external image or simulation data is used.
 
 ## Qt desktop workspace
 
-Requires `.[gui]` and a working desktop/OpenGL display. Run:
+`gui-alpha-gradient.png` shows `(dalpha/ds)/|B|` in the desktop plot layout
+(without the Qt control panels), with a YZ slice at x = -6 Re. It uses a
+25 × 19 × 19 T96 + dipole grid, By = 0 nT, Dst = -20 nT, Bz = -5 nT,
+and direct differences of 0.002 Re. Reproduce it without Qt using:
+
+```bash
+python -m mageometry.gui --shape 25 19 19 --component dalpha_ds_over_B \
+  --slice x --slice-origin -6 0 0 --layout three_d_slice \
+  --screenshot /tmp/mageometry-alpha-gradient.png
+```
+
+Copy the resulting PNG to `docs/images/gui-alpha-gradient.png`. The adjacent
+session JSON records the complete parameters and camera state for inspection.
+
+Full-window captures require `.[gui]` and a working desktop/OpenGL display. Run:
 
 ```bash
 python benchmark/render_gui.py --output /tmp/mageometry-gui
 ```
 
+The same script exercises model selection with Qt keyboard events and writes
+`source-t89.png`, `source-t01.png` and `source-t04.png`. Copy these to
+`gui-source-t89.png`, `gui-source-t01.png` and `gui-source-t04.png` here.
+They show the actual source dialog with each model's demonstration defaults;
+they do not depict an inferred storm history.
+
 | Asset | Generated file | View |
 | --- | --- | --- |
 | [gui-workspace.png](gui-workspace.png) | `workspace-all.png` | Full Qt window, All panels |
 | [gui-three-d-slice.png](gui-three-d-slice.png) | `workspace-three_d_slice.png` | Same result, 3D + Slice |
-| [gui-display.png](gui-display.png) | `workspace-display.png` | Same result, Display tab with threshold input, slider and editable range |
+| [gui-display.png](gui-display.png) | `workspace-display.png` | Same result, Display tab grouped into Shared, 3D and peak maps, and Slice sections |
+| [gui-display-positive.png](gui-display-positive.png) | `workspace-display-positive.png` | Same result and cameras, positive values only |
+| [gui-display-negative.png](gui-display-negative.png) | `workspace-display-negative.png` | Same result and cameras, negative values only |
+| [gui-display-ranges.png](gui-display-ranges.png) | `workspace-display-ranges.png` | Interval [−0.5, 0.5], slice colours [−0.6, 0.9], y [−5, 5] Re, z [−4, 4] Re |
+| [gui-no-trace.png](gui-no-trace.png) | `workspace-no-trace.png` | Second case (By = +5 nT), 0.001 Re differences, tracing disabled in Analysis |
 | [gui-slice.png](gui-slice.png) | `workspace-slice.png` | Same result, Slice focus |
 
 The captures show residual-gradient eta for the By = −5 nT case in a
@@ -67,7 +91,9 @@ the same epoch; attribution uses the total-field frame. See the
 The captures were refreshed on 2026-09-30 with retained 3D illumination,
 smooth region shading and translucent context lines. The capture script
 also verifies mouse rotation through 3D + Slice and 3D/Slice focus layout changes,
-numeric threshold entry, manual slider range entry, and slider keyboard input.
+numeric threshold entry, manual slider range entry, slider keyboard input,
+positive/negative value selection, signed intervals, manual slice ranges,
+and trace disablement followed by Apply and session restore.
 
 Use each capture's matching `.session.json` to restore its recipe. The
 script's final `session.json` belongs to a later restore check with different

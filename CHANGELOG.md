@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Group desktop Display controls into bordered Shared, 3D and peak maps,
+  and Slice sections. Place shared sign/colour controls and each view's
+  filters, ranges and visibility controls together, with their scope labeled.
+
+- Add desktop signed value intervals for 3D regions, arrows and peak maps,
+  independent slice colour-bar bounds, and horizontal/vertical slice extents.
+  Persist the display settings with backward-compatible defaults. Add an
+  Analysis checkbox and `--no-trace` to both CLIs to skip seed selection and
+  field-line integration while retaining the desktop trace settings.
+
+- Support T89, T01 and T04 alongside T96 in desktop source forms, direct/grid
+  evaluation, model backgrounds, saved sessions and both viewer CLIs. Expose
+  T89 iopt, T01 G1/G2 and T04 W1–W6, with model-specific validation and source
+  metadata. Mask T01/T04 samples and derivative stencils beyond x = -15 Re
+  instead of differentiating clipped coordinates. Explain the default 0.125 current-unit conversion in English,
+  Japanese and the analysis tooltip.
+
+- Add `dalpha_ds`, `dalpha_ds_over_B`, and `dfac_ds` to desktop and standalone
+  diagnostic selectors and CLI/session recipes. Differentiate along the unit
+  magnetic tangent using nested direct differences or central preview-grid
+  differences, preserve missing stencils, and apply current conversion only
+  to the FAC gradient. Expose `field_aligned_current_derivatives` in the
+  geometry API and document the units, steps, and Japanese definitions.
+
+- Set `examples/compare_t96_by.py` and its importable comparison helpers to
+  Dst = −30 nT, IMF Bz = −10 nT and By = −10, −5, 0, +5, +10 nT.
+  Add explicit Dst/Bz inputs to the shared sampling helpers and apply the
+  launcher's model defaults only to newly constructed model cases.
+
+- Add All values, Positive only and Negative only selection to the desktop
+  Display tab. Filter regions, arrows, slices and peak maps without numerical
+  recomputation, selecting projection peaks within the chosen sign. Preserve
+  shared scales and cameras, and save the selection with the session.
+
 - Add a threshold slider below the existing numeric control in the desktop
   Display tab. Keep both controls synchronized, expand the slider range for
   larger manual values, and restore thresholds with the displayed diagnostic.
@@ -39,6 +73,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   documentation to use the common entry points.
 
 ### Documentation
+
+- Add a Japanese desktop viewer reference covering every control, all 21
+  diagnostics, units, signs, background attribution, examples and troubleshooting.
 
 - Add a companion directional-rotation concept figure in English and
   Japanese (SVG/PDF/PNG), connecting neighbouring field lines to Ω(φ),

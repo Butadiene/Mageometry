@@ -14,6 +14,22 @@ from mageometry.session import load_session, model_session, save_session
 
 
 class TestGUICLI(unittest.TestCase):
+    def test_no_trace_cli_disables_calculation_without_erasing_model_seeds(self):
+        session, _ = session_from_args(['--no-trace'])
+        analysis = session['groups'][0]['analysis']
+        self.assertFalse(analysis['trace_enabled'])
+        self.assertTrue(analysis['seeds'])
+
+    def test_along_field_diagnostics_survive_cli_and_session_round_trip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'gradient.json'
+            for component in ('dalpha_ds', 'dalpha_ds_over_B', 'dfac_ds'):
+                with self.subTest(component=component):
+                    session, _ = session_from_args(['--component', component])
+                    self.assertEqual(session['groups'][0]['view']['component'], component)
+                    save_session(session, path)
+                    self.assertEqual(load_session(path)['groups'][0]['view']['component'], component)
+
     def test_help_without_optional_rendering_dependencies(self):
         code = """
 import importlib.abc
@@ -39,10 +55,13 @@ runpy.run_module('mageometry.gui', run_name='__main__')
             expected['groups'][0]['view']['component'] = 'eta'
             save_session(expected, path)
             session, screenshot = session_from_args(['--session', str(path),
-                                                     '--layout', 'three_d_slice'])
+                                                     '--layout', 'three_d_slice'],
+                                                    default_by=(-10., -5., 0., 5., 10.),
+                                                    default_model_parameters={'dst': -30., 'bz': -10.})
         self.assertIsNone(screenshot)
         group = session['groups'][0]
         self.assertEqual(group['analysis'], expected['groups'][0]['analysis'])
+        self.assertEqual(group['cases'], expected['groups'][0]['cases'])
         self.assertEqual(group['view']['component'], 'eta')
         self.assertEqual(group['view']['layout'], 'three_d_slice')
         self.assertEqual(group['view']['previous_layout'], 'three_d_slice')

@@ -2,7 +2,8 @@
 
 import numpy as np
 
-from ..geometry import (field_line_current_density, field_line_frenet_frame,
+from ..geometry import (field_aligned_current_derivatives,
+                        field_line_current_density, field_line_frenet_frame,
                         field_magnitude_derivatives, field_line_transverse_geometry)
 
 
@@ -20,12 +21,17 @@ COMPONENTS = {
     'mu0J_y': ('J_y', 'y', 'J_y: Cartesian y component of the Frenet reconstruction'),
     'mu0J_z': ('J_z', 'z', 'J_z: Cartesian z component of the Frenet reconstruction'),
     'alpha': ('alpha', None, 'alpha = T dot curl(B) / |B|: twice the mean winding rate'),
+    'dalpha_ds': ('dalpha/ds', None, 'T dot grad(alpha): change along B per unit arc length'),
+    'dalpha_ds_over_B': ('(dalpha/ds) / |B|', None, 'T dot grad(alpha) divided by |B|'),
+    'dfac_ds': ('dJ parallel/ds', None, 'T dot grad(FAC): parallel-current gradient along B'),
     'B_kappa': ('curvature term', 'b', 'Binormal contribution: +|B| kappa'),
     'minus_dB_dn': ('pressure term', 'b', 'Binormal contribution: -d|B|/dn'),
 }
 
 RATE_COMPONENTS = frozenset(('alpha', 'beta_g', 'delta_g', 'gamma', 'omega_c'))
 TRANSVERSE_COMPONENTS = RATE_COMPONENTS | {'eta'}
+ALONG_FIELD_COMPONENTS = frozenset(('dalpha_ds', 'dalpha_ds_over_B', 'dfac_ds'))
+UNSCALED_COMPONENTS = TRANSVERSE_COMPONENTS | {'dalpha_ds', 'dalpha_ds_over_B'}
 
 COMPONENTS.update({
     'beta_g': ('beta_g', None, 'beta_g = p+q = D/B: signed transverse shear in the Frenet frame'),
@@ -47,6 +53,9 @@ COMPONENT_LABELS = {
     'mu0J_y': 'J_y - Cartesian y',
     'mu0J_z': 'J_z - Cartesian z',
     'alpha': 'alpha - Twist (not current)',
+    'dalpha_ds': 'dalpha/ds - Along B',
+    'dalpha_ds_over_B': '(dalpha/ds) / |B| - Along B',
+    'dfac_ds': 'dFAC/ds - Along B',
     'B_kappa': 'Curvature term: +|B| kappa',
     'minus_dB_dn': 'Pressure term: -d|B|/dn',
 }
@@ -62,12 +71,21 @@ def _component_name(component):
     return component
 
 
-def _component_label(component, current_unit, length_unit, fac_label=None):
+def _component_label(component, current_unit, length_unit, fac_label=None, *,
+                     field_unit='field unit'):
     component = _component_name(component)
     if component == 'eta':
         return 'eta [dimensionless]'
     if component in RATE_COMPONENTS:
         return f'{COMPONENTS[component][0]} [1 / {length_unit}]'
+    if component == 'dalpha_ds':
+        return f'dalpha/ds [1 / {length_unit}^2]'
+    if component == 'dalpha_ds_over_B':
+        return f'(dalpha/ds) / |B| [1 / ({field_unit} {length_unit}^2)]'
+    if component == 'dfac_ds':
+        if current_unit is None:
+            return f'd(mu0 J parallel)/ds [{field_unit} / {length_unit}^2]'
+        return f'dJ parallel/ds [({current_unit}) / {length_unit}]'
     if component == 'fac' and fac_label is not None:
         return fac_label
     symbol = COMPONENTS[component][0]
@@ -85,10 +103,12 @@ class _CurrentPreview:
     Legacy current components retain the notebook Frenet-frame conventions.
     """
 
-    def __init__(self, preview, fac, field, delta):
+    def __init__(self, preview, fac, field, delta, *, grid_derivatives=False, fac_delta=None):
         self.preview = preview
         self.field = field
         self.delta = delta
+        self.grid_derivatives = grid_derivatives
+        self.fac_delta = fac_delta
         self.values = {'fac': fac}
         magnitude = np.linalg.norm(preview.b, axis=-1)
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -99,10 +119,46 @@ class _CurrentPreview:
         if component not in self.values:
             if component in TRANSVERSE_COMPONENTS:
                 self._transverse()
+            elif component in ALONG_FIELD_COMPONENTS:
+                self._along_field()
             else:
                 self._geometry()
         basis = COMPONENTS[component][1]
         return self.values[component], self.bases.get(basis)
+
+    def _along_field(self):
+        magnitude = np.linalg.norm(self.preview.b, axis=-1)
+        if self.grid_derivatives:
+            alpha = self.get('alpha')[0]
+            self.values['dalpha_ds'] = self._grid_derivative(alpha)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                self.values['dalpha_ds_over_B'] = self.values['dalpha_ds'] / magnitude
+            self.values['dfac_ds'] = self._grid_derivative(self.values['fac'])
+            return
+        coords = np.meshgrid(self.preview.x, self.preview.y, self.preview.z, indexing='ij')
+        valid = np.isfinite(magnitude) & (magnitude > 0)
+        derivatives = field_aligned_current_derivatives(
+            self.field, *(c[valid] for c in coords), delta=self.delta,
+            fac_delta=self.fac_delta) if np.any(valid) else {}
+        for key in ALONG_FIELD_COMPONENTS:
+            values = np.full(self.preview.shape, np.nan)
+            if key in derivatives:
+                values[valid] = derivatives[key]
+            self.values[key] = values
+
+    def _grid_derivative(self, values):
+        """Project central Cartesian differences; never bridge invalid stencils."""
+        tangent = self.bases['T']
+        valid = np.isfinite(values) & np.all(np.isfinite(tangent), axis=-1)
+        result = np.zeros(self.preview.shape)
+        for axis, coords in enumerate((self.preview.x, self.preview.y, self.preview.z)):
+            valid &= np.roll(np.isfinite(values), 1, axis=axis)
+            valid &= np.roll(np.isfinite(values), -1, axis=axis)
+            edge = [slice(None)] * 3
+            edge[axis] = [0, -1]
+            valid[tuple(edge)] = False
+            result += tangent[..., axis] * np.gradient(values, coords, axis=axis, edge_order=2)
+        return np.where(valid & np.isfinite(result), result, np.nan)
 
     def _transverse(self):
         coords = np.meshgrid(self.preview.x, self.preview.y, self.preview.z, indexing='ij')
@@ -132,7 +188,7 @@ class _CurrentPreview:
         else:
             current, frame = {}, None
         for key in COMPONENTS:
-            if key == 'fac' or key in TRANSVERSE_COMPONENTS:
+            if key == 'fac' or key in TRANSVERSE_COMPONENTS or key in ALONG_FIELD_COMPONENTS:
                 continue
             values = np.full(shape, np.nan)
             if key in current:

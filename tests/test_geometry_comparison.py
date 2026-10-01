@@ -243,7 +243,7 @@ class TestT96ComparisonExample(unittest.TestCase):
         expected = {}
         for by in by_values:
             ps = geopack.recalc(EPOCH)
-            model = geopack_field('t96', 'dip', [2., -20., by, -5., 0, 0, 0, 0, 0, 0], ps)
+            model = geopack_field('t96', 'dip', [2., -30., by, -10., 0, 0, 0, 0, 0, 0], ps)
             expected[case_label(by)] = model(*points)
         self.assertFalse(np.allclose(*expected.values()))
         by_values[:] = 100.
@@ -263,7 +263,7 @@ class TestT96ComparisonExample(unittest.TestCase):
             case = cases[label]
             ps = geopack.recalc(EPOCH)
             model = geopack_field('t96', 'dip',
-                                  [2., -20., case.metadata['imf_by'], -5., 0, 0, 0, 0, 0, 0], ps)
+                                  [2., -30., case.metadata['imf_by'], -10., 0, 0, 0, 0, 0, 0], ps)
             expected = field_line_transverse_geometry(
                 model, case.x[3], case.y[4], case.z[4], delta=0.002)
             geopack.recalc(1609459200.)
@@ -313,13 +313,16 @@ class TestT96ComparisonExample(unittest.TestCase):
                 self.assertEqual(error.exception.code, 2)
                 sample.assert_not_called()
 
-    def test_independent_six_case_snapshots_and_fixed_conditions(self):
+    def test_independent_five_case_snapshots_and_fixed_conditions(self):
         from examples.compare_t96_by import make_cases, DEFAULT_BY
         cases = make_cases(shape=(9, 7, 7))
-        self.assertEqual(len(cases), 6)
+        self.assertEqual(DEFAULT_BY, (-10., -5., 0., 5., 10.))
+        self.assertEqual(len(cases), 5)
         first = next(iter(cases.values()))
         for by, case in zip(DEFAULT_BY, cases.values()):
             self.assertEqual(case.metadata['imf_by'], by)
+            self.assertEqual(case.metadata['dst'], -30.)
+            self.assertEqual(case.metadata['imf_bz'], -10.)
             parameters = case.metadata['parameters']
             for label, key in (('IMF By [nT]', 'imf_by'), ('IMF Bz [nT]', 'imf_bz'),
                                ('Pdyn [nPa]', 'pdyn'), ('Dst [nT]', 'dst'),

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..io import GriddedField
-from ._current import TRANSVERSE_COMPONENTS, _CurrentPreview, _component_name
+from ._current import UNSCALED_COMPONENTS, _CurrentPreview, _component_name
 from ._preview import _masked_field, _preview_indices, _sample_fac
 
 
@@ -37,7 +37,12 @@ class _PreparedCase:
         if step is None:
             step = float(np.min(delta)) if field is not None and delta is not None else self.spacing
         self.field = _masked_field(self.preview.field() if field is None else field, mask)
-        self.cache = _CurrentPreview(self.preview, fac, self.field, step)
+        fac_delta = delta
+        if field is not None and fac_delta is None:
+            fac_delta = tuple(np.min(np.diff(a)) / 2 for a in
+                              (self.preview.x, self.preview.y, self.preview.z))
+        self.cache = _CurrentPreview(self.preview, fac, self.field, step,
+                                     grid_derivatives=field is None, fac_delta=fac_delta)
 
 
 def _validate_cases(cases):
@@ -139,7 +144,7 @@ class _OverviewData:
     def values(self, prepared, component):
         component = _component_name(component)
         values, basis = prepared.cache.get(component)
-        scale = 1.0 if component in TRANSVERSE_COMPONENTS else self.current_scale
+        scale = 1.0 if component in UNSCALED_COMPONENTS else self.current_scale
         return values * scale, basis
 
     def statistics(self, component, progress=None):

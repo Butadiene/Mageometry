@@ -21,15 +21,18 @@ class TestGeometryViewerExamples(unittest.TestCase):
         return launch.call_args.args[0]['groups'][0]
 
     def test_model_launchers_open_desktop_with_their_presets(self):
-        for script, component, values in (
-            ('geometry_gui.py', 'alpha', [0.]),
-            ('compare_t96_by.py', 'alpha', [-5., -3., -1., 1., 3., 5.]),
+        for script, component, values, dst, bz in (
+            ('geometry_gui.py', 'alpha', [0.], -20., -5.),
+            ('compare_t96_by.py', 'alpha', [-10., -5., 0., 5., 10.], -30., -10.),
         ):
             with self.subTest(script=script):
                 group = self.run_viewer(script, '--layout', 'three_d_slice')
                 self.assertEqual(group['view']['component'], component)
                 self.assertEqual(group['view']['layout'], 'three_d_slice')
                 self.assertEqual([c['source']['parameters']['by'] for c in group['cases']], values)
+                for case in group['cases']:
+                    self.assertEqual(case['source']['parameters']['dst'], dst)
+                    self.assertEqual(case['source']['parameters']['bz'], bz)
                 self.assertEqual(group['analysis']['geometry_delta'], .002)
                 self.assertIsNone(group['analysis']['delta'])
 
@@ -40,6 +43,12 @@ class TestGeometryViewerExamples(unittest.TestCase):
         self.assertEqual(group['analysis']['kind'], 'field')
         self.assertEqual(len(group['cases']), 1)
         self.assertEqual(group['cases'][0]['source']['parameters']['by'], 0.)
+
+    def test_comparison_defaults_do_not_modify_file_sources(self):
+        group = self.run_viewer('compare_t96_by.py', '--xmf', 'snapshot.xmf')
+        self.assertEqual(group['cases'][0]['source'], {
+            'kind': 'xdmf', 'path': str(Path('snapshot.xmf').resolve()), 'options': {'stride': 1}})
+        self.assertEqual(group['analysis']['evaluation'], 'grid')
 
     def test_comparison_overrides_and_backgrounds_reach_desktop(self):
         group = self.run_viewer('compare_t96_by.py', '--by', '-2', '2', '--initial-by', '2',
@@ -57,6 +66,8 @@ class TestGeometryViewerExamples(unittest.TestCase):
         self.assertEqual(group['analysis']['delta'], .001)
         self.assertEqual(group['analysis']['geometry_delta'], .003)
         for case in group['cases']:
+            self.assertEqual(case['source']['parameters']['dst'], -30.)
+            self.assertEqual(case['source']['parameters']['bz'], -10.)
             self.assertEqual(case['source']['shape'], [9, 7, 7])
             self.assertEqual(case['background'], {'kind': 'dipole', 'parameters': {'epoch': 100.}})
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6 import QtWidgets as W
 
-from ..session.specs import model_source, validate_source
+from ..session.specs import MODEL_DEFAULTS, MODEL_KINDS, MODEL_PARAMETERS, model_source, validate_source
 
 
 def numbers(text, count=None, integer=False):
@@ -36,11 +36,14 @@ class SourceDialog(W.QDialog):
         self.form.setRowWrapPolicy(W.QFormLayout.RowWrapPolicy.WrapAllRows)
         layout.addLayout(self.form)
         self.kind = W.QComboBox()
-        self.kind.addItems(['t96', 'xdmf', 'hdf5', 'vtk'] + (['dipole'] if background else []))
+        self.kind.addItems(['t96', 't89', 't01', 't04', 'xdmf', 'hdf5', 'vtk']
+                           + (['dipole'] if background else []))
         self.form.addRow('Source type', self.kind)
         self.fields = {}
         labels = {'path': 'File', 'epoch': 'Epoch [Unix s]', 'pdyn': 'Pdyn [nPa]',
                   'dst': 'Dst [nT]', 'by': 'IMF By [nT] (list creates cases)', 'bz': 'IMF Bz [nT]',
+                  'iopt': 'T89 activity bin iopt [1-7]', 'g1': 'G1 (T01)', 'g2': 'G2 (T01)',
+                  'w': 'W1 W2 W3 W4 W5 W6 (T04)',
                   'bounds': 'Bounds: xmin xmax ymin ymax zmin zmax', 'shape': 'Grid nodes: nx ny nz',
                   'stride': 'Reader stride', 'arrays': 'Array name(s)', 'origin': 'HDF5 origin: x y z',
                   'spacing': 'HDF5 spacing: dx dy dz', 'h5_file': 'XDMF heavy-file override',
@@ -62,10 +65,10 @@ class SourceDialog(W.QDialog):
         buttons.accepted.connect(self.accept_source)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
-        p = self.source.get('parameters', model_source()['parameters'])
+        p = dict(MODEL_DEFAULTS, **self.source.get('parameters', {}))
         options = self.source.get('options', {})
         meta = self.source.get('metadata', {})
-        values = dict(p, path=self.source.get('path', ''),
+        values = dict(p, w=[p[f'w{i}'] for i in range(1, 7)], path=self.source.get('path', ''),
                       bounds=[v for interval in self.source.get('bounds', model_source()['bounds']) for v in interval],
                       shape=self.source.get('shape', [65, 49, 49]), stride=options.get('stride', 1),
                       arrays=options.get('name', options.get('datasets', options.get('components', ['BX', 'BY', 'BZ']))),
@@ -76,16 +79,24 @@ class SourceDialog(W.QDialog):
         for key, widget in self.fields.items():
             widget.setText(line(values.get(key, '')))
         self.order.setChecked(options.get('zyx_order', True))
+        self.fields['iopt'].setToolTip('Activity bin, not a numeric Kp value: 1 = Kp 0/0+, '
+                                      '2 = 1-/1/1+, ..., 6 = 5-/5/5+, 7 = Kp >= 6-.')
+        for key in ('g1', 'g2', 'w'):
+            self.fields[key].setToolTip('Supply the model driving indices for the intended conditions. '
+                                        'The zero defaults are demonstration inputs; the app does not '
+                                        'derive them from solar-wind history.')
         self.kind.setCurrentText(self.source['kind'])
         self.kind.currentTextChanged.connect(self.show_fields)
         self.show_fields()
 
     def show_fields(self):
         kind = self.kind.currentText()
-        model = kind in ('t96', 'dipole')
+        model = kind in MODEL_KINDS or kind == 'dipole'
         visible = {'epoch'} if kind == 'dipole' else set()
-        if kind == 't96':
-            visible = {'epoch', 'pdyn', 'dst', 'by', 'bz', 'bounds', 'shape'}
+        if kind in MODEL_KINDS:
+            visible = set(MODEL_PARAMETERS[kind]) | {'bounds', 'shape'}
+            if kind == 't04':
+                visible.add('w')
         if not model:
             visible = {'path', 'stride', 'arrays', 'coordinate_system', 'length_unit', 'field_unit'}
             visible.update({'h5_file'} if kind == 'xdmf' else {'origin', 'spacing'} if kind == 'hdf5' else set())
@@ -110,17 +121,22 @@ class SourceDialog(W.QDialog):
         try:
             kind = self.kind.currentText()
             text = lambda key: self.fields[key].text().strip()
-            if kind in ('t96', 'dipole'):
+            if kind in MODEL_KINDS or kind == 'dipole':
                 parameters = {'epoch': float(text('epoch'))}
-                if kind == 't96':
-                    parameters.update({key: float(text(key)) for key in ('pdyn', 'dst', 'bz')})
-                    values = numbers(text('by'))
+                if kind in MODEL_KINDS:
+                    keys = set(MODEL_PARAMETERS[kind]) - {'epoch', 'by', 'iopt'}
+                    parameters.update({key: float(text(key)) for key in keys if not key.startswith('w')})
+                    if kind == 't89':
+                        parameters['iopt'] = int(text('iopt'))
+                    if kind == 't04':
+                        parameters.update(zip((f'w{i}' for i in range(1, 7)), numbers(text('w'), 6)))
+                    values = [None] if kind == 't89' else numbers(text('by'))
                     if not values or len(set(values)) != len(values):
                         raise ValueError('Supply distinct IMF By values.')
                     if self.background and len(values) != 1:
                         raise ValueError('A background source takes one IMF By value.')
                     bounds = numbers(text('bounds'), 6)
-                    self.sources = [dict(kind=kind, parameters=dict(parameters, by=by),
+                    self.sources = [dict(kind=kind, parameters=dict(parameters, **({} if by is None else {'by': by})),
                                          bounds=[bounds[i:i+2] for i in (0, 2, 4)],
                                          shape=numbers(text('shape'), 3, True)) for by in values]
                 else:
@@ -166,6 +182,11 @@ class AnalysisForm(W.QWidget):
                 combo.addItem(label, value)
             self.fields[key] = combo
             self.form.addRow(key.capitalize(), combo)
+        self.trace_enabled = W.QCheckBox('Calculate field-line traces')
+        self.trace_enabled.setChecked(True)
+        self.trace_enabled.setToolTip('Uncheck and Apply to skip both automatic seed selection and tracing. '
+                                      'Existing seed and integration settings are retained for re-enabling.')
+        self.form.addRow(self.trace_enabled)
         labels = {'geometry_delta': 'Geometry step (shared; blank: auto)',
                   'delta': 'FAC steps (blank: Geometry step)',
                   'max_points': 'Analysis/display preview nodes', 'cache_size': 'Retained case previews',
@@ -184,7 +205,13 @@ class AnalysisForm(W.QWidget):
             self.fields[key] = widget
             self.form.addRow(label, widget)
         tips = {
-            'delta': ('Optional steps for the FAC diagnostic computed directly from curl(B). '
+            'current_scale': ('Display value = native value times this positive multiplier. '
+                              'T89/T96/T01/T04 use nT and Re (Earth radii). The default 0.125 '
+                              'converts mu0 J from nT/Re to J in nA/m^2; for example, '
+                              '2 nT/Re becomes about 0.25 nA/m^2. File default 1 keeps native '
+                              'values. The same multiplier applies to dFAC/ds; alpha derivatives '
+                              'are unscaled.'),
+            'delta': ('Optional curl(B) steps for FAC and the FAC values used in dFAC/ds. '
                       'Otherwise FAC follows Geometry step. Enter one value or three x/y/z '
                       'steps in coordinate units (Re for the model). '
                       'Grid evaluation uses preview axis spacing instead. '
@@ -192,7 +219,9 @@ class AnalysisForm(W.QWidget):
             'geometry_delta': ('Shared spatial difference step for geometry diagnostics and '
                                'direct FAC unless FAC steps are overridden. Blank uses 0.002 '
                                'in direct mode, or the smallest preview axis spacing in grid '
-                               'mode. In coordinate length units (Re for the model).'),
+                               'mode. Also sets the along-B displacement for direct alpha/FAC '
+                               'derivatives; grid gradients use preview axis spacing. '
+                               'In coordinate length units (Re for the model).'),
             'ds': 'Integration step for tracing field lines, in coordinate length units.',
         }
         for key, tip in tips.items():
@@ -212,7 +241,14 @@ class AnalysisForm(W.QWidget):
         self.fields['evaluation'].currentIndexChanged.connect(self._evaluation_changed)
         self.fac_override.toggled.connect(self._evaluation_changed)
         self.fac_override.setToolTip(tips['delta'])
+        self.trace_enabled.toggled.connect(self._trace_changed)
         self._evaluation_changed()
+
+    def _trace_changed(self):
+        enabled = self.trace_enabled.isChecked()
+        for key in ('n_lines', 'ds', 'max_steps', 'r0', 'rlim', 'err', 'bounds', 'direction'):
+            self.fields[key].setEnabled(enabled)
+        self.seeds.setEnabled(enabled)
 
     def _evaluation_changed(self):
         direct = self.fields['evaluation'].currentData() == 'direct'
@@ -238,10 +274,13 @@ class AnalysisForm(W.QWidget):
         seeds = analysis['seeds']
         self.seeds.setPlainText('' if seeds is None else '\n'.join(line(seed) for seed in seeds) if seeds else 'none')
         self.fac_override.setChecked(analysis['delta'] is not None)
+        self.trace_enabled.setChecked(analysis.get('trace_enabled', True))
+        self._trace_changed()
         self._evaluation_changed()
 
     def analysis(self):
         result = deepcopy(self.base)
+        result['trace_enabled'] = self.trace_enabled.isChecked()
         for key in ('kind', 'evaluation'):
             result[key] = self.fields[key].currentData()
         text = lambda key: self.fields[key].text().strip()

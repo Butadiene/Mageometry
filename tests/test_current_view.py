@@ -7,7 +7,7 @@ import numpy as np
 from mageometry import (GriddedField, field_line_current_density,
                         field_line_frenet_frame, field_magnitude_derivatives, viz3d)
 from mageometry.geometry import field_line_transverse_geometry
-from mageometry.viz3d._current import (RATE_COMPONENTS, TRANSVERSE_COMPONENTS,
+from mageometry.viz3d._current import (ALONG_FIELD_COMPONENTS, RATE_COMPONENTS, TRANSVERSE_COMPONENTS,
                                       COMPONENTS, _CurrentPreview, _component_label)
 from mageometry.viz3d.fac import _masked_field, _peak_projection, _region_seeds, _sample_fac
 from mageometry.viz3d.mesh import to_rectilinear_grid
@@ -108,6 +108,7 @@ class TestCurrentComponents(unittest.TestCase):
         cache.get('fac')
         self.assertEqual(len(calls), before)
         cache.get('mu0J_T')
+        cache.get('dalpha_ds')
         count = len(calls)
         self.assertGreater(count, before)
         for key in COMPONENTS:
@@ -120,7 +121,9 @@ class TestCurrentComponents(unittest.TestCase):
         cache = _CurrentPreview(preview, fac, _masked_field(field, None), 0.002)
         np.testing.assert_allclose(cache.get('fac')[0], 1, atol=1e-6)
         for key in COMPONENTS:
-            if key not in ('fac', 'alpha', 'gamma', 'omega_c', 'eta'):
+            if key in ALONG_FIELD_COMPONENTS:
+                np.testing.assert_allclose(cache.get(key)[0], 0., atol=1e-10)
+            elif key not in ('fac', 'alpha', 'gamma', 'omega_c', 'eta'):
                 self.assertTrue(np.all(np.isnan(cache.get(key)[0])), key)
         np.testing.assert_allclose(cache.get('alpha')[0], 1, atol=1e-6)
         np.testing.assert_allclose(cache.get('gamma')[0], 1, atol=1e-6)
@@ -289,6 +292,8 @@ class TestCurrentViewer(unittest.TestCase):
                                component='mu0J_n', slice_only=True, slice_normal='z',
                                slice_origin=(0, 0, 1), n_lines=0, show=False,
                                current_scale=0.125, current_unit='nA/m^2', length_unit='Re')
+        select(p, 'dalpha_ds')
+        select(p, 'mu0J_n')
         count = len(calls)
         selector = p.actors['current-component-value']
         self.assertGreater(selector.GetPositionCoordinate().GetComputedDisplayValue(p.renderer)[0],

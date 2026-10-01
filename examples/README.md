@@ -43,7 +43,7 @@ and require `.[gui]`. They accept the shared source, analysis and display option
 | --- | --- |
 | [geometry_gui.py](geometry_gui.py) | Standard entry point: single T96 + dipole model starting on `alpha` |
 | [geometry_viewer_simulation.py](geometry_viewer_simulation.py) | Requires an explicit snapshot file or saved session |
-| [compare_t96_by.py](compare_t96_by.py) | Six-case scan, By = −5, −3, −1, +1, +3, +5 nT |
+| [compare_t96_by.py](compare_t96_by.py) | Five-case scan at Dst = −30 nT, IMF Bz = −10 nT, By = −10, −5, 0, +5, +10 nT |
 
 They contain no separate viewer logic. For example:
 
@@ -64,10 +64,12 @@ step; optional `--fac-delta` overrides only the directly computed FAC.
 `--screenshot` exports the desktop plot layout plus a matching session recipe.
 The standalone interface remains available as `python -m mageometry.viz3d`.
 
-Import T96 helpers (`model_snapshot`, `make_cases`, `make_fields`) from
+Import model helpers (`model_snapshot`, `make_cases`, `make_fields`) from
 `mageometry.session.presets`. Replace imports from the removed `fac_viewer`
 example with `from mageometry.session.presets import model_snapshot`.
-`compare_t96_by.py` continues to re-export its comparison helpers.
+`compare_t96_by.py` provides `make_cases` and `make_fields` wrappers using
+its five-case scan and shared Dst/Bz conditions. The underlying helpers accept
+explicit `dst` and `bz` keywords; their defaults remain −20 and −5 nT.
 
 ## Numerical examples and figures
 
