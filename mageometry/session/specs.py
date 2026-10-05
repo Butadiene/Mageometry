@@ -29,7 +29,7 @@ def new_id():
 
 def default_view():
     return dict(case=None, component='alpha', contribution='total',
-                layout='all', previous_layout='all', panels_hidden=False,
+                layout='three_d_slice', previous_layout='three_d_slice', panels_hidden=False,
                 normal=[1., 0., 0.], origin=[-6., 0., 0.],
                 thresholds={}, threshold_slider_limits={}, threshold_modes={}, value_intervals={},
                 color_limits={}, slice_color_ranges={}, slice_extent=None, cameras={},

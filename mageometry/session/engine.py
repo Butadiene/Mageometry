@@ -20,6 +20,14 @@ def calculation_key(group):
     return json.dumps({k: group.get(k) for k in ('cases', 'reference', 'analysis', 'revision')}, sort_keys=True)
 
 
+def _diagnostic_key(group):
+    # Trace configuration and presentation labels do not change diagnostic arrays.
+    ignored = {'seeds', 'n_lines', 'trace', 'trace_enabled',
+               'current_unit', 'length_unit', 'planet_radius'}
+    return calculation_key(dict(group, analysis={k: v for k, v in group['analysis'].items()
+                                                 if k not in ignored}))
+
+
 class SessionEngine:
     """Prepare one comparison group without Qt or live rendering objects.
 
@@ -29,9 +37,11 @@ class SessionEngine:
         Validated group description from a session recipe.
     progress : callable, optional
         Receives a short progress message. It may raise to cancel preparation.
+    previous : SessionEngine, optional
+        Reuse compatible inputs and derived arrays from the previous request.
     """
 
-    def __init__(self, group, progress=None):
+    def __init__(self, group, progress=None, previous=None):
         self.group = deepcopy(group)
         self.analysis = a = self.group['analysis']
         self.progress = progress or (lambda message: None)
@@ -40,13 +50,15 @@ class SessionEngine:
             raise ValueError('Add a model or file case before preparing a view.')
         ordered = [group['reference']] + [key for key in self.cases if key != group['reference']]
         self.grids, fields, self.inputs = {}, {}, {}
+        self.sources = {}
+        reuse = (previous is not None and group['id'] == previous.group['id']
+                 and group.get('revision') == previous.group.get('revision'))
+        sources = previous.sources if reuse else {}
         expected = group.get('resolved', {}).get('inputs', {})
         for key in ordered:
             case = self.cases[key]
-            self.progress(f"Loading {case['label']}")
-            self.inputs[key] = fingerprint(case['source'], self.check)
-            self._verify_fingerprint(expected.get(key), self.inputs[key], case['label'])
-            self.grids[key], fields[key] = load_source(case['source'], a['mask_radius'], self.check)
+            self.grids[key], fields[key], self.inputs[key] = self._load(
+                case['source'], sources, expected.get(key), case['label'])
         _validate_cases(self.grids)
         radius = a['mask_radius']
         self.mask = (lambda x, y, z: x*x + y*y + z*z < radius**2) if radius else None
@@ -68,17 +80,45 @@ class SessionEngine:
         if a['kind'] == 'attribution':
             for key in ordered:
                 case = self.cases[key]
-                self.progress(f"Loading background for {case['label']}")
                 identity = key + ':background'
-                self.inputs[identity] = fingerprint(case['background'], self.check)
-                self._verify_fingerprint(expected.get(identity), self.inputs[identity], case['label'] + ' background')
-                grid, field = load_source(case['background'], a['mask_radius'], self.check)
+                grid, field, self.inputs[identity] = self._load(
+                    case['background'], sources, expected.get(identity), case['label'] + ' background')
                 if grid is not None:
                     _validate_cases({'total': self.grids[key], 'background': grid})
                 # A dipole-only source has no sampling grid; preserve its analytic evaluator.
                 self.backgrounds[key] = field if grid is None or self.fields is not None else grid
                 if self.backgrounds[key] is None:
                     self.backgrounds[key] = grid
+        if reuse:
+            if _diagnostic_key(group) == _diagnostic_key(previous.group):
+                self.total = previous.total
+                self.contributions = previous.contributions.copy()
+                self.statistics = previous.statistics.copy()
+                if (self.seeds is None and previous.analysis['seeds'] is None
+                        and a['n_lines'] == previous.analysis['n_lines']):
+                    self.seeds = previous.seeds
+            # Trace keys include effective integration options and seed coordinates.
+            # Derivative-step edits can therefore retain paths independently.
+            self.traces = OrderedDict((key, paths) for key, paths in previous.traces.items()
+                                      if self.grids.get(key[0]) is previous.grids.get(key[0])
+                                      and key[0] in self.grids)
+            while len(self.traces) > a['cache_size']:
+                self.traces.popitem(last=False)
+
+    def _load(self, source, sources, expected, label):
+        key = json.dumps([source, self.analysis['mask_radius']], sort_keys=True)
+        cached = self.sources.get(key, sources.get(key))
+        self.progress(f"{'Loading' if cached is None else 'Reusing'} {label}")
+        if cached is None:
+            records = fingerprint(source, self.check)
+            self._verify_fingerprint(expected, records, label)
+            grid, field = load_source(source, self.analysis['mask_radius'], self.check)
+            cached = grid, field, records
+        else:
+            self._verify_records(cached[2])
+            self._verify_fingerprint(expected, cached[2], label)
+        self.sources[key] = cached
+        return cached
 
     def check(self):
         self.progress('')
@@ -91,10 +131,14 @@ class SessionEngine:
 
     def verify_inputs(self):
         for records in self.inputs.values():
-            for record in records:
-                stat = Path(record['path']).stat()
-                if (stat.st_size, stat.st_mtime_ns) != (record['size'], record['mtime_ns']):
-                    raise ValueError(f"Source changed: {record['path']}. Use Reload sources.")
+            self._verify_records(records)
+
+    @staticmethod
+    def _verify_records(records):
+        for record in records:
+            stat = Path(record['path']).stat()
+            if (stat.st_size, stat.st_mtime_ns) != (record['size'], record['mtime_ns']):
+                raise ValueError(f"Source changed: {record['path']}. Use Reload sources.")
 
     def _data(self, key):
         if self.analysis['kind'] == 'field':
@@ -147,13 +191,55 @@ class SessionEngine:
                                     self.analysis['n_lines'], .12 * length)
             self.seeds = points[indices]
 
-    def prepare(self, view):
+    def _trace_options(self, key, prepared):
+        options = dict(direction='both', ds=prepared.spacing / 2,
+                       bounds=prepared.preview.bounds, max_steps=600)
+        options.update(self.analysis['trace'])
+        identity = json.dumps(dict(options=options, seeds=self.seeds.tolist(),
+                                   evaluation=self.analysis['evaluation'],
+                                   max_points=self.analysis['max_points'],
+                                   mask_radius=self.analysis['mask_radius']), sort_keys=True)
+        return (key, identity), options
+
+    def _trace_paths(self, key, prepared):
+        identity, options = self._trace_options(key, prepared)
+        if identity not in self.traces:
+            paths = []
+
+            def field(x, y, z):
+                # Check cancellation at every RK field evaluation, including retries.
+                self.check()
+                return prepared.field(x, y, z)
+
+            for start in range(0, len(self.seeds), 32):
+                self.progress(f"Tracing {self.cases[key]['label']}: {start}/{len(self.seeds)}")
+                seeds = self.seeds[start:start + 32]
+                trace = trace_field_lines(field, *seeds.T, **options)
+                paths.extend(np.column_stack(trace.path(i)) for i in range(len(seeds)))
+            self.check()
+            self.traces[identity] = paths
+            while len(self.traces) > self.analysis['cache_size']:
+                self.traces.popitem(last=False)
+        self.traces.move_to_end(identity)
+        return self.traces[identity]
+
+    def prepare_traces(self, view):
+        """Finish pending total-field paths after publishing diagnostic arrays."""
+        self.verify_inputs()
+        self._resolve_seeds(view['component'])
+        prepared, _, _ = self._get(view['case'], view['contribution'], view['component'])
+        return self._trace_paths(view['case'], prepared)
+
+    def prepare(self, view, *, include_traces=True):
         """Return NumPy arrays, traces and provenance for a requested selection.
 
         Parameters
         ----------
         view : dict
             Case, diagnostic and contribution selection from the group view.
+        include_traces : bool, optional
+            Finish missing traces before returning (default). If False, return
+            usable diagnostic arrays with ``trace_status='pending'`` first.
 
         Returns
         -------
@@ -171,21 +257,14 @@ class SessionEngine:
         if tracing:
             self._resolve_seeds(component)
         prepared, values, basis = self._get(key, branch, component)
-        if tracing and key not in self.traces:
-            self.progress(f"Tracing {self.cases[key]['label']}")
-            options = dict(direction='both', ds=prepared.spacing / 2,
-                           bounds=prepared.preview.bounds, max_steps=600)
-            options.update(self.analysis['trace'])
-            paths = []
-            for seed in self.seeds:
-                self.check()
-                trace = trace_field_lines(prepared.field, *seed, **options)
-                paths.append(np.column_stack(trace.path(0)))
-            self.traces[key] = paths
-            while len(self.traces) > self.analysis['cache_size']:
-                self.traces.popitem(last=False)
+        paths, trace_status = [], 'disabled'
         if tracing:
-            self.traces.move_to_end(key)
+            identity, _ = self._trace_options(key, prepared)
+            if include_traces or identity in self.traces or not len(self.seeds):
+                paths = self._trace_paths(key, prepared)
+                trace_status = 'ready'
+            else:
+                trace_status = 'pending'
         self.check()
         grid = prepared.preview
         metadata = deepcopy(self.grids[key].metadata)
@@ -196,7 +275,7 @@ class SessionEngine:
         return dict(case=key, case_label=self.cases[key]['label'], component=component,
                     contribution=branch, kind=self.analysis['kind'],
                     axes=(grid.x, grid.y, grid.z), values=values, basis=basis,
-                    paths=self.traces[key] if tracing else [], metadata=metadata, scale=scale,
+                    paths=paths, trace_status=trace_status, metadata=metadata, scale=scale,
                     label=_component_label(component, self.analysis['current_unit'],
                                            self.analysis['length_unit'],
                                            field_unit=metadata.get('field_unit', 'field unit')),

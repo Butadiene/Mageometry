@@ -53,7 +53,10 @@ runpy.run_module('mageometry.gui', run_name='__main__')
             path = Path(directory) / 'saved.json'
             expected = model_session((-1., 1.))
             expected['groups'][0]['view']['component'] = 'eta'
+            expected['groups'][0]['view'].update(layout='all', previous_layout='all')
             save_session(expected, path)
+            restored, _ = session_from_args(['--session', str(path)])
+            self.assertEqual(restored['groups'][0]['view']['layout'], 'all')
             session, screenshot = session_from_args(['--session', str(path),
                                                      '--layout', 'three_d_slice'],
                                                     default_by=(-10., -5., 0., 5., 10.),
@@ -70,6 +73,9 @@ runpy.run_module('mageometry.gui', run_name='__main__')
         empty, _ = session_from_args(['--empty'], default_by=(-5., 5.))
         self.assertEqual(empty['groups'][0]['cases'], [])
         model, _ = session_from_args(['--evaluation', 'grid'])
+        for session in (empty, model):
+            self.assertEqual(session['groups'][0]['view']['layout'], 'three_d_slice')
+            self.assertEqual(session['groups'][0]['view']['previous_layout'], 'three_d_slice')
         self.assertEqual(model['groups'][0]['analysis']['evaluation'], 'grid')
         self.assertIsNone(model['groups'][0]['analysis']['delta'])
         self.assertIsNone(model['groups'][0]['analysis']['geometry_delta'])

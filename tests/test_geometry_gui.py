@@ -73,6 +73,8 @@ class TestGeometryGUI(unittest.TestCase):
         self.window.close()
 
     def test_layouts_do_not_submit_jobs_or_apply_draft(self):
+        self.assertEqual(self.window.scene.view['layout'], 'three_d_slice')
+        self.assertTrue(self.window.mode_buttons['three_d_slice'].isChecked())
         self.window.analysis_form.fields['geometry_delta'].setText('.001')
         cameras = self.window.scene.camera_state()
         self.window.mode_buttons['three_d_slice'].click()
@@ -102,6 +104,93 @@ class TestGeometryGUI(unittest.TestCase):
         self.assertEqual(self.window.header.text(), previous_header)
         self.assertEqual(self.window.cases.currentData(), self.result['case'])
         self.assertIs(self.window.scene.result, self.result)
+
+    def publish_pending_traces(self):
+        self.window.analysis_form.fields['geometry_delta'].setText('.001')
+        self.window.apply()
+        result = deepcopy(self.result)
+        result.update(trace_status='pending', paths=[])
+        result['analysis']['geometry_delta'] = .001
+        result['resolved']['geometry_delta'] = .001
+        self.runner.events = [(self.runner.token, 'result', result)]
+        self.window.poll()
+        return result
+
+    def test_field_is_usable_while_tracing_and_completion_preserves_user_edits(self):
+        window = self.window
+        result = self.publish_pending_traces()
+        self.assertIs(window.scene.result, result)
+        self.assertTrue(window.busy)
+        self.assertTrue(window.cancel_button.isEnabled())
+        self.assertTrue(window.display_panel.isEnabled())
+        self.assertIn('computing field lines', window.status.text())
+        self.assertEqual(window.saved_recipe()['groups'][0]['analysis']['geometry_delta'], .001)
+        window.analysis_form.fields['geometry_delta'].setText('.0005')
+        window.set_layout('slice')
+        window.display_panel.layers['lines'].setChecked(False)
+        window.display_panel.threshold.setValue(1.5)
+        window.scene.view['origin'] = [.2, 0., 0.]
+        window.scene.update_slice()
+        cameras = window.scene.camera_state()
+        actors = [dict(renderer.actors) for renderer in window.plotter.renderers]
+        paths = [np.array([[-1., 0., 0.], [1., 0., 0.]])]
+        self.runner.events = [(self.runner.token, 'traces', paths)]
+        with patch.object(window.scene, 'set_result', side_effect=AssertionError('Rebuilt field')), \
+                patch.object(window.scene, 'update_display', side_effect=AssertionError('Rebuilt regions')):
+            window.poll()
+        self.assertFalse(window.busy)
+        self.assertFalse(window.cancel_button.isEnabled())
+        self.assertEqual(result['trace_status'], 'ready')
+        self.assertIs(result['paths'], paths)
+        self.assertFalse(window.plotter.renderers[0].actors['lines'].visibility)
+        self.assertEqual(window.scene.camera_state(), cameras)
+        for index, renderer in enumerate(window.plotter.renderers):
+            for name in ('positive', 'negative', 'slice', 'projection'):
+                if name in actors[index]:
+                    self.assertIs(renderer.actors[name], actors[index][name])
+        self.assertEqual(window.analysis_form.fields['geometry_delta'].text(), '.0005')
+        saved = window.saved_recipe()['groups'][0]
+        self.assertEqual(saved['analysis']['geometry_delta'], .001)
+        self.assertEqual(saved['view']['layout'], 'slice')
+        self.assertEqual(saved['view']['origin'], [.2, 0., 0.])
+        self.assertEqual(saved['view']['thresholds']['field:alpha'], 1.5)
+
+    def test_cancel_after_field_publication_retains_field_and_ignores_late_traces(self):
+        result = self.publish_pending_traces()
+        token = self.runner.token
+        self.window.cancel()
+        self.assertIs(self.window.scene.result, result)
+        self.assertEqual(result['trace_status'], 'cancelled')
+        self.assertEqual(self.window.saved_recipe()['groups'][0]['analysis']['geometry_delta'], .001)
+        self.assertTrue(self.window.saved_recipe()['groups'][0]['analysis']['trace_enabled'])
+        self.runner.events = [(token, 'traces', [np.zeros((2, 3))])]
+        self.window.poll()
+        self.assertEqual(result['paths'], [])
+        self.assertFalse(self.window.busy)
+
+    def test_new_request_discards_late_trace_completion_from_previous_field(self):
+        result = self.publish_pending_traces()
+        token = self.runner.token
+        self.window.select('case', self.window.group['cases'][1]['id'])
+        self.runner.events = [(token, 'traces', [np.zeros((2, 3))]),
+                              (token, 'error', ('Stale error', 'stale traceback'))]
+        self.window.poll()
+        self.assertEqual(result['trace_status'], 'cancelled')
+        self.assertEqual(result['paths'], [])
+        self.assertTrue(self.window.busy)
+        self.assertIsNotNone(self.window.pending)
+        self.assertEqual(self.window.last_error, '')
+
+    def test_trace_failure_retains_committed_field_and_marks_incomplete_lines(self):
+        result = self.publish_pending_traces()
+        self.runner.events = [(self.runner.token, 'error', ('Trace failed', 'traceback'))]
+        self.window.poll()
+        self.assertIs(self.window.scene.result, result)
+        self.assertEqual(result['trace_status'], 'failed')
+        self.assertFalse(self.window.busy)
+        self.assertIn('Trace failed', self.window.status.text())
+        self.assertIn('failed', self.window.plotter.renderers[0].actors['validity'].GetInput())
+        self.assertEqual(self.window.saved_recipe()['groups'][0]['analysis']['geometry_delta'], .001)
 
     def test_threshold_controls_update_display_without_applying_analysis(self):
         window = self.window

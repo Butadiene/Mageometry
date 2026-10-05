@@ -315,6 +315,40 @@ class TestSessionPreparation(unittest.TestCase):
 
 
 class TestSessionJobs(unittest.TestCase):
+    def test_worker_publishes_field_then_paths_and_reuses_inputs_on_trace_edit(self):
+        runner = JobRunner()
+        try:
+            group = small_session()['groups'][0]
+            group['analysis'].update(seeds=[[-6., 2., 1.], [-8., 2., 1.]])
+            group['analysis']['trace']['max_steps'] = 5
+            for repeat in range(2):
+                group['analysis']['trace']['ds'] = .1 + .05 * repeat
+                token = runner.submit(group)
+                received, messages = [], []
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline:
+                    for current, kind, value in runner.poll():
+                        self.assertEqual(current, token)
+                        self.assertNotEqual(kind, 'error', value)
+                        if kind == 'progress':
+                            messages.append(value)
+                        else:
+                            received.append((kind, value))
+                    if received and received[-1][0] == 'traces':
+                        break
+                    time.sleep(.01)
+                self.assertEqual([kind for kind, _ in received], ['result', 'traces'])
+                self.assertEqual(received[0][1]['trace_status'], 'pending')
+                self.assertEqual(received[0][1]['paths'], [])
+                self.assertEqual(len(received[1][1]), 2)
+                if repeat:
+                    self.assertFalse(any(message.startswith('Loading') for message in messages))
+                    self.assertFalse(any(message.startswith('Preparing') for message in messages))
+                else:
+                    self.assertTrue(any(message.startswith('Loading') for message in messages))
+        finally:
+            runner.close()
+
     def test_cancelled_request_cannot_replace_latest_result(self):
         runner = JobRunner()
         try:

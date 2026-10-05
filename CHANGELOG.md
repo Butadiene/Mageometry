@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Default new desktop sessions to the side-by-side 3D + Slice layout.
+
+- Batch desktop field-line integration with cancellation inside the solver.
+  Reuse compatible inputs, diagnostics and traces across numerical edits.
+  Display fields and slices before missing traces finish, then add paths
+  without rebuilding geometry or disturbing cameras and display controls.
+  Retain the displayed field and mark unfinished traces on cancellation/failure.
+
 - Update desktop colours and layer visibility in place, retaining existing
   geometry and cameras. Remove the extra render from layer toggles. Add a
   Qt interaction benchmark and document WSLg GPU driver-selection diagnostics.

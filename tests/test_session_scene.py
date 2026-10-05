@@ -35,6 +35,30 @@ class TestSessionScene(unittest.TestCase):
     def tearDown(self):
         self.plotter.close()
 
+    def test_trace_completion_updates_only_lines_and_honours_active_view(self):
+        self.scene.set_trace_status('pending')
+        self.scene.set_layout('slice')
+        self.view['lines'] = False
+        cameras = self.scene.camera_state()
+        mesh, volume = self.scene.mesh, self.scene.volume
+        actors = [dict(renderer.actors) for renderer in self.plotter.renderers]
+        paths = [np.array([[-1., 0., 0.], [1., 0., 0.]])]
+        with patch.object(self.plotter, 'render') as render:
+            self.scene.update_traces(paths)
+            render.assert_called_once_with()
+        self.assertEqual(self.plotter.renderers.active_index, 1)
+        self.assertEqual(self.scene.camera_state(), cameras)
+        self.assertIs(self.scene.mesh, mesh)
+        self.assertIs(self.scene.volume, volume)
+        self.assertFalse(self.plotter.renderers[0].actors['lines'].visibility)
+        self.assertNotIn('computing', self.plotter.renderers[0].actors['validity'].GetInput())
+        for index, renderer in enumerate(self.plotter.renderers):
+            for name, actor in actors[index].items():
+                self.assertIs(renderer.actors[name], actor)
+        self.scene.update_traces([])
+        self.assertNotIn('lines', self.plotter.renderers[0].actors)
+        self.assertEqual(self.scene.camera_state(), cameras)
+
     def test_layouts_preserve_cameras_values_selection_and_plane(self):
         self.plotter.renderers[0].camera.zoom(1.7)
         self.plotter.renderers[1].camera.zoom(1.3)

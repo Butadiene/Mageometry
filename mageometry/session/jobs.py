@@ -32,15 +32,19 @@ def _worker(requests, responses, generation):
         try:
             key = calculation_key(group)
             if engine is None or key != previous_key:
-                candidate = SessionEngine(group, progress)
+                candidate = SessionEngine(group, progress, previous=engine)
                 engine, previous_key = candidate, key
             engine.progress = progress
             for identity, records in group.get('resolved', {}).get('inputs', {}).items():
                 if identity in engine.inputs:
                     engine._verify_fingerprint(records, engine.inputs[identity], identity)
-            result = engine.prepare(group['view'])
+            result = engine.prepare(group['view'], include_traces=False)
             progress('')
             responses.put((token, 'result', result))
+            if result['trace_status'] == 'pending':
+                paths = engine.prepare_traces(group['view'])
+                progress('')
+                responses.put((token, 'traces', paths))
         except Cancelled:
             responses.put((token, 'cancelled', None))
         except Exception as exc:

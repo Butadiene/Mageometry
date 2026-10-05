@@ -36,14 +36,24 @@ The window distinguishes editable source/analysis settings, the requested
 selection, and the recipe attached to the displayed result. Apply freezes
 a validated request. Further edits remain a draft, while the result header
 continues to describe the displayed calculation. A failed or cancelled request
-must leave that result and its labels intact.
+leaves the latest successfully displayed field and its labels intact.
 
 `JobRunner` sends recipe copies to a single spawned process. Its generation
 counter invalidates superseded requests and late responses. Cancellation is
-checked between work units; an individual library call may finish first.
+checked between work units and at every trace field evaluation; an individual
+library call may finish first. Trace seeds are integrated in batches of at
+most 32 using the existing adaptive integrator and unchanged tolerances.
 Model evaluators restore their epochs for each call. Stateful geopack models
 are evaluated serially, not concurrently in threads. Only arrays, trace paths
 and metadata cross back to Qt; VTK objects stay on the GUI thread.
+
+All group inputs and common colour statistics are still prepared before the
+first result. The worker publishes field/slice arrays and resolved seeds
+before computing missing traces. A later event carries only paths. The window
+commits the field immediately and keeps cancellation and display controls
+available; trace completion changes only line actors. Generation tokens reject
+late path events as well as late field results. Cancellation/failure after
+field publication retains that field and marks its context lines unfinished.
 
 `DisplayPanel` owns display widgets and their signal-suppression state. It
 updates the existing `GeometryScene`, without submitting numerical jobs or
@@ -55,13 +65,24 @@ panel is disabled.
 ## Reuse and invalidation
 
 The worker's `calculation_key` includes ordered case descriptions, reference,
-analysis settings and source revision. If this key changes, it constructs a
-new `SessionEngine`. This is conservative: changing a derivative step or trace
-settings can rebuild more than the strictly affected family. The implementation
-does not promise independent fine-grained reuse for those edits.
+analysis settings and source revision. A changed key constructs a new
+`SessionEngine` with compatible state from its predecessor:
+
+| Retained state | Reuse conditions |
+| --- | --- |
+| Source grids, evaluators and fingerprints | Same group/revision, source description and mask radius; file size/mtime and saved hashes are checked before reuse |
+| Diagnostic previews and common statistics | Same cases/reference and numerical analysis settings, excluding trace configuration and presentation labels |
+| Trace paths | Retained source grid, same evaluation mode, preview budget, mask, effective integration options and resolved seed coordinates |
+
+Thus trace-only edits keep input and diagnostic work, while derivative edits
+keep input and compatible paths. Trace disable/enable and automatic seeds
+becoming explicit do not discard compatible results. A source revision clears
+reuse; other numerical edits invalidate the relevant derived state. Reuse is
+in memory in the numerical worker, not a persistent on-disk result cache.
 
 Within one engine, changing case/diagnostic/contribution reuses bounded
-preview and trace caches. Common scale summaries are retained per diagnostic;
+preview and trace caches (the trace bound counts case/configuration entries).
+Common scale summaries are retained per diagnostic;
 attribution includes every case and branch. Display-only changes reuse these
 arrays. The preview count is not a total memory cap: input grids, VTK meshes,
 attribution results and process-transfer copies also consume RAM.
@@ -82,7 +103,10 @@ frame and total-field tracing; its mathematical contract is in the
 
 ## Persistence and validation
 
-Save/export uses committed recipes plus their current view. Recipes contain
+Save/export uses committed recipes plus their current view. A field published
+before its traces is already committed. Saving it retains requested trace
+settings and resolved seeds; reopening completes tracing again. Cancelled or
+failed paths are not represented as a completed trace cache. Recipes contain
 no pickled callables, arrays or VTK actors. File identities include SHA-256,
 size and timestamps (including XDMF heavy data); cached inputs also check
 size/mtime. Reload explicitly accepts a new input revision. Packaged coefficient

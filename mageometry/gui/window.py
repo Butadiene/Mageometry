@@ -32,6 +32,8 @@ class MainWindow(W.QMainWindow):
         self.committed = {}
         self.displayed = None
         self.pending = None
+        self.request_token = None
+        self.trace_token = None
         self.runner = runner
         self.busy = False
         self.syncing = False
@@ -339,8 +341,9 @@ class MainWindow(W.QMainWindow):
     def submit(self, group):
         if self.runner is None:
             self.runner = JobRunner()
+        self._stop_traces('cancelled')
         self.pending = deepcopy(group)
-        self.runner.submit(group)
+        self.request_token = self.runner.submit(group)
         self.busy = True
         self.cancel_button.setEnabled(True)
         self.status.setText('Preparing requested selection; the displayed result remains unchanged.')
@@ -368,13 +371,32 @@ class MainWindow(W.QMainWindow):
         if self.runner is None:
             return
         for token, kind, value in self.runner.poll():
+            if token != self.request_token:
+                continue
             if kind == 'progress':
                 self.status.setText(value)
             elif kind == 'result' and self.pending is not None:
-                self._guard(lambda: self.accept_result(value))
-                self.busy = False
-                self.cancel_button.setEnabled(False)
+                try:
+                    self.accept_result(value)
+                    self.trace_token = token if value.get('trace_status') == 'pending' else None
+                    self.busy = self.trace_token is not None
+                    self.cancel_button.setEnabled(self.busy)
+                except Exception as exc:
+                    self.cancel()
+                    self.report_error(str(exc))
+            elif kind == 'traces' and token == self.trace_token:
+                try:
+                    self.scene.update_traces(value)
+                    self.trace_token = None
+                    self.busy = False
+                    self.cancel_button.setEnabled(False)
+                    self.status.setText('Ready. Layout and slice changes reuse the prepared result.')
+                except Exception as exc:
+                    self.cancel()
+                    self.scene.set_trace_status('failed')
+                    self.report_error(str(exc))
             elif kind == 'error':
+                self._stop_traces('failed')
                 self.busy = False
                 self.pending = None
                 self.cancel_button.setEnabled(False)
@@ -422,7 +444,9 @@ class MainWindow(W.QMainWindow):
                             f"preview {tuple(result['resolved']['preview_shape'])} | "
                             f"{'total-field-frame attribution' if result['kind'] == 'attribution' else 'field geometry and currents'}")
         self.header.setToolTip('\n'.join(_source_lines(result['metadata'])))
-        self.status.setText('Ready. Layout and slice changes reuse the prepared result.')
+        self.status.setText('Field and slices ready; computing field lines. Display controls remain available.'
+                            if result.get('trace_status') == 'pending' else
+                            'Ready. Layout and slice changes reuse the prepared result.')
         try:
             pending_edits = self.analysis_form.analysis() != candidate['analysis']
         except ValueError:
@@ -442,12 +466,19 @@ class MainWindow(W.QMainWindow):
     def cancel(self, restore=True):
         if self.runner:
             self.runner.cancel()
+        self._stop_traces('cancelled')
+        self.request_token = None
         self.busy = False
         self.pending = None
         self.cancel_button.setEnabled(False)
-        self.status.setText('Cancelled. The previous result and unapplied edits are retained.')
+        self.status.setText('Cancelled. The displayed field and unapplied edits are retained.')
         if restore:
             self.restore_selection()
+
+    def _stop_traces(self, status):
+        if self.trace_token is not None:
+            self.scene.set_trace_status(status)
+            self.trace_token = None
 
     def discard(self):
         self.cancel()

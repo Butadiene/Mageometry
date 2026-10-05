@@ -210,6 +210,21 @@ def main():
     started = time.monotonic()
     state = {'index': 0, 'status': 0, 'navigation_checked': False}
     modes = ('all', 'three_d_slice', 'three_d', 'slice')
+    accept_result = window.accept_result
+
+    def capture_first_field(result):
+        accept_result(result)
+        if 'field_actors' not in state and result.get('trace_status') == 'pending':
+            assert window.display_panel.isEnabled()
+            assert not result['paths']
+            window.plotter.renderers[0].camera.Azimuth(5.)
+            state['field_actors'] = [dict(renderer.actors) for renderer in window.plotter.renderers]
+            state['field_cameras'] = window.scene.camera_state()
+            window.scene.screenshot(args.output / 'plot-tracing.png')
+            save_session(window.saved_recipe(), args.output / 'plot-tracing.session.json')
+            print('Field and slices displayed before tracing completed', flush=True)
+
+    window.accept_result = capture_first_field
 
     def advance():
         if window.last_error or time.monotonic() - started > args.timeout:
@@ -222,6 +237,15 @@ def main():
             return
         if not state['navigation_checked']:
             timer.stop()
+            assert 'field_actors' in state, 'No intermediate field result was displayed'
+            assert window.scene.result['trace_status'] == 'ready'
+            assert window.scene.result['paths']
+            assert window.scene.camera_state() == state['field_cameras']
+            for index, renderer in enumerate(window.plotter.renderers):
+                for name in ('positive', 'negative', 'slice', 'projection'):
+                    if name in state['field_actors'][index]:
+                        assert renderer.actors[name] is state['field_actors'][index][name]
+            print('Trace completion retained field actors and the adjusted camera', flush=True)
             check_3d_navigation(window)
             check_threshold_controls(window)
             check_value_sign_control(window)

@@ -147,15 +147,7 @@ class GeometryScene:
             radius = result['analysis']['planet_radius']
             if radius is not None:
                 self._add(self.pv.Sphere(radius=radius), 'planet', color='#d7e0e8', smooth_shading=True)
-            points, cells, offset = [], [], 0
-            for path in result['paths']:
-                if len(path) >= 2:
-                    points.append(path)
-                    cells.extend([len(path), *range(offset, offset + len(path))])
-                    offset += len(path)
-            if points:
-                self._add(self.pv.PolyData(np.concatenate(points), lines=np.asarray(cells)),
-                          'lines', color='#778999', line_width=1.4, opacity=.45, pickable=False)
+            self.update_traces(result['paths'], result.get('trace_status', 'ready'), render=False)
             self.p.show_bounds(bounds=mesh.bounds, color='#596b7e', font_size=10,
                                xtitle='x', ytitle='y', ztitle='z', use_3d_text=False)
             for axis in range(3):
@@ -188,6 +180,58 @@ class GeometryScene:
         finally:
             self.updating = False
         self.p.render()
+
+    def update_traces(self, paths, status='ready', render=True):
+        """Replace context lines without rebuilding the field or moving cameras."""
+        if self.result is None:
+            return
+        points, cells, offset = [], [], 0
+        for path in paths:
+            if len(path) >= 2:
+                points.append(path)
+                cells.extend([len(path), *range(offset, offset + len(path))])
+                offset += len(path)
+        mesh = self.pv.PolyData(np.concatenate(points), lines=np.asarray(cells)) if points else None
+        active = self.p.renderers.active_index
+        try:
+            self.p.subplot(0)
+            self.p.renderer.remove_actor('lines', reset_camera=False, render=False)
+            if mesh is not None:
+                actor = self._add(mesh, 'lines', color='#778999', line_width=1.4,
+                                  opacity=.45, pickable=False)
+                actor.visibility = self.view['lines']
+            self.result['paths'] = paths
+            self.set_trace_status(status, render=False)
+        finally:
+            self.p.subplot(active)
+        if render:
+            self.p.render()
+
+    def set_trace_status(self, status, render=True):
+        """Keep unfinished tracing visible in the scene, including PNG exports."""
+        if self.result is None:
+            return
+        self.result['trace_status'] = status
+        active = self.p.renderers.active_index
+        try:
+            self.p.subplot(0)
+            messages = {'pending': 'field lines computing', 'cancelled': 'field lines cancelled',
+                        'failed': 'field lines failed', 'disabled': 'tracing disabled'}
+            context = messages.get(status, 'grey: total-field lines' if
+                                   self.result['analysis'].get('trace_enabled', True) else 'tracing disabled')
+            count = int(np.count_nonzero(np.isfinite(self.result['values'])))
+            text = f'{count:,} valid nodes; {context}'
+            actor = self.p.renderer.actors.get('validity')
+            if actor is None:
+                self.p.add_text(text, name='validity', position=(.03, .15), viewport=True,
+                                font_size=8, color='#596b7e', render=False)
+            else:
+                actor.SetInput(text)
+                self.text_layouts[0].state = None
+        finally:
+            self.p.subplot(active)
+        if render:
+            self.p.render()
 
     def _title(self, index, subtitle):
         r = self.result
@@ -257,10 +301,7 @@ class GeometryScene:
         description = (f'threshold {cutoff:.4g}' if interval is None else
                        f'{interval[0]:.4g} <= value <= {interval[1]:.4g}')
         self._title(0, '3D overview; ' + description)
-        count = int(np.count_nonzero(np.isfinite(r['values'])))
-        context = 'grey: total-field lines' if r['analysis'].get('trace_enabled', True) else 'tracing disabled'
-        p.add_text(f'{count:,} valid nodes; {context}', name='validity',
-                   position=(.03, .15), viewport=True, font_size=8, color='#596b7e', render=False)
+        self.set_trace_status(r.get('trace_status', 'ready'), render=False)
         for axis, (panel, projected) in enumerate(self.projections):
             p.subplot(axis + 2)
             if interval is not None:

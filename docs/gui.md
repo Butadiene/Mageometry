@@ -22,6 +22,9 @@ The extra installs PySide6, PyVistaQt, PyVista and h5py. A working desktop
 OpenGL display is needed for the Qt window. `examples/geometry_gui.py` and
 the installed `mageometry-gui` command launch the same application.
 
+New sessions start in **3D + Slice**, with the 3D overview and face-on slice
+side by side. Saved sessions retain their layout unless overridden with `--layout`.
+
 ```bash
 python -m mageometry.gui --by -5 -3 -1 1 3 5 --layout three_d_slice
 python -m mageometry.gui --xmf snapshot.xmf --stride 4
@@ -493,13 +496,23 @@ A single spawned numerical process evaluates geopack cases serially and
 restores their epochs. Qt/VTK rendering stays on the GUI thread. Progress and
 Cancel remain accessible above the plot even with side panels hidden.
 Cancellation is cooperative between model chunks, case calculations and
-trace seeds. A long library call may finish before cancellation takes effect.
-Late results from superseded requests are ignored. Failures retain the old
-result and report the affected calculation or input.
+field evaluations inside trace integration. Seeds are traced in batches with
+unchanged integration settings. A long library call may finish before
+cancellation takes effect. Late results from superseded requests are ignored.
 
-Numerical Apply currently rebuilds the group's preparation conservatively;
-display changes reuse existing arrays. The cache count bounds retained case
-previews, not total RAM. Input grids, attribution arrays, rendered data and
+The desktop first prepares all group inputs and common colour ranges, then
+shows the field and slices while missing field lines are computed. You can
+rotate, adjust colours or move the slice during tracing. Completed paths are
+added without moving cameras or rebuilding the field. If tracing is cancelled
+or fails, the displayed field remains usable and the 3D view marks its field
+lines as unfinished. A failure before field publication retains the older view.
+
+Numerical Apply reuses compatible work: trace-only edits keep loaded inputs
+and diagnostic arrays; derivative-step edits keep inputs and compatible paths.
+Unchanged files retain their fingerprints, with size/mtime checks before reuse.
+Reload sources starts fresh preparation. Display changes reuse existing arrays.
+The cache count bounds retained case previews and trace configurations, not
+total RAM. Input grids, attribution arrays, rendered data and
 worker-transfer copies require additional memory. Long-series streaming,
 side-by-side dataset scenes and difference maps are not included.
 
@@ -520,6 +533,11 @@ slider ranges, interval filters, slice colour/spatial ranges, trace enablement,
 cameras, layout and dock visibility. It stores paths relative
 to the session where possible; source
 arrays and executable callables are not embedded.
+
+You can save after the field appears, even while tracing is pending or after
+it is cancelled. The recipe stores the displayed field's conditions, resolved
+seeds and requested trace settings; reopening calculates enabled traces again.
+An exported 3D plot retains the unfinished-tracing annotation when applicable.
 
 File preparation records SHA-256 identities, sizes and timestamps, including
 the heavy data referenced by XDMF. A restored recipe checks content identity;
