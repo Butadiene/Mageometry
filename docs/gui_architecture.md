@@ -66,6 +66,13 @@ attribution includes every case and branch. Display-only changes reuse these
 arrays. The preview count is not a total memory cap: input grids, VTK meshes,
 attribution results and process-transfer copies also consume RAM.
 
+Within `GeometryScene`, `update_visibility` changes existing actors and the
+3D plane widget; `update_colors` changes mapper/legend ranges, including a
+manual slice override. Neither operation rebuilds geometry, changes cameras
+or submits numerical work. Each requests one render. Threshold, interval and
+sign edits still use `update_display` to rebuild their filtered geometry;
+plane position/orientation and extent edits use `update_slice`.
+
 Automatic seeds come from the reference case and are fixed once resolved.
 The window saves their physical coordinates for reproducibility. Trace-disabled
 recipes skip seed resolution and integration while retaining the user's seed
@@ -89,3 +96,5 @@ respective boundaries. GUI tests substitute a deterministic runner and use
 an off-screen VTK scene. For actual Qt mouse/keyboard interaction and screenshots,
 run `benchmark/render_gui.py` on a working desktop/OpenGL display; capture
 conditions are in the [image index](images/README.md#qt-desktop-workspace).
+`benchmark/profile_gui.py` records the actual Qt OpenGL backend and measures
+prepared-array display operations; see [rendering performance](gui.md#rendering-performance-and-wsl).

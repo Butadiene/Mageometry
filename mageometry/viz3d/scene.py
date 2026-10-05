@@ -237,9 +237,8 @@ class GeometryScene:
             if np.isfinite(high) and region.n_cells:
                 region = region.clip_scalar(value=high, scalars='value', invert=True)
             if region.n_cells:
-                actor = self._add(region.extract_surface(), name, color=color,
-                                  opacity=.5, smooth_shading=True)
-                actor.visibility = view['regions']
+                self._add(region.extract_surface(), name, color=color,
+                          opacity=.5, smooth_shading=True)
         p.remove_actor('arrows', reset_camera=False, render=False)
         basis = r['basis']
         if basis is not None:
@@ -253,11 +252,8 @@ class GeometryScene:
                 arrows = self.pv.PolyData(self.mesh.points[selected])
                 arrows['direction'] = np.sign(flat[selected, None]) * vectors[selected]
                 arrows['value'] = flat[selected]
-                actor = self._add(arrows.glyph(orient='direction', scale=False, factor=.035 * self.mesh.length),
-                                  'arrows', scalars='value', cmap='RdBu_r', clim=(-self.limit, self.limit))
-                actor.visibility = view['arrows']
-        if 'lines' in p.renderer.actors:
-            p.renderer.actors['lines'].visibility = view['lines']
+                self._add(arrows.glyph(orient='direction', scale=False, factor=.035 * self.mesh.length),
+                          'arrows', scalars='value', cmap='RdBu_r', clim=(-self.limit, self.limit))
         description = (f'threshold {cutoff:.4g}' if interval is None else
                        f'{interval[0]:.4g} <= value <= {interval[1]:.4g}')
         self._title(0, '3D overview; ' + description)
@@ -276,15 +272,59 @@ class GeometryScene:
             self._scalar(panel, 'projection')
             self._title(axis + 2, f'{("YZ", "XZ", "XY")[axis]} signed peak along {"xyz"[axis]}')
         self.update_slice(render=False)
+        self.update_visibility(render=False)
         p.subplot(0)
         if render:
             p.render()
+
+    def update_visibility(self, render=True):
+        """Show or hide existing 3D actors without rebuilding geometry."""
+        if self.result is None:
+            return
+        actors = self.p.renderers[0].actors
+        for name, key in (('positive', 'regions'), ('negative', 'regions'),
+                          ('arrows', 'arrows'), ('lines', 'lines'), ('slice', 'plane')):
+            if name in actors:
+                actors[name].visibility = self.view[key]
+        self._sync_plane_widget()
+        if render:
+            self.p.render()
+
+    def update_colors(self, render=True):
+        """Update mapper and legend ranges while retaining meshes and cameras."""
+        if self.result is None:
+            return
+        key = display_key(self.result)
+        self.limit = self.view['color_limits'].get(key, self.result['scale']['limit'])
+        shared = (-self.limit, self.limit)
+        slice_range = self.view.get('slice_color_ranges', {}).get(key)
+        panels = (('arrows', 'slice'), ('slice',), ('projection',), ('projection',), ('projection',))
+        for index, names in enumerate(panels):
+            renderer = self.p.renderers[index]
+            for name in names:
+                actor = renderer.actors.get(name)
+                if actor is None:
+                    continue
+                limits = slice_range if name == 'slice' and slice_range is not None else shared
+                actor.mapper.scalar_range = limits
+                actor.mapper.lookup_table.scalar_range = limits
+            bar_name = self._bar_name(index)
+            if bar_name in self.p.scalar_bars:
+                manual_slice = index < 2 and slice_range is not None
+                self.p.update_scalar_bar_range(slice_range if manual_slice else shared, name=bar_name)
+                self.p.scalar_bars[bar_name].SetTitle(
+                    self.result['label'] + (' / slice range' if manual_slice else ' / shared'))
+        if render:
+            self.p.render()
+
+    def _bar_name(self, index):
+        return f"{self.result['label']} / shared [{index}]"
 
     def _scalar(self, data, name, color_range=None):
         # Companion renderers use the same names. Plotter.remove_actor removes
         # matching actors in every renderer, including the shared 3D slice.
         self.p.renderer.remove_actor(name, reset_camera=False, render=False)
-        bar_name = f"{self.result['label']} / shared [{self.p.renderers.active_index}]"
+        bar_name = self._bar_name(self.p.renderers.active_index)
         if bar_name in self.p.scalar_bars:
             self.p.remove_scalar_bar(bar_name, render=False)
         actor = self._add(data, name, scalars='value', cmap='RdBu_r',
@@ -394,16 +434,21 @@ class GeometryScene:
             # the drawable pixels, at the upper-right window boundary.
             viewport = viewports[index] if visible else (1, 1, 1, 1)
             renderer.SetViewport(*viewport)
-        if self.widget is not None:
-            # Disabling a VTK widget clears its renderer. Keep it attached to
-            # the 3D scene when returning from Slice focus.
-            self.widget.SetCurrentRenderer(self.p.renderers[0])
-            self.widget.SetEnabled(layout != 'slice' and self.view['plane'])
         if self.view is not None:
             self.view['layout'] = layout
+        self._sync_plane_widget()
         self.p.subplot(1 if layout == 'slice' else 0)
         if render:
             self.p.render()
+
+    def _sync_plane_widget(self):
+        if self.widget is not None and self.view is not None:
+            enabled = self.view['layout'] != 'slice' and self.view['plane']
+            if bool(self.widget.GetEnabled()) != enabled:
+                if enabled:
+                    # Disabling a VTK widget clears its renderer.
+                    self.widget.SetCurrentRenderer(self.p.renderers[0])
+                self.widget.SetEnabled(enabled)
 
     def reset_camera(self):
         if self.result is None:

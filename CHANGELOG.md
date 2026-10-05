@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Update desktop colours and layer visibility in place, retaining existing
+  geometry and cameras. Remove the extra render from layer toggles. Add a
+  Qt interaction benchmark and document WSLg GPU driver-selection diagnostics.
+
 - Renumber the eight retained notebooks consecutively from 01 to 08, order
   the notebook index accordingly, and update current links and number references.
 

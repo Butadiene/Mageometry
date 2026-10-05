@@ -3,6 +3,7 @@
 from copy import deepcopy
 import importlib.util
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -134,7 +135,7 @@ class TestSessionScene(unittest.TestCase):
         original = self.plotter.renderers[1].actors['slice'].mapper.dataset['value'].copy()
         cameras = self.scene.camera_state()
         self.view['slice_color_ranges']['field:alpha'] = [-.2, .8]
-        self.scene.update_slice()
+        self.scene.update_colors()
         for renderer in self.plotter.renderers[:2]:
             actor = renderer.actors['slice']
             np.testing.assert_allclose(actor.mapper.scalar_range, [-.2, .8])
@@ -143,8 +144,97 @@ class TestSessionScene(unittest.TestCase):
             np.testing.assert_allclose(renderer.actors['projection'].mapper.scalar_range, [-5., 5.])
         self.assertEqual(self.scene.camera_state(), cameras)
         self.view['slice_color_ranges'].clear()
-        self.scene.update_slice()
+        self.scene.update_colors()
         np.testing.assert_allclose(self.plotter.renderers[1].actors['slice'].mapper.scalar_range, [-5., 5.])
+
+    def test_colour_updates_retain_geometry_and_sync_hidden_panels_and_legends(self):
+        result = packet()
+        result['basis'] = np.broadcast_to([1., 0., 0.], result['values'].shape + (3,)).copy()
+        self.scene.set_result(result, self.view)
+        self.scene.set_layout('slice')
+        cameras = self.scene.camera_state()
+        actors = [dict(renderer.actors) for renderer in self.plotter.renderers]
+        bars = dict(self.plotter.scalar_bars)
+        mappers = [actor.mapper for panel in actors for name, actor in panel.items()
+                   if name in ('positive', 'negative', 'arrows', 'slice', 'projection')]
+        originals = [(mapper, mapper.GetInputAlgorithm(), mapper.dataset['value'].copy())
+                     for mapper in mappers]
+        for limit, slice_range in ((2., None), (3., [-.2, .8]), (4., [-.2, .8]), (None, None)):
+            self.view['color_limits'].clear()
+            self.view['slice_color_ranges'].clear()
+            if limit is not None:
+                self.view['color_limits']['field:alpha'] = limit
+            if slice_range is not None:
+                self.view['slice_color_ranges']['field:alpha'] = slice_range
+            with patch.object(self.plotter, 'render') as render:
+                self.scene.update_colors()
+                render.assert_called_once_with()
+            shared = [-self.scene.limit, self.scene.limit]
+            self.assertEqual(self.scene.limit, 5. if limit is None else limit)
+            for index, renderer in enumerate(self.plotter.renderers):
+                self.assertEqual(dict(renderer.actors), actors[index])
+                limits = slice_range if index < 2 and slice_range is not None else shared
+                name = 'slice' if index < 2 else 'projection'
+                np.testing.assert_allclose(renderer.actors[name].mapper.scalar_range, limits)
+                bar = self.plotter.scalar_bars[f"{result['label']} / shared [{index}]"]
+                np.testing.assert_allclose(bar.GetLookupTable().GetRange(), limits)
+                suffix = ' / slice range' if index < 2 and slice_range is not None else ' / shared'
+                self.assertEqual(bar.GetTitle(), result['label'] + suffix)
+            np.testing.assert_allclose(actors[0]['arrows'].mapper.scalar_range, shared)
+            self.assertEqual(dict(self.plotter.scalar_bars), bars)
+            self.assertEqual(self.scene.camera_state(), cameras)
+            self.assertEqual(self.plotter.renderers.active_index, 1)
+            for mapper, source, original in originals:
+                self.assertIs(mapper.GetInputAlgorithm(), source)
+                np.testing.assert_allclose(mapper.dataset['value'], original, equal_nan=True)
+
+    def test_visibility_updates_retain_actors_and_respect_slice_focus(self):
+        result = packet()
+        result['basis'] = np.broadcast_to([1., 0., 0.], result['values'].shape + (3,)).copy()
+        result['paths'] = [np.array([[-1., 0., 0.], [1., 0., 0.]])]
+        self.scene.set_result(result, self.view)
+        actors = [dict(renderer.actors) for renderer in self.plotter.renderers]
+        cameras = self.scene.camera_state()
+        for layout in ('all', 'slice', 'three_d_slice', 'three_d'):
+            self.scene.set_layout(layout)
+            for visible in (False, True):
+                for key in ('regions', 'arrows', 'lines', 'plane'):
+                    self.view[key] = visible
+                with patch.object(self.plotter, 'render') as render:
+                    self.scene.update_visibility()
+                    render.assert_called_once_with()
+                for name in ('positive', 'negative', 'arrows', 'lines', 'slice'):
+                    self.assertEqual(actors[0][name].visibility, visible)
+                self.assertTrue(actors[1]['slice'].visibility)
+                self.assertEqual(bool(self.scene.widget.GetEnabled()), visible and layout != 'slice')
+                if self.scene.widget.GetEnabled():
+                    self.assertIs(self.scene.widget.GetCurrentRenderer(), self.plotter.renderers[0])
+                self.assertEqual(self.scene.camera_state(), cameras)
+                for index, renderer in enumerate(self.plotter.renderers):
+                    for name in ('positive', 'negative', 'arrows', 'lines', 'slice', 'projection'):
+                        if name in actors[index]:
+                            self.assertIs(renderer.actors[name], actors[index][name])
+
+    def test_style_updates_handle_missing_actors_and_new_results(self):
+        self.view['thresholds']['field:alpha'] = 1e6
+        self.view['origin'] = [20., 0., 0.]
+        self.scene.update_display()
+        self.view['color_limits']['field:alpha'] = 2.
+        self.view['regions'] = False
+        self.scene.update_colors()
+        self.scene.update_visibility()
+        for name in ('positive', 'negative', 'arrows', 'slice'):
+            self.assertNotIn(name, self.plotter.renderers[0].actors)
+        for index in (0, 1):
+            self.assertNotIn(f"{self.scene.result['label']} / shared [{index}]", self.plotter.scalar_bars)
+        self.view['thresholds'].clear()
+        self.view['origin'] = [0., 0., 0.]
+        self.scene.set_result(packet(), self.view)
+        self.assertFalse(self.plotter.renderers[0].actors['positive'].visibility)
+        np.testing.assert_allclose(self.plotter.renderers[1].actors['slice'].mapper.scalar_range, [-2., 2.])
+        self.scene.clear()
+        self.scene.update_colors()
+        self.scene.update_visibility()
 
     def test_manual_slice_extent_clips_axis_and_oblique_planes_and_clears_empty_bar(self):
         extent = [-.7, .9, -.4, .8]

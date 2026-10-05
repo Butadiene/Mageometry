@@ -303,7 +303,7 @@ class DisplayPanel(W.QWidget):
             else:
                 self.scene.view['color_limits'][key] = self.color_limit.value()
             self.color_limit.setEnabled(not self.auto_limit.isChecked())
-            self.scene.update_display()
+            self.scene.update_colors()
             if self.auto_slice_color.isChecked():
                 self.slice_color_range.setText(line([-self.scene.limit, self.scene.limit]))
 
@@ -344,7 +344,7 @@ class DisplayPanel(W.QWidget):
         else:
             values = self._range(self.slice_color_range.text(), 'Slice colour range')
             self.scene.view['slice_color_ranges'][key] = values
-        self.scene.update_slice()
+        self.scene.update_colors()
 
     def set_slice_extent(self):
         if self.syncing or self.scene.result is None:
@@ -362,5 +362,4 @@ class DisplayPanel(W.QWidget):
     def set_layer(self, key, value):
         if not self.syncing and self.scene.result is not None:
             self.scene.view[key] = value
-            self.scene.update_display()
-            self.scene.set_layout(self.scene.view['layout'])
+            self.scene.update_visibility()

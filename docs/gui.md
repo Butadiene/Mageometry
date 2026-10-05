@@ -48,6 +48,59 @@ Importing `mageometry.gui` does not import Qt or create a window/process.
 The `gui` extra includes the file-reader and 3D dependencies; `dev` alone
 does not install Qt. Use `.[dev,gui]` to run the optional GUI tests.
 
+## Rendering performance and WSL
+
+The desktop renders through VTK/OpenGL. Hardware acceleration depends on the
+active graphics driver, not on CUDA or the presence of an NVIDIA GPU. Colour
+and visibility edits update existing actors and legends without rebuilding
+meshes. Changing a threshold, sign selection or slice geometry still requires
+the corresponding geometry work. Field evaluation remains on the CPU.
+
+To inspect the actual Qt rendering backend and time display operations without
+file loading or field evaluation, run:
+
+```bash
+python benchmark/profile_gui.py --output /tmp/mageometry-profile
+```
+
+The script uses a fixed 49³-node synthetic field and writes `opengl.txt`,
+`timings.json` and two PNGs. It measures synchronous VTK rendering and control
+callbacks, excluding desktop compositor/input latency. Keep the window size
+and backend equal when comparing code revisions.
+
+On WSLg, `llvmpipe` in the OpenGL renderer string means software rendering.
+If the Windows GPU and WSL graphics driver are available but Mesa's automatic
+selection falls back to software, compare an explicit D3D12 selection in a
+separate diagnostic run:
+
+```bash
+GALLIUM_DRIVER=d3d12 python benchmark/profile_gui.py --output /tmp/mageometry-profile-gpu
+```
+
+Check that `opengl.txt` identifies the intended hardware, for example
+`D3D12 (Intel(R) Graphics)`, and compare the captures and timings. The driver
+name alone does not prove successful rendering: Qt/OpenGL driver combinations
+can produce black images even when standalone VTK renders correctly on the
+same GPU. The benchmark rejects a uniform blank capture. If rendering fails,
+remove the prefix and retain the working default backend while investigating
+the Qt/Mesa/Windows graphics stack.
+
+Only after a successful comparison, use the same prefix with
+`python -m mageometry.gui` or `python examples/compare_t96_by.py`. Driver
+selection is specific to the environment; the application does not force
+D3D12 or change the user's graphics configuration.
+See [Mesa's D3D12 driver](https://docs.mesa3d.org/drivers/d3d12.html) and
+[WSLg GPU selection](https://github.com/microsoft/wslg/wiki/GPU-selection-in-WSLg).
+
+In an isolated comparison on 2026-10-05 (Python 3.14.4, Mesa 26.0.3,
+WSLg and Intel Graphics), both PySide6/Qt 6.11.2 and 6.10.3 rendered a minimal
+`QOpenGLWidget` correctly with llvmpipe but returned a black framebuffer with
+D3D12. Neither environment contained PyVista or Mageometry. This reproduces
+the problem outside the viewer and shows that switching to Qt 6.10.3 alone
+does not resolve it on that stack; it does not identify which lower-level
+component is responsible. Keep experimental driver selections confined to
+the diagnostic process until actual rendering has been verified.
+
 ## Model and file workflows
 
 **New model** and **New By comparison** start the T96 + dipole presets.

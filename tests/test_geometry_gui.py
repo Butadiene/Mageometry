@@ -149,6 +149,35 @@ class TestGeometryGUI(unittest.TestCase):
                 self.assertEqual(saved['analysis']['geometry_delta'], .002)
         self.assertEqual(window.analysis_form.fields['geometry_delta'].text(), '.001')
 
+    def test_colour_and_visibility_controls_retain_scene_geometry(self):
+        window = self.window
+        panel = window.display_panel
+        actors = [dict(renderer.actors) for renderer in window.plotter.renderers]
+        cameras = window.scene.camera_state()
+        with patch.object(window.scene, 'update_display', side_effect=AssertionError('Rebuilt regions')), \
+                patch.object(window.scene, 'update_slice', side_effect=AssertionError('Rebuilt slice')):
+            for key, checkbox in panel.layers.items():
+                checkbox.setChecked(False)
+                self.assertFalse(window.scene.view[key])
+                checkbox.setChecked(True)
+            panel.auto_limit.setChecked(False)
+            panel.color_limit.setValue(3.)
+            panel.set_color_limit()
+            panel.slice_color_range.setText('-.2 .8')
+            panel.auto_slice_color.setChecked(False)
+            np.testing.assert_allclose(window.plotter.renderers[1].actors['slice'].mapper.scalar_range, [-.2, .8])
+            panel.auto_slice_color.setChecked(True)
+            np.testing.assert_allclose(window.plotter.renderers[1].actors['slice'].mapper.scalar_range, [-3., 3.])
+        self.assertEqual(window.last_error, '')
+        self.assertFalse(self.runner.requests)
+        self.assertEqual(window.scene.camera_state(), cameras)
+        for index, renderer in enumerate(window.plotter.renderers):
+            self.assertEqual(dict(renderer.actors), actors[index])
+        saved = window.saved_recipe()['groups'][0]['view']
+        self.assertEqual(saved['color_limits']['field:alpha'], 3.)
+        self.assertNotIn('field:alpha', saved['slice_color_ranges'])
+        self.assertTrue(all(saved[key] for key in panel.layers))
+
     def test_interval_and_slice_ranges_are_display_only_and_survive_pending_result(self):
         window = self.window
         window.analysis_form.fields['geometry_delta'].setText('.001')
