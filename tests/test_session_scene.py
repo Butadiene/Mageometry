@@ -22,6 +22,14 @@ def packet():
                 label='alpha [1 / grid unit]', analysis=default_analysis())
 
 
+def gamma_packet():
+    result = packet()
+    x, y, z = np.meshgrid(*result['axes'], indexing='ij')
+    result.update(component='gamma', values=3. + x + .1*y, eta_values=(y - x) / 4.,
+                  label='Gamma [1 / grid unit]')
+    return result
+
+
 @unittest.skipUnless(importlib.util.find_spec('pyvista'), 'pyvista unavailable')
 class TestSessionScene(unittest.TestCase):
     def setUp(self):
@@ -34,6 +42,139 @@ class TestSessionScene(unittest.TestCase):
 
     def tearDown(self):
         self.plotter.close()
+
+    def test_nonnegative_scales_start_at_zero_and_preserve_slice_overrides(self):
+        for kind in ('field', 'attribution'):
+            for component in ('gamma', 'gamma_over_abs_alpha', 'B_kappa', 'alpha'):
+                if kind == 'attribution' and component == 'B_kappa':
+                    continue
+                with self.subTest(kind=kind, component=component):
+                    result = packet()
+                    result.update(kind=kind, component=component, values=np.abs(result['values']))
+                    if component == 'B_kappa':
+                        result['basis'] = np.broadcast_to([0., 0., 1.], result['values'].shape + (3,))
+                    key = kind + ':' + component
+                    self.view['color_limits'][key] = 4.
+                    self.scene.set_result(result, self.view)
+                    expected = (0. if component != 'alpha' else -4., 4.)
+                    for index, renderer in enumerate(self.plotter.renderers):
+                        actor = renderer.actors['slice' if index < 2 else 'projection']
+                        self.assertEqual(actor.mapper.scalar_range, expected)
+                        self.assertEqual(actor.mapper.lookup_table.scalar_range, expected)
+                        self.assertEqual(actor.mapper.lookup_table.cmap.name,
+                                         'RdBu_r' if component == 'alpha' else 'Reds')
+                        bar = self.plotter.scalar_bars[self.scene._bar_name(index)]
+                        self.assertEqual(bar.GetLookupTable().GetRange(), expected)
+                    if component == 'B_kappa':
+                        self.assertEqual(self.plotter.renderers[0].actors['arrows'].mapper.scalar_range, expected)
+                    actors = [dict(renderer.actors) for renderer in self.plotter.renderers]
+                    cameras = self.scene.camera_state()
+                    self.view['color_limits'][key] = 3.
+                    self.view['slice_color_ranges'][key] = [-.2, 2.]
+                    self.scene.update_colors()
+                    for index, renderer in enumerate(self.plotter.renderers):
+                        limits = (-.2, 2.) if index < 2 else (0. if component != 'alpha' else -3., 3.)
+                        bar = self.plotter.scalar_bars[self.scene._bar_name(index)]
+                        self.assertEqual(bar.GetLookupTable().GetRange(), limits)
+                        self.assertEqual(dict(renderer.actors), actors[index])
+                    self.assertEqual(self.scene.camera_state(), cameras)
+                    self.view['slice_color_ranges'].clear()
+
+    def test_gamma_selects_regions_and_eta_colours_without_sign_filtering_eta(self):
+        result = gamma_packet()
+        original = deepcopy(result)
+        self.view.update(gamma_eta=True, value_sign='positive')
+        self.view['thresholds']['field:gamma'] = 2.1
+        self.scene.set_result(result, self.view)
+        self.plotter.renderers[0].actors['positive'].mapper.Update()
+        region = self.plotter.renderers[0].actors['positive'].mapper.dataset
+        self.assertGreaterEqual(region['value'].min(), 2.1 - 1e-6)
+        self.assertEqual(self.plotter.renderers[0].actors['positive'].mapper.array_name, 'eta')
+        np.testing.assert_allclose(region['eta'], (region.points[:, 1] - region.points[:, 0]) / 4., atol=1e-6)
+        self.assertLess(region['eta'].min(), 0.)
+        self.assertGreater(region['eta'].max(), 0.)
+        sliced = self.plotter.renderers[1].actors['slice'].mapper.dataset
+        np.testing.assert_allclose(sliced['value'], sliced.points[:, 1] / 4., atol=1e-6)
+        self.assertEqual(self.scene.limit, 1.)
+        # The filter belongs to Gamma even when every eta magnitude is < 1.
+        self.view['threshold_modes']['field:gamma'] = 'interval'
+        self.view['value_intervals']['field:gamma'] = [2.2, 2.4]
+        self.scene.update_display()
+        self.plotter.renderers[0].actors['positive'].mapper.Update()
+        region = self.plotter.renderers[0].actors['positive'].mapper.dataset
+        np.testing.assert_allclose([region['value'].min(), region['value'].max()], [2.2, 2.4], atol=1e-6)
+        self.view['threshold_modes'].clear()
+        self.view['thresholds']['field:gamma'] = 100.
+        self.scene.update_display()
+        self.assertNotIn('positive', self.plotter.renderers[0].actors)
+        np.testing.assert_allclose(self.plotter.renderers[1].actors['slice'].mapper.dataset['value'],
+                                   sliced['value'], equal_nan=True)
+        for key in ('values', 'eta_values'):
+            np.testing.assert_allclose(result[key], original[key], equal_nan=True)
+
+    def test_gamma_peaks_use_eta_at_same_location_and_preserve_undefined_colours(self):
+        result = gamma_packet()
+        result['values'][:, 0, 0] = np.nan
+        result['eta_values'][-1, 1, 1] = np.nan
+        self.view['gamma_eta'] = True
+        self.scene.set_result(result, self.view)
+        for interval in (None, [2.1, 3.1], [20., 30.]):
+            self.view['threshold_modes']['field:gamma'] = 'absolute' if interval is None else 'interval'
+            if interval is not None:
+                self.view['value_intervals']['field:gamma'] = interval
+            self.scene.update_display()
+            gamma = result['values']
+            selected = gamma >= 2. if interval is None else (gamma >= interval[0]) & (gamma <= interval[1])
+            for axis, renderer in enumerate(self.plotter.renderers[2:]):
+                index = np.argmax(np.where(selected, gamma, -np.inf), axis=axis)
+                eta = np.take_along_axis(result['eta_values'], np.expand_dims(index, axis), axis=axis).squeeze(axis)
+                expected = np.where(np.any(selected, axis=axis), eta, np.nan)
+                np.testing.assert_allclose(renderer.actors['projection'].mapper.dataset['value'],
+                                           expected.ravel(order='F'), equal_nan=True)
+            if interval is None:
+                yz = self.plotter.renderers[2].actors['projection'].mapper.dataset['value'].reshape((7, 7), order='F')
+                self.assertTrue(np.isnan(yz[1, 1]))
+                self.assertTrue(np.isnan(yz[0, 0]))
+                actor = self.plotter.renderers[0].actors['positive']
+                actor.mapper.Update()
+                self.assertTrue(np.any(np.isnan(actor.mapper.dataset['eta'])))
+                self.assertEqual(actor.mapper.lookup_table.GetNanColor()[3], 0.)
+
+    def test_gamma_eta_colours_keep_independent_ranges_and_no_stale_legends(self):
+        self.scene.set_result(gamma_packet(), self.view)
+        cameras = self.scene.camera_state()
+        self.view['color_limits']['field:gamma'] = 4.
+        self.view['color_limits']['field:eta'] = .8
+        self.view['slice_color_ranges']['field:eta'] = [-.2, .5]
+        for enabled in (True, False, True):
+            self.view['gamma_eta'] = enabled
+            self.scene.update_display()
+            self.assertEqual(len(self.plotter.scalar_bars), 5)
+            self.assertEqual(self.scene.camera_state(), cameras)
+            for name in self.plotter.scalar_bars.keys():
+                self.assertTrue(name.startswith('eta' if enabled else 'Gamma'))
+            actor = self.plotter.renderers[2].actors['projection']
+            self.assertEqual(actor.mapper.scalar_range, (-.8, .8) if enabled else (0., 4.))
+            self.assertEqual(actor.mapper.lookup_table.cmap.name, 'RdBu_r' if enabled else 'Reds')
+        actors = [dict(renderer.actors) for renderer in self.plotter.renderers]
+        self.view['color_limits']['field:eta'] = .6
+        self.scene.update_colors()
+        np.testing.assert_allclose(actors[0]['positive'].mapper.scalar_range, [-.6, .6])
+        np.testing.assert_allclose(actors[0]['slice'].mapper.scalar_range, [-.2, .5])
+        for index, limits in ((0, [-.6, .6]), (1, [-.2, .5]), (2, [-.6, .6])):
+            bar = self.plotter.scalar_bars[self.scene._bar_name(index)]
+            np.testing.assert_allclose(bar.GetLookupTable().GetRange(), limits)
+        for index, renderer in enumerate(self.plotter.renderers):
+            self.assertEqual(dict(renderer.actors), actors[index])
+        # With a plane outside the data, the region still has its eta legend.
+        self.view['origin'] = [20., 0., 0.]
+        self.scene.update_slice()
+        self.assertIn(self.scene._bar_name(0), self.plotter.scalar_bars)
+        self.assertNotIn(self.scene._bar_name(1), self.plotter.scalar_bars)
+        # The remembered option has no effect on unrelated diagnostics.
+        self.scene.set_result(packet(), self.view)
+        self.assertFalse(self.scene.eta_colors)
+        self.assertEqual(self.scene.color_key, 'field:alpha')
 
     def test_trace_completion_updates_only_lines_and_honours_active_view(self):
         self.scene.set_trace_status('pending')
@@ -436,6 +577,204 @@ class TestSessionScene(unittest.TestCase):
             self.assertNotEqual(before[selected]['parallel_scale'], after[selected]['parallel_scale'])
             for key in before.keys() - {selected}:
                 self.assertEqual(before[key], after[key])
+
+    def test_3d_turntable_keeps_world_z_upright_without_moving_the_pivot(self):
+        self.view['plane'] = False
+        self.scene.set_layout('three_d')
+        self.plotter.show(auto_close=False, interactive=False)
+        iren = self.plotter.iren
+        camera = self.plotter.renderers[0].camera
+        width, height = self.plotter.window_size
+        start = (int(.4 * width), int(.5 * height))
+        for parallel in (True, False):
+            for control in (0, 1):
+                with self.subTest(parallel=parallel, control=control):
+                    camera.parallel_projection = parallel
+                    # A saved trackball camera can already contain roll.
+                    camera.Roll(23.)
+                    before = self.scene.camera_state()
+                    distance = np.linalg.norm(np.subtract(camera.position, camera.focal_point))
+                    iren.interactor.SetControlKey(control)
+                    iren._mouse_left_button_press(*start)
+                    self.assertEqual(before, self.scene.camera_state())
+                    for dx, dy in ((30, -20), (0, -40), (-30, -20), (0, 0)) * 3:
+                        iren._mouse_move(start[0] + dx, start[1] + dy)
+                        np.testing.assert_allclose(camera.up, [0., 0., 1.], atol=1e-12)
+                        transform = camera.GetViewTransformMatrix()
+                        self.assertAlmostEqual(transform.GetElement(0, 2), 0.)
+                        self.assertGreater(transform.GetElement(1, 2), 0.)
+                        np.testing.assert_allclose(camera.focal_point, before['0']['focal_point'])
+                        self.assertAlmostEqual(np.linalg.norm(
+                            np.subtract(camera.position, camera.focal_point)), distance)
+                        self.assertEqual(camera.parallel_scale, before['0']['parallel_scale'])
+                    iren._mouse_left_button_release()
+                    iren.interactor.SetControlKey(0)
+                    after = self.scene.camera_state()
+                    for key in before.keys() - {'0'}:
+                        self.assertEqual(before[key], after[key])
+                    self.assertEqual(iren.style.GetState(), 0)
+                    iren._mouse_move(start[0] + 10, start[1] + 10)
+                    self.assertEqual(after, self.scene.camera_state())
+
+    def test_3d_turntable_leaves_axis_views_and_stops_before_the_poles(self):
+        self.view['plane'] = False
+        self.scene.set_layout('three_d')
+        self.plotter.show(auto_close=False, interactive=False)
+        iren = self.plotter.iren
+        camera = self.plotter.renderers[0].camera
+        width, height = self.plotter.window_size
+        start = (int(.4 * width), int(.5 * height))
+        for axis in ('view_xy', 'view_xz', 'view_yz'):
+            for negative in (False, True):
+                with self.subTest(axis=axis, negative=negative):
+                    self.plotter.subplot(0)
+                    getattr(self.plotter, axis)(negative=negative)
+                    before = self.scene.camera_state()
+                    iren._mouse_left_button_press(*start)
+                    self.assertEqual(before, self.scene.camera_state())
+                    # Exercise both elevation limits, then move away again.
+                    for dx, dy in ((20, 20), (40, 100), (60, -100), (80, 0)) * 2:
+                        iren._mouse_move(start[0] + dx, start[1] + dy)
+                        np.testing.assert_allclose(camera.up, [0., 0., 1.])
+                        transform = camera.GetViewTransformMatrix()
+                        self.assertAlmostEqual(transform.GetElement(0, 2), 0.)
+                        self.assertGreater(transform.GetElement(1, 2), 0.)
+                        self.assertTrue(np.all(np.isfinite(camera.position)))
+                        self.assertLess(abs(camera.direction[2]), 1.)
+                    iren._mouse_left_button_release()
+                    self.assertNotEqual(before['0']['position'], list(camera.position))
+                    for key in before.keys() - {'0'}:
+                        self.assertEqual(before[key], self.scene.camera_state()[key])
+
+    def test_shift_pan_keeps_3d_axis_view_and_releases_before_next_orbit(self):
+        self.view['plane'] = False
+        self.scene.set_layout('three_d')
+        self.plotter.subplot(0)
+        self.plotter.view_xy()
+        self.plotter.show(auto_close=False, interactive=False)
+        iren = self.plotter.iren
+        width, height = self.plotter.window_size
+        start = (int(.4 * width), int(.5 * height))
+        before = self.scene.camera_state()
+        iren.interactor.SetShiftKey(1)
+        iren._mouse_left_button_press(*start)
+        iren._mouse_move(start[0] + 25, start[1] + 20)
+        iren._mouse_left_button_release()
+        iren.interactor.SetShiftKey(0)
+        after = self.scene.camera_state()
+        self.assertNotEqual(before['0']['focal_point'], after['0']['focal_point'])
+        self.assertEqual(before['0']['up'], after['0']['up'])
+        np.testing.assert_allclose(
+            np.subtract(before['0']['position'], before['0']['focal_point']),
+            np.subtract(after['0']['position'], after['0']['focal_point']))
+        self.assertEqual(iren.style.GetState(), 0)
+        iren._mouse_move(*start)
+        self.assertEqual(after, self.scene.camera_state())
+        iren._mouse_left_button_press(*start)
+        iren._mouse_move(start[0] + 30, start[1] - 30)
+        iren._mouse_left_button_release()
+        self.assertNotEqual(after['0']['position'], self.scene.camera_state()['0']['position'])
+        for key in before.keys() - {'0'}:
+            self.assertEqual(before[key], self.scene.camera_state()[key])
+
+    def test_wheel_zoom_round_trip_targets_pointer_in_both_projections(self):
+        self.view['plane'] = False
+        self.plotter.show(auto_close=False, interactive=False)
+        iren = self.plotter.iren
+        width, height = self.plotter.window_size
+        for layout, index in (('three_d_slice', 0), ('slice', 1), ('three_d', 0), ('all', 3)):
+            self.scene.set_layout(layout)
+            renderer = self.plotter.renderers[index]
+            x0, y0, x1, y1 = renderer.GetViewport()
+            iren._mouse_move(int(.5*(x0 + x1)*width), int(.5*(y0 + y1)*height))
+            for parallel in (True, False):
+                with self.subTest(layout=layout, parallel=parallel):
+                    camera = renderer.camera
+                    camera.parallel_projection = parallel
+                    before = self.scene.camera_state()
+                    offset = np.subtract(camera.position, camera.focal_point)
+                    scale = camera.parallel_scale
+                    iren.interactor.MouseWheelForwardEvent()
+                    np.testing.assert_allclose(
+                        np.subtract(camera.position, camera.focal_point),
+                        offset if parallel else offset / 1.21, atol=1e-12)
+                    self.assertAlmostEqual(camera.parallel_scale, scale / 1.21 if parallel else scale)
+                    iren.interactor.MouseWheelBackwardEvent()
+                    np.testing.assert_allclose(camera.position, before[str(index)]['position'], atol=1e-12)
+                    self.assertAlmostEqual(camera.parallel_scale, scale)
+                    self.assertEqual(list(camera.focal_point), before[str(index)]['focal_point'])
+                    self.assertEqual(list(camera.up), before[str(index)]['up'])
+                    after = self.scene.camera_state()
+                    for key in before.keys() - {str(index)}:
+                        self.assertEqual(before[key], after[key])
+
+    def test_flat_panels_pan_and_zoom_without_rotation_in_all_layouts(self):
+        self.view['normal'] = [1., 2., 3.]
+        self.scene.update_slice()
+        self.plotter.show(auto_close=False, interactive=False)
+        iren = self.plotter.iren
+        width, height = self.plotter.window_size
+        origin = list(self.view['origin'])
+        for layout in ('three_d_slice', 'slice', 'all', 'three_d_slice'):
+            self.scene.set_layout(layout)
+            for index in range(1, 5):
+                renderer = self.plotter.renderers[index]
+                if not renderer.GetDraw():
+                    continue
+                x0, y0, x1, y1 = renderer.GetViewport()
+                start = (int((x0 + .5*(x1 - x0))*width), int((y0 + .55*(y1 - y0))*height))
+                end = (start[0] + 15, start[1] - 10)
+                for control, shift in ((0, 0), (1, 0), (0, 1), (1, 1)):
+                    with self.subTest(layout=layout, index=index, control=control, shift=shift):
+                        iren.interactor.SetControlKey(control)
+                        iren.interactor.SetShiftKey(shift)
+                        before = self.scene.camera_state()
+                        iren._mouse_left_button_press(*start)
+                        iren._mouse_move(*end)
+                        iren._mouse_left_button_release()
+                        iren.interactor.SetControlKey(0)
+                        iren.interactor.SetShiftKey(0)
+                        iren.interactor.MouseWheelForwardEvent()
+                        after = self.scene.camera_state()
+                        key = str(index)
+                        np.testing.assert_allclose(
+                            np.subtract(after[key]['position'], after[key]['focal_point']),
+                            np.subtract(before[key]['position'], before[key]['focal_point']), atol=1e-12)
+                        np.testing.assert_allclose(after[key]['up'], before[key]['up'], atol=1e-12)
+                        self.assertNotEqual(before[key]['focal_point'], after[key]['focal_point'])
+                        self.assertNotEqual(before[key]['parallel_scale'], after[key]['parallel_scale'])
+                        for other in before.keys() - {key}:
+                            self.assertEqual(before[other], after[other])
+                        self.assertEqual(self.view['origin'], origin)
+                        self.assertEqual(self.view['normal'], [1., 2., 3.])
+                        # Hovering after release must not continue the drag.
+                        iren._mouse_move(*start)
+                        self.assertEqual(self.scene.camera_state(), after)
+
+    def test_drag_across_3d_and_slice_keeps_the_original_camera_and_releases(self):
+        self.view['plane'] = False
+        self.scene.update_visibility()
+        self.plotter.show(auto_close=False, interactive=False)
+        iren = self.plotter.iren
+        width, height = self.plotter.window_size
+        left = (int(.2*width), int(.5*height))
+        right = (int(.8*width), int(.5*height))
+        for start, end, key in ((left, right, '0'), (right, left, '1')):
+            with self.subTest(start=key):
+                before = self.scene.camera_state()
+                iren._mouse_left_button_press(*start)
+                iren._mouse_move(*end)
+                iren._mouse_left_button_release()
+                after = self.scene.camera_state()
+                self.assertNotEqual(before[key]['position'], after[key]['position'])
+                for other in before.keys() - {key}:
+                    self.assertEqual(before[other], after[other])
+                np.testing.assert_allclose(
+                    np.subtract(after['1']['position'], after['1']['focal_point']),
+                    np.subtract(before['1']['position'], before['1']['focal_point']), atol=1e-12)
+                self.assertEqual(iren.style.GetState(), 0)
+                iren._mouse_move(*start)
+                self.assertEqual(self.scene.camera_state(), after)
 
     def test_hidden_renderers_do_not_cover_any_window_corner(self):
         width, height = self.plotter.window_size

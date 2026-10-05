@@ -38,6 +38,15 @@ class DisplayPanel(W.QWidget):
             return form
 
         shared_form = section('Shared')
+        self.gamma_eta = W.QCheckBox('Colour Gamma by eta')
+        self.gamma_eta.setToolTip(
+            'Available with Diagnostic = Gamma. Select regions by Gamma and colour them by eta '
+            'from the same contribution. Peak maps show eta at the Gamma peak; slices show eta '
+            'without the Gamma threshold. No field recalculation is needed.')
+        shared_form.addRow(self.gamma_eta)
+        self.quantity_hint = W.QLabel()
+        self.quantity_hint.setWordWrap(True)
+        shared_form.addRow(self.quantity_hint)
         self.value_sign = W.QComboBox()
         for label, value in [('All values', 'both'), ('Positive only (> 0)', 'positive'),
                               ('Negative only (< 0)', 'negative')]:
@@ -56,9 +65,12 @@ class DisplayPanel(W.QWidget):
         self.color_limit.setDecimals(9)
         self.color_limit.setRange(1e-9, 1e100)
         self.color_limit.setValue(1.)
-        shared_form.addRow('Symmetric colour limit', self.color_limit)
-        shared_tip = ('Value sign applies to all panels. Shared colours apply to arrows and peak maps, '
-                      'and to slices when Slice uses shared colour range is checked.')
+        shared_form.addRow('Colour upper limit', self.color_limit)
+        shared_tip = ('Value sign applies to the selected diagnostic in all panels. Shared colours apply '
+                      'to eta-coloured Gamma regions, arrows and peak maps, '
+                      'and to slices when Slice uses shared colour range is checked. '
+                      'Gamma, Gamma/|alpha| and |B| kappa use [0, upper limit]; '
+                      'signed diagnostics use [-upper limit, upper limit].')
         self.auto_limit.setToolTip(shared_tip)
         self.color_limit.setToolTip(shared_tip)
 
@@ -156,6 +168,7 @@ class DisplayPanel(W.QWidget):
                 if item is not None and isinstance(item.widget(), W.QLabel):
                     item.widget().setWordWrap(True)
         self.value_sign.currentIndexChanged.connect(self.set_value_sign)
+        self.gamma_eta.toggled.connect(self.set_gamma_eta)
         self.threshold_mode.currentIndexChanged.connect(lambda: self._guard(self.set_value_interval))
         self.value_interval.editingFinished.connect(lambda: self._guard(self.set_value_interval))
         self.auto_slice_color.toggled.connect(lambda: self._guard(self.set_slice_color_range))
@@ -188,18 +201,24 @@ class DisplayPanel(W.QWidget):
         self.syncing = True
         try:
             view, result = self.scene.view, self.scene.result
+            self.gamma_eta.setEnabled(result['component'] == 'gamma')
+            self.gamma_eta.setChecked(view.get('gamma_eta', False))
+            self.quantity_hint.setText(
+                f"Filter / sign: {result['label']}\nColours: {self.scene.color_label}")
             self.value_sign.setCurrentIndex(self.value_sign.findData(view['value_sign']))
             key = display_key(result)
             self.sync_threshold(view['thresholds'].get(key, result['scale']['threshold']), reset_range=True)
             self.threshold_mode.setCurrentIndex(self.threshold_mode.findData(view['threshold_modes'].get(key, 'absolute')))
-            limit = view['color_limits'].get(key, result['scale']['limit'])
-            self.value_interval.setText(line(view['value_intervals'].get(key, [-limit, limit])))
+            filter_limit = view['color_limits'].get(key, result['scale']['limit'])
+            self.value_interval.setText(line(view['value_intervals'].get(key, [-filter_limit, filter_limit])))
             self._sync_filter_enabled()
+            key = self.scene.color_key
+            limit = view['color_limits'].get(key, self.scene.default_color_limit)
             self.auto_limit.setChecked(key not in view['color_limits'])
-            self.color_limit.setValue(view['color_limits'].get(key, result['scale']['limit']))
+            self.color_limit.setValue(limit)
             self.color_limit.setEnabled(not self.auto_limit.isChecked())
             self.auto_slice_color.setChecked(key not in view['slice_color_ranges'])
-            self.slice_color_range.setText(line(view['slice_color_ranges'].get(key, [-limit, limit])))
+            self.slice_color_range.setText(line(view['slice_color_ranges'].get(key, self.scene.color_range)))
             self.slice_color_range.setEnabled(not self.auto_slice_color.isChecked())
             self.auto_slice_extent.setChecked(view['slice_extent'] is None)
             self.sync_slice_extent()
@@ -289,6 +308,12 @@ class DisplayPanel(W.QWidget):
             self.scene.view['value_sign'] = self.value_sign.currentData()
             self.scene.update_display()
 
+    def set_gamma_eta(self, enabled):
+        if not self.syncing and self.scene.result is not None:
+            self.scene.view['gamma_eta'] = enabled
+            self.scene.update_display()
+            self.sync()
+
     def set_threshold(self, value):
         if not self.syncing and self.scene.result is not None:
             self.sync_threshold(value)
@@ -297,7 +322,7 @@ class DisplayPanel(W.QWidget):
 
     def set_color_limit(self):
         if not self.syncing and self.scene.result is not None:
-            key = display_key(self.scene.result)
+            key = self.scene.color_key
             if self.auto_limit.isChecked():
                 self.scene.view['color_limits'].pop(key, None)
             else:
@@ -305,7 +330,7 @@ class DisplayPanel(W.QWidget):
             self.color_limit.setEnabled(not self.auto_limit.isChecked())
             self.scene.update_colors()
             if self.auto_slice_color.isChecked():
-                self.slice_color_range.setText(line([-self.scene.limit, self.scene.limit]))
+                self.slice_color_range.setText(line(self.scene.color_range))
 
     @staticmethod
     def _range(text, label):
@@ -336,7 +361,7 @@ class DisplayPanel(W.QWidget):
     def set_slice_color_range(self):
         if self.syncing or self.scene.result is None:
             return
-        key = display_key(self.scene.result)
+        key = self.scene.color_key
         self.slice_color_range.setEnabled(not self.auto_slice_color.isChecked())
         if self.auto_slice_color.isChecked():
             self.scene.view['slice_color_ranges'].pop(key, None)

@@ -9,7 +9,7 @@ from unittest.mock import patch
 import numpy as np
 
 from mageometry.session import model_session
-from test_session_scene import packet
+from test_session_scene import packet, gamma_packet
 
 HAVE_GUI = all(importlib.util.find_spec(module) for module in ('PySide6', 'pyvistaqt', 'pyvista'))
 
@@ -72,6 +72,98 @@ class TestGeometryGUI(unittest.TestCase):
     def tearDown(self):
         self.window.close()
 
+    def test_new_by_comparison_uses_the_cli_comparison_preset(self):
+        from PySide6.QtWidgets import QToolBar
+        from mageometry.gui.cli import session_from_args
+        toolbar = self.window.findChild(QToolBar, 'session-toolbar')
+        action = next(action for action in toolbar.actions() if action.text() == 'New By comparison')
+        action.trigger()
+        self.assertFalse(self.window.last_error)
+        group = self.runner.requests[-1]
+        expected, _ = session_from_args(['--by', '-10', '-5', '0', '5', '10'])
+        expected = expected['groups'][0]
+        # The form records the integrator's implicit default explicitly.
+        expected['analysis']['trace'].setdefault('direction', 'both')
+        self.assertEqual([case['source'] for case in group['cases']],
+                         [case['source'] for case in expected['cases']])
+        self.assertEqual(group['analysis'], expected['analysis'])
+        # Compare recipe defaults; the UI additionally records diagnostic history.
+        self.assertEqual({k: group['view'][k] for k in expected['view'] if k != 'case'},
+                         {k: v for k, v in expected['view'].items() if k != 'case'})
+        self.assertEqual(group['reference'], group['cases'][0]['id'])
+        self.assertEqual(group['view']['case'], group['reference'])
+
+    def test_gamma_eta_display_uses_separate_units_without_jobs_and_survives_pending_result(self):
+        window, panel = self.window, self.window.display_panel
+        self.assertFalse(panel.gamma_eta.isEnabled())
+        result = dict(self.result, **{key: value for key, value in gamma_packet().items()
+                                     if key in ('component', 'values', 'eta_values', 'label')})
+        window.pending = deepcopy(window.group)
+        window.pending['view']['component'] = 'gamma'
+        window.accept_result(result)
+        cameras = window.scene.camera_state()
+        panel.set_threshold(2.5)
+        np.testing.assert_allclose(np.fromstring(panel.slice_color_range.text(), sep=' '), [0., 5.])
+        panel.gamma_eta.setChecked(True)
+        np.testing.assert_allclose(np.fromstring(panel.slice_color_range.text(), sep=' '), [-1., 1.])
+        self.assertTrue(panel.gamma_eta.isEnabled())
+        self.assertIn('Filter / sign: Gamma [1 / grid unit]', panel.quantity_hint.text())
+        self.assertIn('Colours: eta [dimensionless]', panel.quantity_hint.text())
+        panel.auto_limit.setChecked(False)
+        panel.color_limit.setValue(.7)
+        self.assertEqual(window.scene.view['thresholds']['field:gamma'], 2.5)
+        self.assertEqual(window.scene.view['color_limits']['field:eta'], .7)
+        self.assertNotIn('field:gamma', window.scene.view['color_limits'])
+        self.assertEqual(window.scene.camera_state(), cameras)
+        self.assertIs(window.scene.result, result)
+        self.assertFalse(self.runner.requests)
+        recipe = window.saved_recipe()
+        self.assertTrue(recipe['groups'][0]['view']['gamma_eta'])
+        window.select('case', window.group['cases'][1]['id'])
+        panel.gamma_eta.setChecked(False)
+        updated = deepcopy(result)
+        updated['case'] = window.group['cases'][1]['id']
+        window.accept_result(updated)
+        self.assertFalse(window.scene.eta_colors)
+        self.assertFalse(panel.gamma_eta.isChecked())
+        self.assertEqual(panel.threshold.value(), 2.5)
+        self.assertEqual(panel.color_limit.value(), result['scale']['limit'])
+        panel.gamma_eta.setChecked(True)
+        self.assertEqual(panel.color_limit.value(), .7)
+        self.assertEqual(len(self.runner.requests), 1)
+
+    def test_gamma_ratio_is_selectable_and_keeps_its_dimensionless_label(self):
+        window = self.window
+        component = 'gamma_over_abs_alpha'
+        index = window.components.findData(component)
+        self.assertGreaterEqual(index, 0)
+        self.assertIn('Gamma/|alpha|', window.components.itemText(index))
+        window.components.setCurrentIndex(index)
+        self.assertEqual(self.runner.requests[-1]['view']['component'], component)
+        result = deepcopy(self.result)
+        result.update(component=component, label='Gamma/|alpha| [dimensionless]',
+                      values=np.abs(result['values']))
+        window.accept_result(result)
+        self.assertIn('Gamma/|alpha| [dimensionless]', window.header.text())
+        self.assertFalse(window.display_panel.layers['arrows'].isEnabled())
+        self.assertFalse(window.display_panel.gamma_eta.isEnabled())
+        panel = window.display_panel
+        np.testing.assert_allclose(np.fromstring(panel.slice_color_range.text(), sep=' '), [0., 5.])
+        panel.auto_limit.setChecked(False)
+        panel.color_limit.setValue(3.)
+        np.testing.assert_allclose(np.fromstring(panel.slice_color_range.text(), sep=' '), [0., 3.])
+        self.assertEqual(window.plotter.renderers[1].actors['slice'].mapper.scalar_range, (0., 3.))
+        panel.auto_limit.setChecked(True)
+        np.testing.assert_allclose(np.fromstring(panel.slice_color_range.text(), sep=' '), [0., 5.])
+        self.assertEqual(window.saved_recipe()['groups'][0]['view']['component'], component)
+        window.analysis_form.fields['kind'].setCurrentIndex(
+            window.analysis_form.fields['kind'].findData('attribution'))
+        window.assign_dipoles()
+        window.apply()
+        self.assertFalse(window.last_error)
+        self.assertEqual(self.runner.requests[-1]['view']['component'], component)
+        self.assertTrue(window.components.model().item(index).isEnabled())
+
     def test_layouts_do_not_submit_jobs_or_apply_draft(self):
         self.assertEqual(self.window.scene.view['layout'], 'three_d_slice')
         self.assertTrue(self.window.mode_buttons['three_d_slice'].isChecked())
@@ -104,6 +196,51 @@ class TestGeometryGUI(unittest.TestCase):
         self.assertEqual(self.window.header.text(), previous_header)
         self.assertEqual(self.window.cases.currentData(), self.result['case'])
         self.assertIs(self.window.scene.result, self.result)
+
+    def test_result_mode_distinguishes_model_grids_and_file_data(self):
+        from PySide6.QtWidgets import QDialog
+        window = self.window
+        self.assertEqual(window.result_mode.text(), 'Displayed: Model\nDirect model')
+        evaluation = window.analysis_form.fields['evaluation']
+        evaluation.setCurrentIndex(evaluation.findData('grid'))
+        window.apply()
+        self.assertEqual(window.result_mode.text(), 'Displayed: Model\nDirect model')
+        result = deepcopy(self.result)
+        result['analysis'] = deepcopy(window.pending['analysis'])
+        window.accept_result(result)
+        self.assertEqual(window.result_mode.text(), 'Displayed: Model\nGrid interpolation')
+        with patch('mageometry.gui.window.SourceDialog') as dialog:
+            dialog.return_value.exec.return_value = QDialog.DialogCode.Accepted
+            dialog.return_value.sources = [dict(kind='xdmf', path='/tmp/ea01sw000.xmf', options={'stride': 4})]
+            window.add_source()
+        self.assertEqual(window.result_mode.text(), 'Displayed: Model\nGrid interpolation')
+        window.apply()
+        self.assertEqual(window.result_mode.text(), 'Displayed: Model\nGrid interpolation')
+        result = deepcopy(self.result)
+        result.update(case=window.pending['view']['case'], case_label='ea01sw000.xmf',
+                      analysis=deepcopy(window.pending['analysis']))
+        window.accept_result(result)
+        self.assertEqual(window.result_mode.text(), 'Displayed: File data\nGrid interpolation')
+        self.assertEqual(window.scene.result['case'], window.group['view']['case'])
+        window.toggle_panels()
+        self.assertFalse(window.result_mode.isHidden())
+
+    def test_result_mode_ignores_unapplied_failed_and_cancelled_changes(self):
+        from mageometry.session import empty_session
+        window = self.window
+        original = window.result_mode.text()
+        evaluation = window.analysis_form.fields['evaluation']
+        evaluation.setCurrentIndex(evaluation.findData('grid'))
+        self.assertEqual(window.result_mode.text(), original)
+        window.apply()
+        self.runner.events = [(self.runner.token, 'error', ('Example failure', 'traceback'))]
+        window.poll()
+        self.assertEqual(window.result_mode.text(), original)
+        window.apply()
+        window.cancel()
+        self.assertEqual(window.result_mode.text(), original)
+        window.new_session(empty_session())
+        self.assertEqual(window.result_mode.text(), 'Displayed: None\nAwaiting calculation')
 
     def publish_pending_traces(self):
         self.window.analysis_form.fields['geometry_delta'].setText('.001')
@@ -694,6 +831,79 @@ class TestGeometryGUI(unittest.TestCase):
                 self.assertIn('2 nT/Re', self.window.analysis_form.fields['current_scale'].toolTip())
                 self.window.apply()
                 self.assertEqual(self.runner.requests[-1]['cases'][0]['source']['kind'], model)
+
+    def test_adding_files_to_model_group_uses_separate_grid_defaults(self):
+        from PySide6.QtWidgets import QDialog
+        window = self.window
+        original = deepcopy(window.group)
+        cameras = window.scene.camera_state()
+        window.analysis_form.fields['max_points'].setText('4321')
+        source = dict(kind='xdmf', path='/tmp/ea01sw000.xmf', options={'stride': 4},
+                      metadata={'length_unit': 'km'})
+        with patch('mageometry.gui.window.SourceDialog') as dialog:
+            dialog.return_value.exec.return_value = QDialog.DialogCode.Accepted
+            dialog.return_value.sources = [source]
+            window.add_source()
+        self.assertEqual(len(window.session['groups']), 2)
+        previous = window.session['groups'][0]
+        self.assertEqual(previous['cases'], original['cases'])
+        self.assertEqual(previous['analysis']['evaluation'], 'direct')
+        self.assertEqual(previous['analysis']['current_scale'], .125)
+        self.assertEqual(previous['analysis']['max_points'], 4321)
+        self.assertEqual(previous['view']['cameras'], cameras)
+        self.assertIs(window.scene.result, self.result)
+        self.assertFalse(self.runner.requests)
+        group = window.group
+        self.assertNotEqual(group['id'], original['id'])
+        self.assertEqual(group['cases'][0]['source'], source)
+        self.assertEqual(group['view']['case'], group['cases'][0]['id'])
+        self.assertIsNone(group['view']['origin'])
+        analysis = window.analysis_form.analysis()
+        self.assertEqual(analysis['evaluation'], 'grid')
+        self.assertEqual(analysis['current_scale'], 1.)
+        self.assertIsNone(analysis['current_unit'])
+        self.assertEqual(analysis['length_unit'], 'km')
+        self.assertIsNone(analysis['geometry_delta'])
+        self.assertIsNone(analysis['seeds'])
+        self.assertEqual(analysis['mask_radius'], 0.)
+        self.assertIsNone(analysis['planet_radius'])
+        self.assertIn('separate', window.status.text())
+        window.apply()
+        self.assertFalse(window.last_error)
+        self.assertEqual(len(self.runner.requests[-1]['cases']), 1)
+        self.assertEqual(self.runner.requests[-1]['analysis']['evaluation'], 'grid')
+        self.assertEqual(self.runner.requests[-1]['cases'][0]['source']['options']['stride'], 4)
+        # Subsequent files remain in the file comparison group.
+        with patch('mageometry.gui.window.SourceDialog') as dialog:
+            dialog.return_value.exec.return_value = QDialog.DialogCode.Accepted
+            dialog.return_value.sources = [dict(source, path='/tmp/ea01sw001.xmf')]
+            window.add_source()
+        self.assertEqual(len(window.session['groups']), 2)
+        self.assertEqual(len(window.group['cases']), 2)
+
+    def test_adding_models_to_file_group_retains_file_settings(self):
+        from PySide6.QtWidgets import QDialog
+        from mageometry.session import empty_session
+        from mageometry.session.specs import model_source
+        self.window.new_session(empty_session())
+        with patch('mageometry.gui.window.SourceDialog') as dialog:
+            dialog.return_value.exec.return_value = QDialog.DialogCode.Accepted
+            dialog.return_value.sources = [dict(kind='xdmf', path='/tmp/file.xmf', options={'stride': 4})]
+            self.window.add_source()
+            file_group = deepcopy(self.window.group)
+            dialog.return_value.sources = [model_source(by=by) for by in (-5., 5.)]
+            self.window.add_source()
+        self.assertEqual(len(self.window.session['groups']), 2)
+        previous = self.window.session['groups'][0]
+        self.assertEqual(previous['cases'], file_group['cases'])
+        self.assertEqual(previous['analysis']['evaluation'], 'grid')
+        self.assertEqual(previous['analysis']['current_scale'], 1.)
+        self.assertEqual(self.window.group['analysis']['evaluation'], 'direct')
+        self.assertEqual(self.window.group['analysis']['current_scale'], .125)
+        self.assertEqual(len(self.window.group['cases']), 2)
+        self.window.apply()
+        self.assertFalse(self.window.last_error)
+        self.assertEqual(len(self.runner.requests[-1]['cases']), 2)
 
     def test_along_field_diagnostics_select_and_show_derivative_steps(self):
         for component, evaluation, label in (

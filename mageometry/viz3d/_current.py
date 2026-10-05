@@ -29,7 +29,9 @@ COMPONENTS = {
 }
 
 RATE_COMPONENTS = frozenset(('alpha', 'beta_g', 'delta_g', 'gamma', 'omega_c'))
-TRANSVERSE_COMPONENTS = RATE_COMPONENTS | {'eta'}
+DIMENSIONLESS_COMPONENTS = frozenset(('eta', 'gamma_over_abs_alpha'))
+NONNEGATIVE_COMPONENTS = frozenset(('gamma', 'gamma_over_abs_alpha', 'B_kappa'))
+TRANSVERSE_COMPONENTS = RATE_COMPONENTS | DIMENSIONLESS_COMPONENTS
 ALONG_FIELD_COMPONENTS = frozenset(('dalpha_ds', 'dalpha_ds_over_B', 'dfac_ds'))
 UNSCALED_COMPONENTS = TRANSVERSE_COMPONENTS | {'dalpha_ds', 'dalpha_ds_over_B'}
 
@@ -37,6 +39,8 @@ COMPONENTS.update({
     'beta_g': ('beta_g', None, 'beta_g = p+q = D/B: signed transverse shear in the Frenet frame'),
     'delta_g': ('delta_g', None, 'delta_g = a-d: transverse normal-strain difference'),
     'gamma': ('Gamma', None, 'Gamma = sqrt(beta_g^2+delta_g^2): basis-independent anisotropy'),
+    'gamma_over_abs_alpha': ('Gamma/|alpha|', None,
+                             'Gamma/|alpha|: anisotropy relative to rotation; undefined at alpha = 0'),
     'omega_c': ('omega_c', None, 'Signed local coiling rate; zero for shear-dominated structure'),
     'eta': ('eta', None, 'eta = (alpha^2-Gamma^2)/(alpha^2+Gamma^2): rotation / shear balance'),
 })
@@ -71,11 +75,20 @@ def _component_name(component):
     return component
 
 
+def _component_color_range(component, limit):
+    """Choose the lower bound from the diagnostic's definition, not its samples."""
+    return (0. if component in NONNEGATIVE_COMPONENTS else -limit, limit)
+
+
+def _component_cmap(component):
+    return 'Reds' if component in NONNEGATIVE_COMPONENTS else 'RdBu_r'
+
+
 def _component_label(component, current_unit, length_unit, fac_label=None, *,
                      field_unit='field unit'):
     component = _component_name(component)
-    if component == 'eta':
-        return 'eta [dimensionless]'
+    if component in DIMENSIONLESS_COMPONENTS:
+        return f'{COMPONENTS[component][0]} [dimensionless]'
     if component in RATE_COMPONENTS:
         return f'{COMPONENTS[component][0]} [1 / {length_unit}]'
     if component == 'dalpha_ds':

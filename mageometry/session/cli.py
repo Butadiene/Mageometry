@@ -4,8 +4,8 @@ import argparse
 
 import numpy as np
 
-from .presets import _validate_by, _validate_shape
-from .specs import MODEL_KINDS, VIEW_LAYOUTS, model_source
+from .presets import DST, IMF_BZ, _validate_by, _validate_shape
+from .specs import MODEL_DEFAULTS, MODEL_KINDS, VIEW_LAYOUTS, default_view, model_source
 from ..viz3d._current import COMPONENTS, TRANSVERSE_COMPONENTS, _component_name
 
 
@@ -24,8 +24,10 @@ def viewer_parser(description, default_component, *, desktop=False):
     model.add_argument('--epoch', type=float, help='model epoch in Unix seconds (default: 100)')
     model.add_argument('--iopt', type=int, help='T89 activity bin, integer 1-7 (default: 2)')
     model.add_argument('--pdyn', type=float, help='T96/T01/T04 solar-wind pressure in nPa (default: 2)')
-    model.add_argument('--dst', type=float, help='T96/T01/T04 Dst in nT (default: -20)')
-    model.add_argument('--bz', type=float, help='T96/T01/T04 IMF Bz in nT (default: -5)')
+    model.add_argument('--dst', type=float, help=f'T96/T01/T04 Dst in nT '
+                       f'(default: {MODEL_DEFAULTS["dst"]:g}; By comparisons: {DST:g})')
+    model.add_argument('--bz', type=float, help=f'T96/T01/T04 IMF Bz in nT '
+                       f'(default: {MODEL_DEFAULTS["bz"]:g}; By comparisons: {IMF_BZ:g})')
     model.add_argument('--g1', type=float, help='T01 G1 driving index (demonstration default: 0)')
     model.add_argument('--g2', type=float, help='T01 G2 driving index (demonstration default: 0)')
     model.add_argument('--w', type=float, nargs=6, metavar=('W1', 'W2', 'W3', 'W4', 'W5', 'W6'),
@@ -43,8 +45,8 @@ def viewer_parser(description, default_component, *, desktop=False):
         model.add_argument('--delta', type=float, help='direct-model difference step in Re (default: 0.002)')
     model.add_argument('--cache-size', type=int, help='retained case previews (default: 2)' if desktop
                        else 'retained comparison previews (default: 2; requires --by)')
-    model.add_argument('--color-limit', type=float, help='symmetric colour limit' if desktop
-                       else 'shared symmetric colour limit (requires --by)')
+    model.add_argument('--color-limit', type=float, help='upper colour limit' if desktop
+                       else 'shared upper colour limit (requires --by)')
     parser.add_argument('--component', type=_component_name, choices=tuple(COMPONENTS),
                          help=f'initial diagnostic (default: {default_component}, or eta with a background)')
     backgrounds = parser.add_mutually_exclusive_group()
@@ -66,7 +68,8 @@ def viewer_parser(description, default_component, *, desktop=False):
     display = parser.add_mutually_exclusive_group()
     display.add_argument('--slice-only', action='store_true', help='start with the enlarged face-on slice')
     if desktop:
-        display.add_argument('--layout', choices=VIEW_LAYOUTS, help='initial plot layout (default: all)')
+        display.add_argument('--layout', choices=VIEW_LAYOUTS,
+                             help=f'initial plot layout (default: {default_view()["layout"]})')
         startup = parser.add_mutually_exclusive_group()
         startup.add_argument('--session', help='open a saved JSON session')
         startup.add_argument('--empty', action='store_true', help='start with an empty file group')

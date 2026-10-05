@@ -5,6 +5,7 @@ from functools import partial
 import numpy as np
 
 from ._fac_slice_focus import _SliceFocus
+from ._current import _component_color_range, _component_cmap
 
 
 def _slice_settings(normal, origin):
@@ -106,13 +107,17 @@ class _FACSlice:
         if has_data:
             if self.actor is None:
                 self.actor = self.plotter.add_mesh(
-                    sliced, scalars=self.scalar_name, cmap='RdBu_r', clim=(-self.limit, self.limit),
+                    sliced, scalars=self.scalar_name, cmap=_component_cmap(self.scalar_name),
+                    clim=_component_color_range(self.scalar_name, self.limit),
                     lighting=False, nan_opacity=0, show_scalar_bar=False,
                     name='fac-slice', reset_camera=False, render=False, pickable=False)
             else:
+                if self.actor.mapper.array_name != self.scalar_name:
+                    self.actor.mapper.lookup_table.apply_cmap(_component_cmap(self.scalar_name))
                 self.actor.mapper.dataset = sliced
                 self.actor.mapper.array_name = self.scalar_name
-                self.actor.mapper.scalar_range = (-self.limit, self.limit)
+                self.actor.mapper.scalar_range = _component_color_range(self.scalar_name, self.limit)
+                self.actor.mapper.lookup_table.scalar_range = self.actor.mapper.scalar_range
             # Resolve the mapper pipeline before camera fitting or data reads.
             self.actor.mapper.Update()
             self.actor.visibility = True

@@ -10,7 +10,7 @@ models, analytic test fields, and interpolated simulation data.
 | Load your data or write a reader | [Simulation data formats](simulation_data_formats.md) |
 | Open a snapshot, select a component, and inspect slices | [Viewer guide](viewer.md) |
 | Run the unified desktop GUI and save analysis sessions | [Desktop workspace](gui.md) |
-| Read Japanese explanations of every desktop control and all 21 diagnostics | [3D viewer 日本語詳細ガイド](gui_ja.md) |
+| Read Japanese explanations of every desktop control and all 22 diagnostics | [3D viewer 日本語詳細ガイド](gui_ja.md) |
 | Switch datasets using shared scales, thresholds, and slices | [Dataset comparison](viewer.md#compare-datasets-in-python) |
 | Develop the desktop/session code and check its boundaries | [Desktop architecture](gui_architecture.md) |
 | Identify or regenerate documentation images | [Image sources and capture commands](images/README.md) |
@@ -63,7 +63,7 @@ density, tracing, and numerical checks. With `.[gui]` installed, start the
 
 ```bash
 python -m mageometry.gui
-python -m mageometry.gui --by -5 -3 -1 1 3 5
+python -m mageometry.gui --by -10 -5 0 5 10
 ```
 
 For a standalone PyVista model viewer with `.[viz3d]` installed:

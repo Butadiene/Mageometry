@@ -33,7 +33,7 @@ options described here. Run `--help` for the full option list.
 | --- | --- |
 | No source options | T96 + dipole, By = 0 nT, `alpha` |
 | `--xmf`, `--vtk`, or `--h5` | Supplied snapshot, `alpha` |
-| `--by -5 -3 -1 1 3 5` | Six T96 cases, `alpha`, YZ slice at x = −6 Re |
+| `--by -10 -5 0 5 10` | Five T96 cases, `alpha`, YZ slice at x = −6 Re |
 | Background option | Total/background/residual gradients, `eta` |
 
 The model demonstration uses Re and nT and converts displayed currents to
@@ -165,6 +165,7 @@ See the [model inputs and examples](gui.md#model-and-file-workflows).
 | `dalpha_ds_over_B` | (T·∇α)/B, in inverse field unit / length squared | None |
 | `dfac_ds` | T·∇FAC: signed parallel-current gradient, in FAC units / length | None |
 | `eta` | (alpha²−gamma²)/(alpha²+gamma²), dimensionless rotation/shear balance | None |
+| `gamma_over_abs_alpha` | Gamma/\|alpha\|, dimensionless anisotropy-to-rotation ratio; NaN at alpha = 0 | None |
 
 Red and blue indicate the sign in the selected basis. Only T-directed
 components represent current along or against B. `B_twist_diff` is a
@@ -176,8 +177,8 @@ A positive derivative means the signed scalar increases along B; it does
 not specify the current direction. Only `dfac_ds` receives `current_scale`.
 The two alpha derivatives remain in native geometry/field units. Magnetic
 units for their labels come from the grid's `field_unit` metadata, with
-`field unit` as the fallback. Gradient attribution supports the original
-six transverse diagnostics only.
+`field unit` as the fallback. Gradient attribution supports the seven
+transverse diagnostics only, including `gamma_over_abs_alpha`.
 
 For direct fields, nested central differences evaluate alpha and FAC at
 `r ± geometry_delta*T(r)`. The inner alpha curl uses `geometry_delta`; the
@@ -214,9 +215,13 @@ blank. Slice dragging reuses cached values.
 Colour limits use the 98th percentile of each component's absolute value
 and stay fixed while adjusting its threshold. Compare legends across
 components: identical colours need not represent identical amplitudes.
-Nonnegative `gamma` uses the positive half of the diverging scale.
+Nonnegative `gamma`, `gamma_over_abs_alpha` and `B_kappa` use a sequential
+light-to-dark red scale from zero to the upper limit. Signed diagnostics
+retain a diverging scale even when their displayed samples are all positive.
+The ratio is dimensionless and unbounded; alpha = 0 is
+undefined and remains blank. Small nonzero alpha can produce very large ratios.
 Eta uses a fixed [−1, 1] scale by default; alpha = gamma = 0 is undefined
-and remains blank. Like the transverse rates, eta is never current-scaled.
+and remains blank. Neither dimensionless diagnostic is current-scaled.
 The comparison viewer uses the largest per-case percentile to fix a common
 range before displaying that diagnostic; it does not rescale on selection.
 
@@ -274,7 +279,8 @@ Viewer labels and `GriddedField.metadata` do not convert data. Native current
 values represent μ₀J in field/length units. If B is in nT and coordinates in
 Re, `current_scale=0.125`, `current_unit='nA/m^2'`, and `length_unit='Re'`
 label the approximately converted currents. The five transverse rates are
-never current-scaled and retain inverse-length units; eta is dimensionless.
+never current-scaled and retain inverse-length units. Eta and
+gamma_over_abs_alpha are dimensionless and also ignore current scaling.
 `planet_radius`
 draws a reference sphere; use `mask=` to exclude its interior from analysis.
 
@@ -295,20 +301,22 @@ the plotter, pass `show=False`, then call `plotter.screenshot(path)` and
 independent, including in the F4 enlarged slice. For example:
 
 ```bash
-python -m mageometry.viz3d --by -5 -3 -1 1 3 5
-python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --initial-by 5 --slice-only
-python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --evaluation grid
-python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --color-limit 0.2 --screenshot comparison.png
+python -m mageometry.viz3d --by -10 -5 0 5 10
+python -m mageometry.viz3d --by -10 -5 0 5 10 --initial-by 5 --slice-only
+python -m mageometry.viz3d --by -10 -5 0 5 10 --evaluation grid
+python -m mageometry.viz3d --by -10 -5 0 5 10 --color-limit 0.2 --screenshot comparison.png
 ```
 
 The CLI creates T96 + dipole grids at epoch 100 Unix seconds, Pdyn = 2 nPa,
-Dst = −20 nT and IMF Bz = −5 nT, with GSM coordinates in Re and fields in nT.
+Dst = −30 nT and IMF Bz = −10 nT, with GSM coordinates in Re and fields in nT.
 `--initial-by` must occur in `--by`. `--color-limit` and `--threshold`
 apply to the initial diagnostic. Default display sampling is 65 × 49 × 49
 on x = [−15, 5], y/z = [−8, 8] Re, with a 120000-node preview budget.
 The inner r < 2.5 Re region is masked. Currents use the 0.125 conversion.
-The five-case [desktop preset](../examples/README.md#desktop-example-launchers)
-uses different Dst/Bz/By conditions; reproduce comparisons with explicit inputs.
+These are the same conditions as **New By comparison**, `compare_t96_by.py`,
+and the shared `make_cases` / `make_fields` helpers. Use `--dst` and `--bz` to
+override the comparison defaults. Single-model launches without `--by` use
+Dst = −20 nT and Bz = −5 nT.
 
 Direct evaluation uses a 0.002 Re Cartesian FAC step (`--delta`), also the
 default geometry step; `--geometry-delta` overrides geometry alone.
@@ -427,8 +435,9 @@ arrows, and peak maps. Slices show all finite strengths.
 
 The automatic colour limit is the largest per-case 98th percentile of
 finite absolute values. If that is zero, it falls back to the global peak
-or 1 for entirely zero/invalid data. Colours are symmetric about zero;
-nonnegative `gamma` occupies the positive half. Percentile limits can
+or 1 for entirely zero/invalid data. Signed diagnostics use colours symmetric
+about zero; `gamma`, `gamma_over_abs_alpha` and `B_kappa` start at zero.
+Percentile limits can
 saturate extremes. `color_limits={'alpha': 0.2, 'fac': 0.05}` overrides
 limits in each diagnostic's displayed units. Legends identify the shared
 scale. Eta defaults to a fixed [−1, 1] range instead of percentile scaling.
@@ -448,7 +457,7 @@ Revisiting an evicted case recomputes it. Small scale summaries remain
 cached. During preparation the current scene/selection remains available
 until the replacement is ready. Input grids are all held in memory
 separately; this is not a streaming file loader or a total process memory
-cap. The six default magnetic arrays occupy about 21.4 MiB; derived arrays,
+cap. The five default magnetic arrays occupy about 17.9 MiB; derived arrays,
 VTK meshes and tracing require additional memory. One scene is reused.
 
 See [resolution and derivatives](#resolution-memory-and-derivatives) for
@@ -459,7 +468,8 @@ streaming file loader, side-by-side case display, or difference-map mode.
 
 These standalone-viewer images show total-field `alpha`, using direct
 T96 + dipole evaluation with a 0.002 Re difference step. They use the
-default six-case comparison and 59 × 44 × 44 preview, a YZ slice at
+original six-case example (By = −5, −3, −1, +1, +3, +5 nT; Dst = −20 nT;
+Bz = −5 nT) and 59 × 44 × 44 preview, a YZ slice at
 x = −6 Re, and one automatic colour range shared across all six cases.
 They show different cases from the same comparison conditions; they are
 separate from the Qt guide's coarse residual-gradient eta captures.
@@ -471,8 +481,8 @@ separate from the Qt guide's coarse residual-gradient eta captures.
 Regenerate from the repository root:
 
 ```bash
-python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --slice-only --screenshot docs/images/comparison-by-negative.png
-python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --initial-by 5 --slice-only --screenshot docs/images/comparison-by-positive.png
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --dst -20 --bz -5 --slice-only --screenshot docs/images/comparison-by-negative.png
+python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --dst -20 --bz -5 --initial-by 5 --slice-only --screenshot docs/images/comparison-by-positive.png
 ```
 
 ## Free slice plane and Frenet frames
@@ -567,7 +577,7 @@ The README's accuracy plots are generated by
 opens with a selected background and adds a contribution dropdown (F7/F8) for total, background-gradient and
 residual-gradient diagnostics. A single total-field frame, normalization and
 set of magnetic lines is retained. Colour limits and per-diagnostic thresholds
-are shared; all six transverse diagnostics are available through F5/F6.
+are shared; all seven transverse diagnostics are available through F5/F6.
 
 ```bash
 python -m mageometry.viz3d --background dipole --contribution residual --component gamma --slice x

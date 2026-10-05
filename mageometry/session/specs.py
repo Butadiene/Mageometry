@@ -33,7 +33,8 @@ def default_view():
                 normal=[1., 0., 0.], origin=[-6., 0., 0.],
                 thresholds={}, threshold_slider_limits={}, threshold_modes={}, value_intervals={},
                 color_limits={}, slice_color_ranges={}, slice_extent=None, cameras={},
-                lines=True, arrows=True, regions=True, plane=True, value_sign='both')
+                lines=True, arrows=True, regions=True, plane=True, value_sign='both',
+                gamma_eta=False)
 
 
 def default_analysis(model=False):
@@ -264,6 +265,8 @@ def validate_session(session):
             raise ValueError('Unknown view layout.')
         if view.setdefault('value_sign', 'both') not in ('both', 'positive', 'negative'):
             raise ValueError('Value sign must be both, positive or negative.')
+        if not isinstance(view.setdefault('gamma_eta', False), bool):
+            raise ValueError('Gamma colouring by eta must be a boolean.')
         if view.get('previous_layout', 'all') not in VIEW_LAYOUTS[:-1]:
             raise ValueError('Previous layout must be a non-slice layout.')
         vector(view['normal'], 'slice normal')

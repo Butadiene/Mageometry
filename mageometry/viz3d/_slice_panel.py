@@ -3,6 +3,7 @@
 import numpy as np
 
 from .slicer import _face_camera
+from ._current import _component_color_range, _component_cmap
 
 
 class _SlicePanel:
@@ -44,12 +45,16 @@ class _SlicePanel:
                 if self.actor is None:
                     self.actor = p.add_mesh(
                         source.mapper.dataset, scalars=owner.scalar_name,
-                        cmap='RdBu_r', clim=(-owner.limit, owner.limit),
+                        cmap=_component_cmap(owner.scalar_name),
+                        clim=_component_color_range(owner.scalar_name, owner.limit),
                         lighting=False, show_scalar_bar=False, pickable=False,
                         name='fac-panel-slice', reset_camera=False, render=False)
+                if self.actor.mapper.array_name != owner.scalar_name:
+                    self.actor.mapper.lookup_table.apply_cmap(_component_cmap(owner.scalar_name))
                 self.actor.mapper.dataset = source.mapper.dataset
                 self.actor.mapper.array_name = owner.scalar_name
-                self.actor.mapper.scalar_range = (-owner.limit, owner.limit)
+                self.actor.mapper.scalar_range = _component_color_range(owner.scalar_name, owner.limit)
+                self.actor.mapper.lookup_table.scalar_range = self.actor.mapper.scalar_range
                 self.actor.mapper.Update()
                 title = f'Cross-section: {owner.label}'
                 if title != self.bar_title:

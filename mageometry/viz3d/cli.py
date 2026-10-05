@@ -3,7 +3,7 @@
 Examples:
     python -m mageometry.viz3d --component gamma
     python -m mageometry.viz3d --xmf snapshot.xmf --stride 4
-    python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --slice-only
+    python -m mageometry.viz3d --by -10 -5 0 5 10 --slice-only
     python -m mageometry.viz3d --background dipole --contribution residual
     python -m mageometry.viz3d --component fac --screenshot preview.png
 

@@ -7,15 +7,42 @@ workspace. Model callables restore their epoch and must be evaluated serially.
 import numpy as np
 
 from .sources import load_source, model_field
-from .specs import default_analysis, model_case_label, model_source, validate_source
+from .specs import default_analysis, model_case_label, model_session, model_source, validate_source
 
 
-DEFAULT_BY = (-5., -3., -1., 1., 3., 5.)
+DEFAULT_BY = (-10., -5., 0., 5., 10.)
 DEFAULT_SHAPE = tuple(model_source()['shape'])
 MODEL_DELTA = default_analysis(model=True)['geometry_delta']
 INNER_RADIUS = default_analysis(model=True)['mask_radius']
-EPOCH, PDYN, DST, IMF_BZ = (model_source()['parameters'][key]
-                            for key in ('epoch', 'pdyn', 'dst', 'bz'))
+EPOCH, PDYN = (model_source()['parameters'][key] for key in ('epoch', 'pdyn'))
+DST = -30.
+IMF_BZ = -10.
+
+
+def comparison_session(by_values=DEFAULT_BY, *, model='t96', parameters=None):
+    """Create a desktop recipe with the shared IMF By comparison conditions.
+
+    Parameters
+    ----------
+    by_values : sequence of float, optional
+        IMF By inputs in nT; defaults to -10, -5, 0, 5, 10.
+    model : {'t96', 't01', 't04'}, optional
+        External model, default T96; T89 does not support IMF By scans.
+    parameters : dict, optional
+        Shared inputs overriding the comparison's Dst=-30 and IMF Bz=-10 nT.
+        Specify By with by_values instead.
+
+    Returns
+    -------
+    dict
+        Session recipe with the same sources as make_cases and make_fields.
+    """
+    if model == 't89':
+        raise ValueError('T89 does not support IMF By comparisons.')
+    values = _validate_by(by_values)
+    inputs = dict(dst=DST, bz=IMF_BZ)
+    inputs.update(parameters or {})
+    return model_session(values.tolist(), model=model, parameters=inputs)
 
 
 def inner_mask(x, y, z):
@@ -74,7 +101,7 @@ def make_fields(by_values=DEFAULT_BY, *, dst=DST, bz=IMF_BZ, model='t96', parame
     by_values : sequence of float, optional
         Distinct IMF By inputs in nT.
     dst, bz : float, optional
-        Shared Dst and IMF Bz inputs in nT; defaults are -20 and -5.
+        Shared Dst and IMF Bz inputs in nT; defaults are -30 and -10.
     model : {'t96', 't01', 't04'}, optional
         External model, default T96; T89 does not support IMF By scans.
     parameters : dict, optional
@@ -100,7 +127,7 @@ def make_cases(by_values=DEFAULT_BY, shape=DEFAULT_SHAPE, *, dst=DST, bz=IMF_BZ,
     shape : tuple of int, optional
         Grid node counts in x/y/z, each at least three. Coordinates are Re.
     dst, bz : float, optional
-        Shared Dst and IMF Bz inputs in nT; defaults are -20 and -5.
+        Shared Dst and IMF Bz inputs in nT; defaults are -30 and -10.
     model : {'t96', 't01', 't04'}, optional
         External model, default T96; T89 does not support IMF By scans.
     parameters : dict, optional

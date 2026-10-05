@@ -41,6 +41,49 @@ def small_source(model):
 
 
 class TestSessionModels(unittest.TestCase):
+    def test_comparison_sources_match_desktop_standalone_and_helpers(self):
+        from mageometry.session import presets
+        from mageometry.viz3d import cli
+        expected = [case['source'] for case in presets.comparison_session()['groups'][0]['cases']]
+        with patch.object(presets, 'load_source', return_value=(object(), None)) as load, \
+                patch.object(presets, 'model_field', return_value=(object(), None)) as field:
+            presets.make_cases()
+            presets.make_fields()
+        self.assertEqual([call.args[0] for call in load.call_args_list], expected)
+        self.assertEqual([call.args[0] for call in field.call_args_list], expected)
+        for model, extra in (('t96', []), ('t01', ['--g1', '2', '--g2', '3']),
+                             ('t04', ['--w', '1', '2', '3', '4', '5', '6'])):
+            for overrides in ([], ['--dst', '-40'], ['--bz', '-8']):
+                args = ['--model', model, '--by', '-2', '2', *extra, *overrides]
+                with self.subTest(model=model, overrides=overrides):
+                    desktop, _ = session_from_args(args)
+                    expected = [case['source'] for case in desktop['groups'][0]['cases']]
+                    for source in expected:
+                        self.assertEqual(source['parameters']['dst'], -40. if '--dst' in overrides else -30.)
+                        self.assertEqual(source['parameters']['bz'], -8. if '--bz' in overrides else -10.)
+                    with patch.object(presets, 'load_source', return_value=(object(), None)) as load, \
+                            patch.object(presets, 'model_field', return_value=(object(), None)) as field, \
+                            patch.object(cli.viz3d, 'compare_geometry'), patch('builtins.print'):
+                        cli.main(args)
+                    self.assertEqual([call.args[0] for call in load.call_args_list], expected)
+                    self.assertEqual([call.args[0] for call in field.call_args_list], expected)
+
+    def test_comparison_recipe_validates_scan_and_preserves_explicit_inputs(self):
+        from mageometry.session.presets import comparison_session
+        for values in ([], [np.nan], [1, 1], [[1, 2]]):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                comparison_session(values)
+        with self.assertRaisesRegex(ValueError, 'T89'):
+            comparison_session([0.], model='t89')
+        with self.assertRaisesRegex(ValueError, 'by_values'):
+            comparison_session(parameters={'by': 2.})
+        parameters = {'epoch': 1234., 'pdyn': 3., 'dst': -40., 'bz': -8.}
+        group = comparison_session([0.], parameters=parameters)['groups'][0]
+        self.assertEqual(group['cases'][0]['source']['parameters'], dict(parameters, by=0.))
+        self.assertEqual(parameters, {'epoch': 1234., 'pdyn': 3., 'dst': -40., 'bz': -8.})
+        session, _ = session_from_args(['--by', '0'])
+        self.assertEqual(session['groups'][0]['cases'][0]['source']['parameters']['dst'], -30.)
+
     def test_all_models_match_scalar_reference_and_restore_bound_epoch(self):
         points = np.array([[-6., 2., 1.], [-5., 1., .7]])
         for name in MODEL_KINDS:

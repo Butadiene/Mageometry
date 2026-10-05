@@ -4,7 +4,7 @@
 · [Standalone viewers](viewer.md) · [Developer architecture](gui_architecture.md)
 · [日本語詳細ガイド](gui_ja.md)
 
-The desktop workspace brings model generation, simulation input, all 21
+The desktop workspace brings model generation, simulation input, all 22
 viewer diagnostics, dataset comparison, background-gradient attribution,
 and session persistence into one Qt window. The numerical geometry APIs and
 the standalone PyVista entry point remain available without Qt.
@@ -26,7 +26,7 @@ New sessions start in **3D + Slice**, with the 3D overview and face-on slice
 side by side. Saved sessions retain their layout unless overridden with `--layout`.
 
 ```bash
-python -m mageometry.gui --by -5 -3 -1 1 3 5 --layout three_d_slice
+python -m mageometry.gui --by -10 -5 0 5 10 --layout three_d_slice
 python -m mageometry.gui --xmf snapshot.xmf --stride 4
 python -m mageometry.gui --by -5 5 --background dipole --contribution residual
 python -m mageometry.gui --empty
@@ -107,6 +107,14 @@ the diagnostic process until actual rendering has been verified.
 ## Model and file workflows
 
 **New model** and **New By comparison** start the T96 + dipole presets.
+**New By comparison** and `examples/compare_t96_by.py` use the same five cases:
+By = −10, −5, 0, +5, +10 nT, Dst = −30 nT and Bz = −10 nT. The desktop and
+standalone `--by` launchers and the shared `make_cases` / `make_fields` helpers
+use these same Dst/Bz defaults. Explicit `--dst` and `--bz` override them.
+Both presets use epoch 100 Unix seconds, Pdyn = 2 nPa, the same grid, mask,
+derivative step and fixed trace seeds. A new comparison selects its first case
+(By = −10 nT), also used as the reference. **New model** starts By = 0 nT,
+Dst = −20 nT and Bz = −5 nT. Saved sessions keep their recorded conditions.
 In **Edit selected source** or **Add model / files**, choose **Source type**
 `t89`, `t96`, `t01`, or `t04`. Each combines the selected external field with
 the internal dipole. All use GSM coordinates in Re and magnetic fields in nT.
@@ -150,6 +158,13 @@ HDF5 requires origin and spacing; its axis-order checkbox defaults to
 `(nz, ny, nx)`. XDMF permits a heavy-file override. Array names and reader
 stride are editable. Paths are resolved when the source is accepted.
 
+When **Add model / files…** adds a file to a model-only group, it creates
+and selects a separate **File snapshots** group. The existing model group
+and its analysis draft remain available. The file group uses grid evaluation,
+native units and automatic trace seeds; press **Apply and recompute** to
+display it. Adding models to a file-only group similarly creates a model
+group. Additional files can be added to the current file group.
+
 Each group requires identical loaded axes and compatible declared coordinate
 systems and units. Use **Add comparison group** and **Move case to group**
 for datasets that should not share those conditions. The group selector
@@ -177,6 +192,16 @@ start any missing calculations automatically. The result header describes
 the committed result until the requested replacement succeeds. Hover over
 the header to inspect its full source metadata.
 
+A coloured label beside the result header makes the displayed source and
+evaluation method visible even when side panels are hidden. **Displayed:
+Model** is blue and shows **Direct model** or **Grid interpolation**;
+**Displayed: File data** is green and shows **Grid interpolation**. A model
+evaluated on a grid is still labelled Model. Before the first result, the
+label reads **Displayed: None / Awaiting calculation**. The label follows
+the displayed result, so draft edits, pending requests and failed calculations
+do not relabel an older plot. **Analysis → Evaluation** edits the method
+to use on the next Apply.
+
 ## Background contributions across cases
 
 For a group of T89/T96/T01/T04 cases, **Assign dipole to model group** assigns a dipole at each
@@ -193,8 +218,8 @@ eta or gamma can be compared across By values or simulation snapshots.
 
 Attribution uses the total-field direction, magnitude and frame. Total,
 background and residual are gradient contributions in that common frame.
-Residual gamma and eta are not scalar subtraction or the geometry of a
-standalone residual magnetic field. The context lines follow the total
+Residual gamma, gamma_over_abs_alpha and eta are not scalar subtraction or
+the geometry of a standalone residual magnetic field. The context lines follow the total
 field in every branch. See the [theory](fac_anisotropy_theory.md#background-attribution-in-the-total-field-frame).
 
 An automatic colour range covers every case and, in attribution, all three
@@ -204,6 +229,15 @@ Defaults use the marked reference case's total branch. Choosing another
 displayed case does not change the reference. Undefined values remain blank.
 
 ## Layout and display
+
+Select **Gamma/|alpha| - Transverse geometry** to display the dimensionless
+ratio of anisotropy to rotation magnitude. Its API/CLI key is
+`gamma_over_abs_alpha`; it is available for model and file inputs and each
+background contribution. Values below/above 1 indicate the local
+rotation/anisotropic-strain sides. Alpha = 0 and nonfinite ratios are blank;
+small finite alpha can produce a large, noise-sensitive ratio. There is no
+denominator floor, fixed upper colour bound or current-unit conversion.
+See the [transverse definitions](transverse_geometry.md#definitions-and-units).
 
 Display controls are enabled once a prepared result is available.
 
@@ -229,11 +263,24 @@ renderer retains its camera; the plane is shared between the 3D widget and
 the face-on panel. Change orientation, enter an origin, move the offset
 slider, or drag the plane. Use **Oblique** to enter a normal vector.
 
-In the 3D view, left-drag away from the slice handle to rotate, middle-drag
-or Shift+left-drag to pan, and use the wheel to zoom. These controls work
+In the 3D view, left-drag away from the slice handle to rotate using a
+turntable: horizontal motion orbits around world Z, and vertical motion
+changes elevation. Z stays upright, so repeated diagonal drags do not
+accumulate roll. Ctrl+left-drag also rotates without roll. Elevation stops
+short of the poles to prevent flipping upside down. **View z** still gives
+an exact top view; starting an orbit moves slightly away from that pole.
+Saved camera orientations are retained until you orbit; an old rolled view
+then returns upright. Use middle-drag or Shift+left-drag to pan, and the
+wheel to zoom. These controls work
 in All panels, 3D + Slice and 3D focus, including after returning from Slice focus.
 Dragging the plane handle moves the plane; press `c` to hide it when you
 want unobstructed camera navigation.
+
+The face-on slice and peak projections keep their orientation: left-drag,
+middle-drag or Shift+left-drag pans, and the wheel zooms. Ctrl+left-drag also
+pans there instead of spinning the image. Moving the pointer without holding
+a button does not change the camera. These controls apply in All panels,
+3D + Slice and Slice focus; only the 3D panel uses left-drag rotation.
 
 The desktop retains its lighting across result updates. It and the
 standalone viewer both use parallel projection, smooth shading on the
@@ -249,7 +296,7 @@ sections:
 
 | Section | Controls and scope |
 | --- | --- |
-| **Shared** | **Value sign** for every panel; the shared colour range for arrows, peak maps and linked slices. |
+| **Shared** | **Colour Gamma by eta**; **Value sign** for every panel; the shared colour range for coloured regions, arrows, peak maps and linked slices. |
 | **3D and peak maps** | Absolute threshold or value interval, slider range, and visibility of 3D lines, arrows and regions. |
 | **Slice** | Colour range and horizontal/vertical extent for both slice views; **Show plane in 3D** controls the 3D plane and handle. |
 
@@ -262,8 +309,46 @@ are preserved. The selection applies across diagnostics, cases and
 contributions in the group and is saved with the session. Older sessions
 default to **All values**.
 
+To select strong anisotropic regions and inspect their rotational balance,
+choose **Diagnostic → Gamma**, then enable **Display → Shared → Colour Gamma
+by eta**. The 3D threshold (or value interval) selects **Gamma**, in inverse
+length units, while the region surface is coloured by **eta**, dimensionless
+with an automatic range of [−1, 1]. Both quantities come from the selected
+case and **Contribution**; for example, **Residual gradient** selects residual
+Gamma and colours it with residual eta in the total-field frame. The checkbox
+reuses prepared arrays and does not recompute the field or traces.
+
+In this mode, peak maps show **eta at the location of the largest eligible
+Gamma**, not the largest eta along the sightline. Both slices display eta
+without the Gamma threshold, retaining the surrounding context. **Value sign**
+still acts on Gamma, so **All values** or **Positive only** includes both signs
+of eta; **Negative only** is empty because Gamma is nonnegative. Undefined eta
+remains transparent. The Display tab labels the filter and colour quantities
+separately, as do the plot titles and colour bars. The 3D bar labels the region
+colours when a region exists; an independent slice range is shown in the
+face-on slice's bar.
+
+Gamma thresholds retain their own settings; colour limits and slice colour
+ranges use the eta settings for the analysis kind, shared with the eta
+diagnostic. The checkbox is saved with the session, retained when changing
+cases or contributions, and only applies to Gamma. It defaults to off,
+including when loading older sessions. Under the default symmetric colour
+range, red indicates positive eta (rotation-dominated transverse geometry),
+blue negative eta (anisotropy-dominated), and the midpoint eta = 0 indicates
+balance. Gamma selection can omit strong rotation with weak anisotropy; it is
+not a selector for every kind of transverse deformation.
+
+![Gamma-selected regions coloured by residual eta](images/gui-gamma-eta.png)
+
 Display controls also provide thresholds, automatic/manual colour limits, and
-layer visibility. **3D / peak filter** selects **Absolute threshold** (the
+layer visibility. Gamma, Gamma/|alpha| and the curvature term |B| kappa use a
+sequential light-to-dark red scale from zero to the **Colour upper limit**.
+Signed diagnostics retain a diverging scale from minus to plus that limit,
+even if the displayed samples happen to be positive. Gamma coloured by eta
+uses eta's signed scale. This applies to automatic and manual upper limits;
+explicit slice min/max overrides remain unchanged.
+
+**3D / peak filter** selects **Absolute threshold** (the
 default) or **Value interval [a, b]**. In interval mode, enter two finite
 signed bounds with `a < b`, for example `-0.5 0.2`. Scientific notation is
 accepted. Regions and arrows use `a <= value <= b`; peak maps select the
@@ -297,7 +382,7 @@ For a manual slice colour range, uncheck **Slice uses shared colour range**
 and enter **Slice colour: min max**, for example `-0.2 0.8`. Both the 3D
 plane and the face-on slice use those colour-bar limits. Values outside
 the range saturate at the endpoint colours; they are not removed. Arrows
-and peak maps retain their shared colour range. With asymmetric bounds,
+and peak maps retain their shared colour range. For signed diagnostics with asymmetric bounds,
 the neutral colour lies at the interval midpoint, not necessarily zero;
 read the colour bar. Recheck the box to restore the shared range. Manual
 slice colours are saved per diagnostic and analysis kind.
@@ -377,8 +462,9 @@ regenerate all four layouts and the Display-tab captures into a separate directo
 python benchmark/render_gui.py --output /tmp/mageometry-gui
 ```
 
-The script also checks Qt mouse rotation in All panels, 3D + Slice and 3D focus,
-including repeated drags and a round trip through Slice focus, before
+The script also checks upright Qt mouse rotation in All panels, 3D + Slice
+and 3D focus, including repeated drags, axis views, Ctrl-drag, Shift-pan and
+a round trip through Slice focus. It checks face-on panning and zoom before
 restoring the cameras for the captures.
 It also checks numeric threshold entry, manual slider ranges, slider
 keyboard input, positive/negative value selection, signed intervals and
@@ -529,7 +615,7 @@ Groups that have not been prepared can be saved as source recipes without
 resolved results. The session includes model parameters or reader options,
 per-case backgrounds, reference/selection, numerical settings, resolved seeds
 and steps, preview shapes, scales, thresholds, value-sign selection, manual
-slider ranges, interval filters, slice colour/spatial ranges, trace enablement,
+slider ranges, interval filters, Gamma/eta colouring, slice colour/spatial ranges, trace enablement,
 cameras, layout and dock visibility. It stores paths relative
 to the session where possible; source
 arrays and executable callables are not embedded.

@@ -7,14 +7,10 @@ The importable model helpers use these same comparison conditions.
 
 from mageometry.session import presets as _presets
 from mageometry.session.presets import (
-    DEFAULT_SHAPE, MODEL_DELTA, EPOCH, INNER_RADIUS, PDYN, case_label, inner_mask,
+    DEFAULT_BY, DST, IMF_BZ, DEFAULT_SHAPE, MODEL_DELTA, EPOCH, INNER_RADIUS, PDYN,
+    case_label, inner_mask,
 )
 from mageometry.gui.app import main as _main
-
-
-DEFAULT_BY = (-10., -5., 0., 5., 10.)
-DST = -30.
-IMF_BZ = -10.
 
 
 def make_cases(by_values=DEFAULT_BY, shape=DEFAULT_SHAPE):
@@ -52,8 +48,7 @@ def make_fields(by_values=DEFAULT_BY):
 
 
 def main(argv=None):
-    return _main(argv, default_by=DEFAULT_BY, description=__doc__,
-                 default_model_parameters={'dst': DST, 'bz': IMF_BZ})
+    return _main(argv, default_by=DEFAULT_BY, description=__doc__)
 
 
 if __name__ == '__main__':

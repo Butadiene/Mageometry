@@ -44,6 +44,20 @@ class TestGeometryViewerExamples(unittest.TestCase):
         self.assertEqual(len(group['cases']), 1)
         self.assertEqual(group['cases'][0]['source']['parameters']['by'], 0.)
 
+    def test_comparison_launcher_matches_shared_recipe_and_desktop_cli(self):
+        from mageometry.gui.cli import session_from_args
+        from mageometry.session.presets import comparison_session
+        expected = comparison_session()['groups'][0]
+        cli_session, _ = session_from_args(['--by', '-10', '-5', '0', '5', '10'])
+        for group in (self.run_viewer('compare_t96_by.py'), cli_session['groups'][0]):
+            self.assertEqual(group['analysis'], expected['analysis'])
+            self.assertEqual([{k: v for k, v in case.items() if k != 'id'} for case in group['cases']],
+                             [{k: v for k, v in case.items() if k != 'id'} for case in expected['cases']])
+            self.assertEqual({k: v for k, v in group['view'].items() if k != 'case'},
+                             {k: v for k, v in expected['view'].items() if k != 'case'})
+            self.assertEqual(group['reference'], group['cases'][0]['id'])
+            self.assertEqual(group['view']['case'], group['reference'])
+
     def test_comparison_defaults_do_not_modify_file_sources(self):
         group = self.run_viewer('compare_t96_by.py', '--xmf', 'snapshot.xmf')
         self.assertEqual(group['cases'][0]['source'], {

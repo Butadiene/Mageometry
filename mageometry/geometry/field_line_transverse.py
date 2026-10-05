@@ -30,6 +30,9 @@ def field_line_transverse_geometry(field, x, y, z, delta=0.01, curvature_tol=0.0
         ``omega_c = sign(alpha)*sqrt(max(alpha**2-gamma**2, 0))/2``.
         ``eta = (alpha**2-gamma**2)/(alpha**2+gamma**2)`` is dimensionless,
         in [-1, 1], and NaN where alpha and gamma are both zero.
+        ``gamma_over_abs_alpha = gamma/abs(alpha)`` is dimensionless and
+        nonnegative, without an upper bound. It is NaN where alpha is zero
+        or the ratio is nonfinite; no denominator floor is applied.
         ``curvature`` is also returned in inverse length. Scalar coordinates
         produce scalar values. Nulls and invalid derivative stencils give NaN.
         The ``delta`` argument is a numerical step,
@@ -41,7 +44,8 @@ def field_line_transverse_geometry(field, x, y, z, delta=0.01, curvature_tol=0.0
     With P=I-T T^t and G=grad(B), L=P G P/|B| is the Cartesian transverse
     map; M is its 2D representation in the (n, b) basis.
     Gamma is computed from its symmetric traceless part in Cartesian space,
-    so alpha, gamma, omega_c and eta do not require curved field lines.
+    so alpha, gamma, gamma_over_abs_alpha, omega_c and eta do not require
+    curved field lines.
     Beta_g and delta_g refer to the local curvature normal and become unstable
     at weak curvature. The rates describe geometry per length, not current
     densities or finite-distance winding numbers. Notation follows the
@@ -51,7 +55,7 @@ def field_line_transverse_geometry(field, x, y, z, delta=0.01, curvature_tol=0.0
     scalar, reference, gradient, valid = _reference(field, x, y, z, delta, curvature_tol)
     result = _contribution(gradient, reference, valid)
     result = {key: result[key] for key in
-              ('alpha', 'beta_g', 'delta_g', 'gamma', 'omega_c', 'eta')}
+              ('alpha', 'beta_g', 'delta_g', 'gamma', 'gamma_over_abs_alpha', 'omega_c', 'eta')}
     result['curvature'] = reference['curvature']
     return _finish_mapping(scalar, result)
 
@@ -133,10 +137,14 @@ def _contribution(gradient, reference, valid):
         scaled_alpha, scaled_gamma = alpha / scale, gamma / scale
         eta = ((scaled_alpha**2 - scaled_gamma**2)
                / (scaled_alpha**2 + scaled_gamma**2))
+        with np.errstate(over='ignore'):
+            ratio = np.divide(gamma, np.abs(alpha), out=np.full_like(gamma, np.nan),
+                              where=np.isfinite(alpha) & (alpha != 0))
+        ratio = np.where(np.isfinite(ratio), ratio, np.nan)
     return _mask_mapping(dict(gradient=gradient, transverse=transverse, shear=shear,
                               trace=dilation, divergence=np.trace(gradient, axis1=-2, axis2=-1),
                               alpha=alpha, beta_g=beta_g, delta_g=delta_g, gamma=gamma,
-                              omega_c=omega_c, eta=eta), valid)
+                              gamma_over_abs_alpha=ratio, omega_c=omega_c, eta=eta), valid)
 
 
 def field_line_transverse_decomposition(field, background, x, y, z, delta=0.01,
@@ -165,20 +173,22 @@ def field_line_transverse_decomposition(field, background, x, y, z, delta=0.01,
         (G_ij = partial_j B_i), ``transverse`` (P G P / |B_total|), ``shear``
         (symmetric transverse traceless part), ``trace`` of the transverse
         map, ``divergence`` of B, and ``alpha``, ``beta_g``, ``delta_g``,
-        ``gamma``, ``omega_c``, ``eta`` with the conventions of
-        :func:`field_line_transverse_geometry`. Vector and tensor dimensions
-        follow the broadcast point dimensions. Scalars return floats and
-        vectors/tensors of shape (3,)/(3, 3).
+        ``gamma``, ``gamma_over_abs_alpha``, ``omega_c``, ``eta`` with the
+        conventions of :func:`field_line_transverse_geometry`. Vector and
+        tensor dimensions follow the broadcast point dimensions. Scalars
+        return floats and vectors/tensors of shape (3,)/(3, 3).
 
     Notes
     -----
     The residual gradient is G_total - G_background. All contributions use
     the TOTAL field's magnitude, projector and Frenet frame. Gradient,
     transverse, shear, trace, divergence, alpha, beta_g and delta_g are
-    additive where defined; gamma, eta and omega_c are not. Contribution
-    eta/omega_c describe projected operators, not actual winding of residual
-    or background field lines. To study a residual field's own geometry,
-    pass that field separately to ``field_line_transverse_geometry``.
+    additive where defined; gamma, gamma_over_abs_alpha, eta and omega_c are not.
+    The ratio uses each contribution's own gamma and alpha in the total-field
+    frame. Contribution ratios and eta/omega_c describe projected operators,
+    not actual winding of residual or background field lines. To study a
+    residual field's own geometry, pass that field separately to
+    ``field_line_transverse_geometry``.
 
     Background nulls are allowed: no division by |B_background| occurs.
     Invalid background samples/stencils invalidate background and residual
@@ -186,8 +196,9 @@ def field_line_transverse_decomposition(field, background, x, y, z, delta=0.01,
     Beta_g/delta_g additionally require resolved total curvature. A uniform
     external field has zero residual gradient but can change the reference
     frame and total geometry; this is attribution, not a dipole-independent
-    counterfactual. Divergence has magnetic-field/length units; other scalar
-    rates and transverse/shear tensors have inverse-length units.
+    counterfactual. Divergence has magnetic-field/length units; eta and
+    gamma_over_abs_alpha are dimensionless. Scalar rates and transverse/shear
+    tensors have inverse-length units.
     """
     scalar, reference, gradient, valid = _reference(field, x, y, z, delta, curvature_tol)
     _, x, y, z = _as_arrays(x, y, z)

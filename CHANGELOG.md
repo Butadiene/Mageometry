@@ -9,6 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Start shared colour scales at zero for Gamma, Gamma/|alpha| and |B| kappa
+  in desktop and standalone viewers, using sequential red colours. Keep
+  signed diagnostics and eta-coloured Gamma on diverging scales, preserve
+  explicit slice ranges, and relabel the control as Colour upper limit.
+
+- Add the dimensionless Gamma/|alpha| diagnostic (`gamma_over_abs_alpha`)
+  to geometry/decomposition APIs, desktop and standalone viewers, CLIs and
+  saved sessions. Reuse cached transverse derivatives, preserve finite
+  unbounded ratios, and leave zero-alpha and nonfinite results undefined.
+
+- Show a persistent coloured label beside the desktop result header for
+  model/file input and direct/grid evaluation. Keep the label tied to the
+  displayed result while edits or calculations are pending.
+
+- Add files to a separate grid group when the active group contains only
+  models, and models to a separate model group when it contains only files.
+  Preserve the previous group and its analysis draft; initialize appropriate
+  units, derivative steps, slice origin and trace seeds for the new sources.
+
+- Use world-Z turntable navigation in the desktop 3D panel so diagonal and
+  Ctrl-drags do not accumulate camera roll. Retain pan, wheel zoom, axis
+  views and saved cameras; limit elevation before the poles. Check upright
+  rotation and pan/release through both VTK and real Qt mouse events.
+
+- Keep desktop slices and peak projections face-on during mouse navigation.
+  Use left-drag for panning in those panels, retain wheel zoom and 3D rotation,
+  and test capture/release across panel boundaries and layout changes.
+
+- Share the five-case IMF By preset (-10, -5, 0, 5, 10 nT; Dst=-30 nT;
+  Bz=-10 nT) across New By comparison, compare_t96_by.py, both CLIs and the
+  comparison data helpers. Preserve explicit overrides and saved recipes.
+  Correct CLI help for comparison inputs and the default 3D + Slice layout.
+
+- Add desktop Gamma region selection with optional eta colouring from the same
+  contribution. Show eta at Gamma peaks and on context slices, keep Gamma
+  filters separate from eta colour ranges, and persist the display option
+  without changing older sessions. Reuse cached transverse diagnostics.
+
 - Default new desktop sessions to the side-by-side 3D + Slice layout.
 
 - Batch desktop field-line integration with cancellation inside the solver.

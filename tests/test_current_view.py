@@ -75,7 +75,8 @@ class TestCurrentComponents(unittest.TestCase):
         frame = field_line_frenet_frame(bipolar, *coords, delta=0.002)
         mag = field_magnitude_derivatives(bipolar, *coords, delta=0.002)
         for key in ('mu0J_T', 'B_dT_dn_b', 'B_dn_db_T', 'B_twist_diff', 'mu0J_n', 'mu0J_b',
-                    'mu0J_x', 'mu0J_y', 'mu0J_z', 'alpha', 'beta_g', 'delta_g', 'gamma', 'omega_c', 'eta'):
+                    'mu0J_x', 'mu0J_y', 'mu0J_z', 'alpha', 'beta_g', 'delta_g', 'gamma',
+                    'gamma_over_abs_alpha', 'omega_c', 'eta'):
             actual, basis = cache.get(key)
             np.testing.assert_allclose(actual, expected[key], equal_nan=True)
             if key[-1] in 'xyz':
@@ -123,12 +124,13 @@ class TestCurrentComponents(unittest.TestCase):
         for key in COMPONENTS:
             if key in ALONG_FIELD_COMPONENTS:
                 np.testing.assert_allclose(cache.get(key)[0], 0., atol=1e-10)
-            elif key not in ('fac', 'alpha', 'gamma', 'omega_c', 'eta'):
+            elif key not in ('fac', 'alpha', 'gamma', 'gamma_over_abs_alpha', 'omega_c', 'eta'):
                 self.assertTrue(np.all(np.isnan(cache.get(key)[0])), key)
         np.testing.assert_allclose(cache.get('alpha')[0], 1, atol=1e-6)
         np.testing.assert_allclose(cache.get('gamma')[0], 1, atol=1e-6)
         np.testing.assert_allclose(cache.get('omega_c')[0], 0, atol=2e-8)
         np.testing.assert_allclose(cache.get('eta')[0], 0, atol=1e-12)
+        np.testing.assert_allclose(cache.get('gamma_over_abs_alpha')[0], 1, atol=1e-12)
         preview.b[:] = np.nan
         empty = _CurrentPreview(preview, np.full(preview.shape, np.nan),
                                 lambda *args: self.fail('Missing nodes must not be evaluated'), 0.1)
@@ -147,6 +149,8 @@ class TestCurrentComponents(unittest.TestCase):
 
     def test_labels_and_invalid_parameters(self):
         self.assertEqual(_component_label('eta', 'nA/m^2', 'Re'), 'eta [dimensionless]')
+        self.assertEqual(_component_label('gamma_over_abs_alpha', 'nA/m^2', 'Re'),
+                         'Gamma/|alpha| [dimensionless]')
         self.assertEqual(_component_label('alpha', 'nA/m^2', 'Re'), 'alpha [1 / Re]')
         self.assertEqual(_component_label('mu0J_n', 'nA/m^2', 'Re'), 'J_n [nA/m^2]')
         for key, number in (('B_dT_dn_b', 1), ('B_dn_db_T', 2)):
@@ -230,6 +234,55 @@ class TestCurrentViewer(unittest.TestCase):
         select(p, 'alpha')
         select(p, 'eta')
         self.assertTrue(all('dimensionless' in title for title in p.scalar_bars.keys()))
+
+    def test_gamma_ratio_reuses_transverse_values_and_is_unscaled_in_all_panels(self):
+        from unittest.mock import patch
+        from mageometry.viz3d._overview_data import _OverviewData
+        component = 'gamma_over_abs_alpha'
+        expected = field_line_transverse_geometry(bipolar, *np.meshgrid(
+            grid().x, grid().y, grid().z, indexing='ij'), delta=.002)[component]
+        for scale in (1., .125):
+            data = _OverviewData({'A': grid()}, field=bipolar, delta=.002, current_scale=scale)
+            data.prepare('A', 'gamma')
+            with patch('mageometry.viz3d._current.field_line_transverse_geometry',
+                       side_effect=AssertionError('Reuse the existing transverse calculation')):
+                selection = data.prepare('A', component)
+            np.testing.assert_allclose(selection.values, expected, equal_nan=True)
+            self.assertAlmostEqual(selection.scale.limit, np.percentile(expected[np.isfinite(expected)], 98))
+        p = viz3d.compare_geometry({'A': grid()}, fields={'A': bipolar}, delta=.002, component=component,
+                               current_scale=.125, current_unit='nA/m^2', color_limits={component: 2.},
+                               slice_panel=True, slice_normal='z', slice_origin=(0, 0, 1),
+                               n_lines=0, show=False)
+        self.assertNotIn('fac-arrows', p.actors)
+        for renderer, name in [(p.renderer, 'fac-slice'),
+                               (p.renderers[4], 'fac-panel-slice')] + [
+                                   (r, 'fac-projection') for r in p.renderers[1:4]]:
+            self.assertEqual(renderer.actors[name].mapper.array_name, component)
+            self.assertEqual(renderer.actors[name].mapper.scalar_range, (0., 2.))
+        self.assertTrue(all('Gamma/|alpha| [dimensionless]' in title for title in p.scalar_bars.keys()))
+
+    def test_switching_nonnegative_and_signed_colours_updates_all_panels(self):
+        components = ('gamma', 'B_kappa', 'eta', 'gamma_over_abs_alpha', 'alpha', 'gamma')
+        p = viz3d.compare_geometry({'A': grid()}, fields={'A': bipolar}, delta=.002,
+                                  component='gamma', color_limits={key: 2. for key in components},
+                                  slice_panel=True, slice_normal='z', slice_origin=(0, 0, 1),
+                                  n_lines=0, show=False)
+        for component in components:
+            with self.subTest(component=component):
+                select(p, component)
+                positive = component in ('gamma', 'gamma_over_abs_alpha', 'B_kappa')
+                expected = (0. if positive else -2., 2.)
+                actors = [p.renderer.actors['fac-slice'], p.renderers[4].actors['fac-panel-slice']]
+                actors.extend(renderer.actors['fac-projection'] for renderer in p.renderers[1:4])
+                if component == 'B_kappa':
+                    actors.append(p.renderer.actors['fac-arrows'])
+                for actor in actors:
+                    self.assertEqual(actor.mapper.scalar_range, expected)
+                    self.assertEqual(actor.mapper.lookup_table.scalar_range, expected)
+                    self.assertEqual(actor.mapper.lookup_table.cmap.name, 'Reds' if positive else 'RdBu_r')
+                for bar in p.scalar_bars.values():
+                    self.assertEqual(bar.GetLookupTable().GetRange(), expected)
+                self.assertEqual(bool(p.renderer.actors['fac-sign-negative'].GetInput()), not positive)
 
     def test_switch_updates_regions_projections_arrows_and_thresholds(self):
         p = viz3d.current_view(grid(), field=bipolar, delta=0.002,

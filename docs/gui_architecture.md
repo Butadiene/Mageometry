@@ -87,11 +87,20 @@ attribution includes every case and branch. Display-only changes reuse these
 arrays. The preview count is not a total memory cap: input grids, VTK meshes,
 attribution results and process-transfer copies also consume RAM.
 
+Gamma results also carry eta from the same cached transverse calculation and
+contribution. The view's optional `gamma_eta` boolean (default false) selects
+eta colouring without submitting a job. Gamma keeps the threshold/interval
+key; colours use the eta key and dimensionless range. VTK clips regions with
+Gamma and interpolates eta on their surfaces. Peak maps take eta at the
+eligible Gamma peak, leaving undefined eta blank, and slices show eta without
+the threshold. This is a display option, not an additional scientific diagnostic.
+
 Within `GeometryScene`, `update_visibility` changes existing actors and the
 3D plane widget; `update_colors` changes mapper/legend ranges, including a
 manual slice override. Neither operation rebuilds geometry, changes cameras
 or submits numerical work. Each requests one render. Threshold, interval and
-sign edits still use `update_display` to rebuild their filtered geometry;
+sign edits and switching Gamma/eta colouring still use `update_display` to
+rebuild their filtered geometry;
 plane position/orientation and extent edits use `update_slice`.
 
 Automatic seeds come from the reference case and are fixed once resolved.

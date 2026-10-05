@@ -40,6 +40,8 @@ class TestTransverseDecomposition(unittest.TestCase):
         self.assertAlmostEqual(residual['delta_g'], 6.)
         self.assertAlmostEqual(residual['gamma'], np.sqrt(61.))
         self.assertAlmostEqual(residual['eta'], (9.-61.)/(9.+61.))
+        self.assertAlmostEqual(total['gamma_over_abs_alpha'], np.sqrt(17.) / 3.)
+        self.assertAlmostEqual(residual['gamma_over_abs_alpha'], np.sqrt(61.) / 3.)
         self.assertNotAlmostEqual(residual['gamma'], total['gamma'] - background['gamma'])
         self.assertNotAlmostEqual(residual['eta'], total['eta'] - background['eta'])
         for key, value in field_line_transverse_geometry(self.field, 0., 0., 0.).items():
@@ -50,9 +52,13 @@ class TestTransverseDecomposition(unittest.TestCase):
         self.assertIsInstance(total['eta'], float)
 
     def test_background_magnitude_and_direction_do_not_set_reference(self):
-        first = decompose(self.field, self.background, 0., 0., 0.)
+        # Keep alpha away from zero: a singular ratio cannot be compared to
+        # the large finite ratio produced by derivative round-off.
+        gradient = BACKGROUND.copy()
+        gradient[1, 0] += 1.
+        first = decompose(self.field, affine(gradient, [3., 1., 0.]), 0., 0., 0.)
         # Even a background null is allowed; only its gradient enters attribution.
-        second = decompose(self.field, affine(BACKGROUND, [0., 0., 0.]), 0., 0., 0.)
+        second = decompose(self.field, affine(gradient, [0., 0., 0.]), 0., 0., 0.)
         for branch in first:
             for key in first[branch]:
                 np.testing.assert_allclose(first[branch][key], second[branch][key], atol=2e-13)
@@ -63,6 +69,7 @@ class TestTransverseDecomposition(unittest.TestCase):
         self.assertEqual(result['total']['gradient'].shape, (2, 3, 3, 3))
         self.assertEqual(result['reference']['normal'].shape, (2, 3, 3))
         self.assertEqual(result['residual']['eta'].shape, (2, 3))
+        self.assertEqual(result['residual']['gamma_over_abs_alpha'].shape, (2, 3))
         rotation, _ = np.linalg.qr(np.array([[1., 2, 3], [3, 1, 4], [2, 5, 1]]))
         if np.linalg.det(rotation) < 0:
             rotation[:, 0] *= -1
@@ -71,6 +78,9 @@ class TestTransverseDecomposition(unittest.TestCase):
                             0., 0., 0.)
         base = decompose(self.field, self.background, 0., 0., 0.)
         for branch in ('total', 'background', 'residual'):
+            if branch != 'background':  # Background alpha is zero: its ratio is singular.
+                self.assertAlmostEqual(rotated[branch]['gamma_over_abs_alpha'],
+                                       base[branch]['gamma_over_abs_alpha'], places=12)
             for key in ('alpha', 'beta_g', 'delta_g', 'gamma', 'omega_c', 'eta'):
                 self.assertAlmostEqual(rotated[branch][key], base[branch][key], places=11)
             for key in ('gradient', 'transverse', 'shear'):
@@ -99,6 +109,7 @@ class TestTransverseDecomposition(unittest.TestCase):
         self.assertAlmostEqual(result['total']['eta'], -1.)
         self.assertEqual(result['residual']['gamma'], 0.)
         self.assertTrue(np.isnan(result['residual']['eta']))
+        self.assertTrue(np.isnan(result['residual']['gamma_over_abs_alpha']))
         # A uniform perturbation changes the total frame despite zero gradient.
         def perturbed(x, y, z):
             bx, by, bz = dipole(x, y, z)

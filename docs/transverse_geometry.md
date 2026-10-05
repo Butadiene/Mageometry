@@ -6,7 +6,8 @@
 
 The transverse API measures how the magnetic direction changes across a
 field line. It returns local rotation and shear rates from first Cartesian
-derivatives of B, together with the dimensionless rotation/shear balance eta.
+derivatives of B, together with the dimensionless rotation/shear balance eta
+and anisotropy-to-rotation ratio Gamma/|alpha|.
 The rates are per length; interpretation depends on
 the field, grid resolution, and derivative step.
 
@@ -24,7 +25,7 @@ Install `.[viz3d]` for viewing and `.[io,viz3d]` for XDMF/HDF5 input.
 See the [viewer guide](viewer.md) for input layouts, slicing, colour scales,
 units, and memory controls.
 
-The [Qt workspace](gui.md) exposes the same six transverse diagnostics
+The [Qt workspace](gui.md) exposes the same seven transverse diagnostics
 through its **Diagnostic** selector and supports saved comparison sessions.
 
 ### Analytic-field screenshot
@@ -74,7 +75,7 @@ The function is also exported as `mageometry.field_line_transverse_geometry`.
 | `curvature_tol` | Nonnegative curvature cutoff in inverse length; default 0 |
 
 The result is a dictionary of scalars for scalar coordinates, or arrays
-with the broadcast shape. It contains exactly the seven keys below.
+with the broadcast shape. It contains the eight keys below.
 
 ## Definitions and units
 
@@ -88,6 +89,7 @@ T=B/|B|, curvature normal n, b=T×n, and define
 | `beta_g` (β_g) | p+q = 𝒟/B | Signed off-diagonal shear in the Frenet frame |
 | `delta_g` (δ_g) | a−d | Difference of transverse normal strains |
 | `gamma` (Γ) | √(β_g²+δ_g²) | Basis-independent anisotropy; Γ/2 is the maximum angular-rate deviation |
+| `gamma_over_abs_alpha` (A) | Γ/\|α\| | Nonnegative, unbounded anisotropy-to-rotation ratio; NaN at α = 0 |
 | `omega_c` | sign(alpha) √max(alpha²−gamma²,0)/2 | Signed local coiling rate |
 | `eta` | (alpha²−gamma²)/(alpha²+gamma²) | Dimensionless rotation/shear balance in [−1, 1] |
 | `curvature` | \|(T·∇)T\| | Field-line curvature from first Cartesian derivatives |
@@ -97,8 +99,9 @@ The numerical implementation, analysis API, viewers, and CLIs all use
 The `delta` argument is the numerical difference step, separate from the
 physical diagnostic `delta_g`.
 
-All outputs except eta have inverse coordinate-length units. The five transverse
-rates and eta are selectable in the overview viewer, are unaffected by
+All outputs except eta and gamma_over_abs_alpha have inverse coordinate-length
+units. The five transverse rates and both ratios are selectable in the overview
+viewer, are unaffected by
 `current_scale`, and have no current arrows. The eigenvalue-based coiling
 rate is a local diagnostic, not an integrated winding number or proof of a
 flux rope; see [Tassev & Savcheva (2019)](https://arxiv.org/abs/1901.00865).
@@ -110,6 +113,15 @@ The viewer uses a fixed [−1, 1] colour scale by default. Select it with the
 dropdown, F5/F6, or `--component eta`. Eta is a derived diagnostic for any
 magnetic field source, including simulations; it is not a model input.
 
+Select **Gamma/|alpha|** or `--component gamma_over_abs_alpha` for the
+nonnegative ratio A. A < 1 is rotation-dominated, A = 1 the boundary, and
+A > 1 anisotropic-strain-dominated. Where defined, eta = (1−A²)/(1+A²).
+Unlike eta, A is unbounded and uses a sequential colour scale from zero to
+the data-derived upper limit, as does gamma.
+Alpha = 0, invalid samples and overflowing ratios remain NaN/blank; no
+denominator floor or clipping is applied. Inspect alpha and gamma as well:
+a large ratio can reflect a tiny, numerically uncertain alpha.
+
 `omega_c` is zero when `alpha**2 <= gamma**2`; a finite zero is a defined
 result, unlike NaN. When a Frenet normal exists, gamma equals
 `sqrt(beta_g**2 + delta_g**2)`. Internally it is evaluated independently in
@@ -119,7 +131,7 @@ Cartesian coordinates, so it can remain finite when beta_g and delta_g are NaN.
 
 The implementation uses seven B evaluations for Cartesian first derivatives,
 then projects the gradient into the transverse plane. It never differentiates
-n. Alpha, gamma, omega_c, and eta do not require a Frenet normal: straight lines
+n. Alpha, gamma, gamma_over_abs_alpha, omega_c, and eta do not require a Frenet normal: straight lines
 can retain nonzero anisotropy. Beta_g and delta_g are NaN when curvature is at or
 below `curvature_tol`, including zero curvature. All results are NaN at
 magnetic nulls or invalid stencils.
@@ -179,19 +191,21 @@ print(parts['total']['eta'], parts['residual']['eta'])
 
 `reference` holds the total magnetic field, magnitude, tangent, normal,
 binormal, projection and curvature. Each of `total`, `background`, `residual`
-holds `gradient`, `transverse`, `shear`, `trace`, `divergence` and the six
+holds `gradient`, `transverse`, `shear`, `trace`, `divergence` and the seven
 transverse diagnostics. `gradient` uses component/derivative-direction order:
 G_ij = ∂B_i/∂x_j. Vector/tensor dimensions follow the broadcast point dimensions;
 scalar coordinates give vectors `(3,)`, tensors `(3, 3)` and scalar diagnostics.
 Gradient and divergence have field/length units; transverse, shear, trace and
-the five rates have inverse-length units, while eta is dimensionless.
+the five rates have inverse-length units; eta and gamma_over_abs_alpha are
+dimensionless.
 
 Residual gradients are G_total − G_background. Both are projected with the
 total P and divided by |B_total|. Tensors and signed alpha/beta_g/delta_g are
-additive; norms, eta and omega_c are not. A background null is allowed, but
+additive; norms, gamma_over_abs_alpha, eta and omega_c are not. Each ratio
+uses its branch's gamma and alpha in the total-field frame. A background null is allowed, but
 invalid background samples/stencils invalidate background and residual.
 All projected results require valid total geometry. A zero residual gradient
-has zero gamma and undefined eta. See the
+has zero gamma and undefined eta and gamma_over_abs_alpha. See the
 [full derivation and limitations](fac_anisotropy_theory.md#background-attribution-in-the-total-field-frame).
 
 This attribution retains background dependence through the total frame and
@@ -241,7 +255,7 @@ step. Grid-only inputs use equally coarsened preview interpolants; check
 stride, preview resolution and step convergence for both inputs.
 
 F7/F8 switches **Total field**, **Background gradient**, **Residual gradient**;
-F5/F6 switches the six diagnostics. Magnetic lines remain those of the total
+F5/F6 switches the seven diagnostics. Magnetic lines remain those of the total
 field, and switching contributions preserves cameras, slices, thresholds
 and shared colour limits. Default thresholds and seeds use the total branch.
 Eta defaults to [−1, 1]; other limits use the largest per-branch 98th percentile

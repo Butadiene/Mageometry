@@ -10,6 +10,7 @@ from pyvistaqt import QtInteractor
 from ..session import empty_session, model_session, load_session, save_session, validate_session
 from ..session.specs import MODEL_KINDS, model_case_label, new_group, new_id, default_analysis
 from ..session.jobs import JobRunner
+from ..session.presets import comparison_session
 from ..viz3d._current import COMPONENTS, COMPONENT_LABELS, TRANSVERSE_COMPONENTS
 from ..viz3d._contribution_data import CONTRIBUTIONS
 from ..viz3d._source_info import _source_lines
@@ -20,7 +21,7 @@ from .display import DisplayPanel
 DISPLAY_KEYS = ('normal', 'origin', 'layout', 'previous_layout', 'panels_hidden',
                 'thresholds', 'threshold_slider_limits', 'threshold_modes', 'value_intervals',
                 'color_limits', 'slice_color_ranges', 'slice_extent', 'cameras',
-                'lines', 'arrows', 'regions', 'plane', 'value_sign')
+                'lines', 'arrows', 'regions', 'plane', 'value_sign', 'gamma_eta')
 
 
 class MainWindow(W.QMainWindow):
@@ -72,7 +73,7 @@ class MainWindow(W.QMainWindow):
         toolbar.setObjectName('session-toolbar')
         toolbar.setMovable(False)
         for label, callback in [('New model', lambda: self.new_session(model_session())),
-                                ('New By comparison', lambda: self.new_session(model_session((-5., -3., -1., 1., 3., 5.)))),
+                                ('New By comparison', lambda: self.new_session(comparison_session())),
                                 ('New file session', lambda: self.new_session(empty_session())),
                                 ('Open session…', self.open), ('Save displayed session…', self.save),
                                 ('Export PNG…', self.export)]:
@@ -120,7 +121,14 @@ class MainWindow(W.QMainWindow):
         self.header = W.QLabel('No prepared result. Set sources and analysis conditions, then Apply.')
         self.header.setWordWrap(True)
         self.header.setTextInteractionFlags(C.Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(self.header)
+        result_header = W.QHBoxLayout()
+        self.result_mode = W.QLabel()
+        self.result_mode.setToolTip('Describes the displayed result, not unapplied Analysis settings. '
+                                   'A model can also be sampled and evaluated on a grid.')
+        self._update_result_mode()
+        result_header.addWidget(self.result_mode)
+        result_header.addWidget(self.header, 1)
+        layout.addLayout(result_header)
         plane = W.QHBoxLayout()
         layout.addLayout(plane)
         self.normal = W.QComboBox()
@@ -299,6 +307,22 @@ class MainWindow(W.QMainWindow):
     def selected_case(self):
         return next((case for case in self.group['cases'] if case['id'] == self.group['view']['case']), None)
 
+    def _update_result_mode(self):
+        if self.displayed is None:
+            text = 'Displayed: None\nAwaiting calculation'
+            foreground, background = '#475569', '#e2e8f0'
+        else:
+            result = self.scene.result
+            case = next(case for case in self.displayed['cases'] if case['id'] == result['case'])
+            model = case['source']['kind'] in MODEL_KINDS
+            source = 'Model' if model else 'File data'
+            evaluation = 'Direct model' if result['analysis']['evaluation'] == 'direct' else 'Grid interpolation'
+            text = f'Displayed: {source}\n{evaluation}'
+            foreground, background = ('#1e40af', '#dbeafe') if model else ('#065f46', '#d1fae5')
+        self.result_mode.setText(text)
+        self.result_mode.setStyleSheet(f'color: {foreground}; background: {background}; '
+                                      'padding: 6px 10px; border-radius: 4px; font-weight: 600;')
+
     def mark_draft(self, *args):
         if not self.syncing:
             text = 'Unapplied changes. The displayed result retains its original conditions.'
@@ -322,6 +346,12 @@ class MainWindow(W.QMainWindow):
 
     def _apply(self):
         self._capture_view()
+        self._update_analysis_draft()
+        self.session = validate_session(self.session)
+        self._populate(form=False)
+        self.submit(self.group)
+
+    def _update_analysis_draft(self):
         g = self.group
         analysis = self.analysis_form.analysis()
         old_kind = g['analysis']['kind']
@@ -334,9 +364,6 @@ class MainWindow(W.QMainWindow):
             g['view']['contribution'] = 'total'
         elif g['view']['component'] not in TRANSVERSE_COMPONENTS:
             g['view']['component'] = 'eta'
-        self.session = validate_session(self.session)
-        self._populate(form=False)
-        self.submit(self.group)
 
     def submit(self, group):
         if self.runner is None:
@@ -439,8 +466,9 @@ class MainWindow(W.QMainWindow):
         self.group['view'] = deepcopy(candidate['view'])
         self.pending = None
         self.last_error = ''
+        self._update_result_mode()
         self.header.setText(f"{result['case_label']} | {result['component']} | {CONTRIBUTIONS[result['contribution']]}\n"
-                            f"{result['label']} | {result['analysis']['evaluation']} | {difference_step_label(result)} | "
+                            f"{result['label']} | {difference_step_label(result)} | "
                             f"preview {tuple(result['resolved']['preview_shape'])} | "
                             f"{'total-field-frame attribution' if result['kind'] == 'attribution' else 'field geometry and currents'}")
         self.header.setToolTip('\n'.join(_source_lines(result['metadata'])))
@@ -505,6 +533,7 @@ class MainWindow(W.QMainWindow):
         self.session = validate_session(session)
         self.committed = {}
         self.displayed = None
+        self._update_result_mode()
         self.scene.clear()
         self.sync_display()
         self.header.setText('No prepared result in this session.')
@@ -524,18 +553,34 @@ class MainWindow(W.QMainWindow):
         source = None if self.group['analysis']['evaluation'] == 'direct' else dict(kind='xdmf', path='', options={})
         dialog = SourceDialog(self, source)
         if dialog.exec() == W.QDialog.DialogCode.Accepted:
+            model = dialog.sources[0]['kind'] in MODEL_KINDS
+            separate = bool(self.group['cases']) and all(
+                (case['source']['kind'] in MODEL_KINDS) != model for case in self.group['cases'])
+            if separate:
+                # Groups share axes, units, derivative settings and trace seeds.
+                # Retain the current draft; new sources need their own defaults.
+                self._capture_view()
+                self._update_analysis_draft()
+                self.session = validate_session(self.session)
+                group = new_group('Model cases' if model else 'File snapshots', model=model)
+                self.session['groups'].append(group)
+                self.session['active_group'] = group['id']
             empty = not self.group['cases']
             for source in dialog.sources:
                 label = model_case_label(source) if source['kind'] in MODEL_KINDS else Path(source['path']).name
                 self.group['cases'].append(dict(id=new_id(), label=label, source=source, background=None))
             if empty:
                 self.group['reference'] = self.group['view']['case'] = self.group['cases'][0]['id']
-                self.group['analysis'] = default_analysis(dialog.sources[0]['kind'] in MODEL_KINDS)
-                if dialog.sources[0]['kind'] not in MODEL_KINDS:
+                self.group['analysis'] = default_analysis(model)
+                if not model:
                     self.group['analysis']['length_unit'] = dialog.sources[0].get('metadata', {}).get('length_unit', 'grid unit')
-                self.group['view']['origin'] = [-6., 0., 0.] if dialog.sources[0]['kind'] in MODEL_KINDS else None
+                self.group['view']['origin'] = [-6., 0., 0.] if model else None
                 self.analysis_form.set_analysis(self.group['analysis'])
             self._source_edited()
+            if separate:
+                self.status.setText('Sources added to a separate group with '
+                                    + ('model' if model else 'grid')
+                                    + ' defaults. Press Apply and recompute to display them.')
 
     def edit_source(self):
         case = self.selected_case()

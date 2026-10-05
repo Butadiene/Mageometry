@@ -80,7 +80,7 @@ does not assume a force-free field.
 | 𝒟 | Bβ_g | Legacy `B_twist_diff` estimates this using frame derivatives |
 | ω_c | sgn(α)√max(α²−Γ²,0)/2 | `omega_c` |
 | η | (α²−Γ²)/(α²+Γ²) | `eta` |
-| A | Γ/\|α\|, for α ≠ 0 | Derived in analysis; no built-in output |
+| A | Γ/\|α\|, for α ≠ 0 | `gamma_over_abs_alpha`; displayed as `Gamma/\|alpha\|` |
 | ψ_S | ½ atan2(β_g, δ_g), modulo π | Derived principal-axis angle; undefined at Γ = 0 |
 
 All rates and κ have inverse-length units. 𝒟 has field/length units;
@@ -92,8 +92,9 @@ finite-difference keyword `delta` is a step length (h), unrelated to δ_g.
 ASCII `beta_g`, `delta_g`, `Gamma`, `omega_c`, and `eta` in viewer text
 correspond to β_g, δ_g, Γ, ω_c, and η in equations.
 
-`field_line_transverse_geometry` supplies exactly seven outputs:
-`alpha`, `beta_g`, `delta_g`, `gamma`, `omega_c`, `eta`, and `curvature`.
+`field_line_transverse_geometry` supplies eight outputs:
+`alpha`, `beta_g`, `delta_g`, `gamma`, `gamma_over_abs_alpha`, `omega_c`,
+`eta`, and `curvature`.
 The numerical implementation, viewer and CLI inputs, and colour-limit
 keys use these same diagnostic names.
 `B_twist_diff/B` and first-gradient `beta_g` converge to the same
@@ -204,6 +205,14 @@ including simple shear. These labels do not establish finite-distance
 winding or a flux rope. The implementation extends ω_c by zero on the
 noncoiling side. η is undefined at α = Γ = 0; its finite value can still
 be unreliable when the denominator is near the derivative error level.
+
+For α ≠ 0, the nonnegative ratio A = Γ/|α| gives the same local comparison:
+η = (1−A²)/(1+A²). A < 1 is the rotational side, A = 1 the boundary,
+and A > 1 the anisotropic-stretching side. A has no upper bound and discards
+the sign of α. The API returns NaN at α = 0 (including Γ = 0), at invalid
+stencils, and on floating-point overflow. No artificial denominator floor
+is applied: small finite α can produce a very large, noise-sensitive ratio.
+These local ratios do not establish finite-distance winding or an FAC origin.
 
 ## 4. First-gradient evaluation and validity
 
@@ -317,12 +326,18 @@ finite differences may leave a small numerical α₀.
 The implementation is
 `geometry.field_line_transverse_decomposition(total, background, x, y, z)`.
 It exposes the common reference frame and the total, background and residual
-G, L, S, transverse trace, divergence, and six diagnostics. Derivative steps
+G, L, S, transverse trace, divergence, and seven diagnostics. Derivative steps
 are identical for both inputs. Invalid background samples invalidate only
 the background/residual branches. Background nulls are allowed because the
 normalization is B, not |**B**₀|. Total nulls or invalid total stencils
 invalidate all projected results. A total Frenet normal is needed only for
 β_g and δ_g.
+
+Each branch's `gamma_over_abs_alpha` is A_k = Γ_k/|α_k|, evaluated in
+the same total-field frame. It is not a difference of total and background
+ratios. For a current-free background α_0 = 0 analytically, this ratio is
+undefined even when Γ_0 is nonzero; finite-difference noise may make it large
+and finite. A vanishing residual gradient also leaves its ratio undefined.
 
 This answers **which gradient contributes to the observed transverse
 operator**. It removes the explicit background gradient while retaining

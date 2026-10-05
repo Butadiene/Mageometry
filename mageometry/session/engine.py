@@ -257,6 +257,9 @@ class SessionEngine:
         if tracing:
             self._resolve_seeds(component)
         prepared, values, basis = self._get(key, branch, component)
+        # Gamma and eta share the cached transverse calculation and branch.
+        # Prepare both so changing colours never submits numerical work.
+        eta_values = self._get(key, branch, 'eta')[1] if component == 'gamma' else None
         paths, trace_status = [], 'disabled'
         if tracing:
             identity, _ = self._trace_options(key, prepared)
@@ -275,6 +278,7 @@ class SessionEngine:
         return dict(case=key, case_label=self.cases[key]['label'], component=component,
                     contribution=branch, kind=self.analysis['kind'],
                     axes=(grid.x, grid.y, grid.z), values=values, basis=basis,
+                    eta_values=eta_values,
                     paths=paths, trace_status=trace_status, metadata=metadata, scale=scale,
                     label=_component_label(component, self.analysis['current_unit'],
                                            self.analysis['length_unit'],

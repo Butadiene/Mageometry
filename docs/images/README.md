@@ -151,7 +151,8 @@ independent residual magnetic fields. See the
 | [comparison-by-negative.png](comparison-by-negative.png) | Total-field alpha, By = −5 nT |
 | [comparison-by-positive.png](comparison-by-positive.png) | Total-field alpha, By = +5 nT |
 
-Both use the default six-case comparison, direct 0.002 Re derivatives,
+Both use the original six-case example (By = −5, −3, −1, +1, +3, +5 nT;
+Dst = −20 nT; Bz = −5 nT), direct 0.002 Re derivatives,
 a 59 × 44 × 44 preview, the YZ plane at x = −6 Re, and a scale shared
 across all six cases. Regenerate with the
 [comparison commands](../viewer.md#comparison-screenshots), using `.[viz3d]`.

@@ -30,6 +30,18 @@ class TestGUICLI(unittest.TestCase):
                     save_session(session, path)
                     self.assertEqual(load_session(path)['groups'][0]['view']['component'], component)
 
+    def test_gamma_ratio_accepts_files_models_and_backgrounds_and_round_trips(self):
+        component = 'gamma_over_abs_alpha'
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'ratio.session.json'
+            for args in ([], ['--xmf', 'ea01sw000.xmf', '--stride', '4'],
+                         ['--background', 'dipole', '--contribution', 'residual']):
+                with self.subTest(args=args):
+                    session, _ = session_from_args([*args, '--component', component])
+                    self.assertEqual(session['groups'][0]['view']['component'], component)
+                    save_session(session, path)
+                    self.assertEqual(load_session(path)['groups'][0]['view']['component'], component)
+
     def test_help_without_optional_rendering_dependencies(self):
         code = """
 import importlib.abc
@@ -47,6 +59,10 @@ runpy.run_module('mageometry.gui', run_name='__main__')
         self.assertEqual(result.returncode, 0, result.stderr)
         for option in ('--layout', 'three_d_slice', '--by', '--xmf', '--session'):
             self.assertIn(option, result.stdout)
+        help_text = ' '.join(result.stdout.split())
+        self.assertIn('default: three_d_slice', help_text)
+        self.assertIn('By comparisons: -30', help_text)
+        self.assertIn('By comparisons: -10', help_text)
 
     def test_saved_session_keeps_analysis_and_accepts_layout_override(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -15,7 +15,8 @@ def geometry_view(gridded_field, component='alpha', *, background_choices=None,
         Magnetic snapshot in consistent Cartesian coordinates.
     component : str, optional
         Initial diagnostic: ``alpha`` (default), ``beta_g``, ``delta_g``, ``gamma``,
-        ``omega_c``, ``eta``, or any component accepted by :func:`current_view`.
+        ``gamma_over_abs_alpha``, ``omega_c``, ``eta``, or any component
+        accepted by :func:`current_view`.
     background_choices : mapping of str to callable or GriddedField, optional
         Named background presets for the GUI. No background is inferred from
         metadata. The BACKGROUND menu also provides None and a file browser.
@@ -29,7 +30,8 @@ def geometry_view(gridded_field, component='alpha', *, background_choices=None,
         Options forwarded to :func:`current_view`, including ``field``,
         ``geometry_delta``, ``slice_normal``, ``slice_only``, and ``show``.
         All five transverse rates have inverse-length units and ignore
-        ``current_scale``. Eta is dimensionless and also ignores scaling.
+        ``current_scale``. Eta and gamma_over_abs_alpha are dimensionless
+        and also ignore scaling.
         These diagnostics do not draw current arrows.
 
     Returns
@@ -37,7 +39,9 @@ def geometry_view(gridded_field, component='alpha', *, background_choices=None,
     pyvista.Plotter
         Shared interactive viewer with a diagnostic dropdown, signed peak
         projections, threshold regions, and movable slices. Gamma is
-        nonnegative and occupies the positive half of the shared colour scale.
+        nonnegative and uses a sequential colour scale starting at zero,
+        as do gamma_over_abs_alpha and B_kappa. The ratio is unbounded and
+        NaN at alpha = 0.
         Eta defaults to a fixed [-1, 1] scale and is NaN where both alpha
         and gamma are zero. Optional source metadata is shown in both modes.
         Background selection enables total/background/residual contributions
@@ -79,7 +83,9 @@ def compare_geometry(cases, component='alpha', *, initial_case=None,
         Initially displayed label; defaults to the first case. The first
         case always supplies default thresholds and automatic line seeds.
     color_limits : mapping of str to float, optional
-        Positive symmetric colour limits in displayed units per diagnostic.
+        Positive upper colour limits in displayed units per diagnostic.
+        Gamma, gamma_over_abs_alpha and B_kappa use [0, limit]; signed
+        diagnostics use [-limit, limit].
         Eta defaults to 1 (the full dimensionless range). Other diagnostics
         use the largest per-case 98th percentile of finite
         absolute values, falling back to the peak or 1 for zero/empty data.
@@ -151,13 +157,14 @@ def transverse_contribution_view(gridded_field, background, component='eta', *,
         have identical axes and compatible declared units. Both grids use the
         same preview sampling; callables use the total geometry difference step.
     component : str, optional
-        One of alpha, beta_g, delta_g, gamma, omega_c or eta (default).
+        One of alpha, beta_g, delta_g, gamma, gamma_over_abs_alpha, omega_c
+        or eta (default).
     contribution : {'total', 'background', 'residual'}, optional
         Initial contribution. F7/F8 or the left dropdown changes it.
     background_label : str, optional
         Declared background identity shown in source metadata.
     color_limits : mapping of str to float, optional
-        Shared symmetric limits, as in :func:`compare_geometry`.
+        Shared upper limits, as in :func:`compare_geometry`.
     **kwargs
         :func:`geometry_view` options, including ``background_choices``,
         ``background_loader`` and ``background_directory`` for GUI selection.

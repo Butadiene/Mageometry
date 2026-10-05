@@ -18,7 +18,8 @@ CONTRIBUTIONS = {'total': 'Total field', 'background': 'Background gradient',
 
 def _transverse_component(component):
     if not isinstance(component, str) or component not in TRANSVERSE_COMPONENTS:
-        raise ValueError('Contribution diagnostics must be alpha, beta_g, delta_g, gamma, omega_c or eta.')
+        raise ValueError('Contribution diagnostics must be alpha, beta_g, delta_g, gamma, '
+                         'gamma_over_abs_alpha, omega_c or eta.')
     return component
 
 

@@ -1,11 +1,14 @@
 """Render prepared session arrays without evaluating a magnetic field."""
 
+import weakref
+
 import numpy as np
 
 from ._pv import require_pyvista
 from .fac import _peak_projection, _region_seeds, _valid_volume
 from .slicer import _face_camera
 from ._text_layout import _TextLayout
+from ._current import _component_label, _component_color_range, _component_cmap
 
 
 def display_key(result):
@@ -24,6 +27,26 @@ def slice_axes(normal):
     """Return the horizontal/vertical unit vectors of the face-on slice."""
     direction, up = _face_camera(normal, np.zeros(3), 1.)
     return np.cross(up, direction), np.asarray(up)
+
+
+def _upright_camera(camera):
+    """Adopt world Z for orbiting, including an exact top/bottom view."""
+    if tuple(camera.up) == (0., 0., 1.):
+        return
+    offset = np.subtract(camera.position, camera.focal_point)
+    distance = np.linalg.norm(offset)
+    pole_margin = np.deg2rad(1.)
+    if distance and np.linalg.norm(offset[:2]) < distance * np.sin(pole_margin):
+        # Z cannot be both the viewing direction and view-up. Leave an axis
+        # view by one degree, preserving its screen-up direction at the pole.
+        horizontal = np.asarray(camera.up)[:2]
+        length = np.linalg.norm(horizontal)
+        horizontal = horizontal / length if length else np.array([0., 1.])
+        sign = np.copysign(1., offset[2])
+        offset[:2] = -sign * distance * np.sin(pole_margin) * horizontal
+        offset[2] = sign * distance * np.cos(pole_margin)
+        camera.position = np.asarray(camera.focal_point) + offset
+    camera.up = (0., 0., 1.)
 
 
 def difference_step_label(result):
@@ -73,6 +96,7 @@ class GeometryScene:
         self.mesh = self.volume = None
         self.projections = []
         self.limit = 1.
+        self.bar_names = {}
         self.updating = False
         for index in range(5):
             self.p.subplot(index)
@@ -80,6 +104,89 @@ class GeometryScene:
         self.text_layouts = [_TextLayout(self.p, renderer,
                             {'title': (.94, .22), 'validity': (.94, .06), 'empty': (.94, .06)})
                              for renderer in self.p.renderers]
+        self._configure_navigation()
+
+    def _configure_navigation(self):
+        from vtkmodules.vtkRenderingCore import VTKIS_ROTATE
+
+        # Terrain keeps view-up fixed and limits elevation before the poles.
+        # Handle Shift ourselves so left-button panning also releases VTK's
+        # captured focus. PyVista's wheel helper assumes a rectangular subplot
+        # grid, so select the renderer directly for our split layout.
+        self.p.iren.enable_terrain_style(mouse_wheel_zooms=False, shift_pans=False)
+        owner = weakref.ref(self)
+
+        def left_press(style, event):
+            scene = owner()
+            if scene is not None:
+                interactor = style.GetInteractor()
+                position = interactor.GetEventPosition()
+                if interactor.GetShiftKey() or any(
+                        renderer.GetDraw() and renderer.IsInViewport(*position)
+                        for renderer in scene.p.renderers[1:]):
+                    style.StartPan()
+
+        def mouse_move(style, event):
+            scene = owner()
+            if (scene is not None and style.GetState() == VTKIS_ROTATE
+                    and style.GetCurrentRenderer() is scene.p.renderers[0]):
+                _upright_camera(scene.p.renderers[0].camera)
+            style.OnMouseMove()
+
+        def left_release(style, event):
+            # Terrain normally ends PAN only on middle-button release.
+            style.OnMiddleButtonUp()
+
+        def wheel_zoom(style, event):
+            interactor = style.GetInteractor()
+            style.FindPokedRenderer(*interactor.GetEventPosition())
+            renderer = style.GetCurrentRenderer()
+            if renderer is None:
+                return
+            camera = renderer.GetActiveCamera()
+            # Match the existing trackball zoom sensitivity in both projections.
+            factor = 1.1**(2 if event == 'MouseWheelForwardEvent' else -2)
+            if camera.GetParallelProjection():
+                camera.SetParallelScale(camera.GetParallelScale() / factor)
+            else:
+                camera.Dolly(factor)
+            renderer.ResetCameraClippingRange()
+            if interactor.GetLightFollowCamera():
+                renderer.UpdateLightsGeometryToFollowCamera()
+            interactor.Render()
+
+        # PyVista retains responsibility for capturing the starting renderer
+        # and releasing it, including drags that cross panel boundaries.
+        style = self.p.iren.style
+        style.AddObserver('LeftButtonPressEvent', left_press, 1.)
+        style.AddObserver('LeftButtonReleaseEvent', left_release, 1.)
+        style.AddObserver('MouseMoveEvent', mouse_move)
+        style.AddObserver('MouseWheelForwardEvent', wheel_zoom)
+        style.AddObserver('MouseWheelBackwardEvent', wheel_zoom)
+
+    @property
+    def eta_colors(self):
+        return self.result['component'] == 'gamma' and self.view.get('gamma_eta', False)
+
+    @property
+    def color_component(self):
+        return 'eta' if self.eta_colors else self.result['component']
+
+    @property
+    def color_range(self):
+        return _component_color_range(self.color_component, self.limit)
+
+    @property
+    def color_key(self):
+        return self.result['kind'] + ':eta' if self.eta_colors else display_key(self.result)
+
+    @property
+    def color_label(self):
+        return _component_label('eta', None, '') if self.eta_colors else self.result['label']
+
+    @property
+    def default_color_limit(self):
+        return 1. if self.eta_colors else self.result['scale']['limit']
 
     def camera_state(self):
         states = {}
@@ -110,6 +217,7 @@ class GeometryScene:
         self.p.clear_plane_widgets()
         self.widget = None
         self.p.clear()
+        self.bar_names.clear()
         # Plotter.clear() removes lights as well as actors. Preserve the
         # light kit (or caller-supplied lights); otherwise even a smooth
         # sphere is rendered as a flat disc after opening or updating data.
@@ -126,6 +234,8 @@ class GeometryScene:
         # Build the potentially failing data objects before touching the scene.
         mesh = self.pv.RectilinearGrid(*result['axes'])
         mesh['value'] = result['values'].ravel(order='F')
+        if result.get('eta_values') is not None:
+            mesh['eta'] = result['eta_values'].ravel(order='F')
         volume = _valid_volume(mesh, result['values'])
         projection_data = []
         for axis in range(3):
@@ -238,7 +348,8 @@ class GeometryScene:
         value_sign = self.view.get('value_sign', 'both')
         if value_sign != 'both':
             subtitle += f'; {value_sign} only'
-        text = f"{r['case_label']}; {r['component']}; {r['contribution']}\n{subtitle}"
+        diagnostic = 'Gamma selection; eta colours' if self.eta_colors else r['component']
+        text = f"{r['case_label']}; {diagnostic}; {r['contribution']}\n{subtitle}"
         if index in (0, 1):
             text += (f"\n{r['analysis']['evaluation']}; {difference_step_label(r)}"
                      if 'resolved' in r else '')
@@ -253,7 +364,7 @@ class GeometryScene:
             return
         r, view, p = self.result, self.view, self.p
         key = display_key(r)
-        self.limit = view['color_limits'].get(key, r['scale']['limit'])
+        self.limit = view['color_limits'].get(self.color_key, self.default_color_limit)
         cutoff = max(view['thresholds'].get(key, r['scale']['threshold']), np.nextafter(0., 1.))
         interval = (view.get('value_intervals', {}).get(key)
                     if view.get('threshold_modes', {}).get(key) == 'interval' else None)
@@ -281,7 +392,9 @@ class GeometryScene:
             if np.isfinite(high) and region.n_cells:
                 region = region.clip_scalar(value=high, scalars='value', invert=True)
             if region.n_cells:
-                self._add(region.extract_surface(), name, color=color,
+                colors = (dict(scalars='eta', cmap='RdBu_r', clim=(-self.limit, self.limit),
+                               nan_opacity=0) if self.eta_colors else dict(color=color))
+                self._add(region.extract_surface(), name, **colors,
                           opacity=.5, smooth_shading=True)
         p.remove_actor('arrows', reset_camera=False, render=False)
         basis = r['basis']
@@ -297,21 +410,35 @@ class GeometryScene:
                 arrows['direction'] = np.sign(flat[selected, None]) * vectors[selected]
                 arrows['value'] = flat[selected]
                 self._add(arrows.glyph(orient='direction', scale=False, factor=.035 * self.mesh.length),
-                          'arrows', scalars='value', cmap='RdBu_r', clim=(-self.limit, self.limit))
+                          'arrows', scalars='value', cmap=_component_cmap(self.color_component),
+                          clim=self.color_range)
         description = (f'threshold {cutoff:.4g}' if interval is None else
                        f'{interval[0]:.4g} <= value <= {interval[1]:.4g}')
+        if self.eta_colors:
+            description += f" ({r['label']})"
         self._title(0, '3D overview; ' + description)
         self.set_trace_status(r.get('trace_status', 'ready'), render=False)
         for axis, (panel, projected) in enumerate(self.projections):
             p.subplot(axis + 2)
-            if interval is not None:
+            if self.eta_colors:
+                selected = (np.abs(values) >= cutoff if interval is None else
+                            (values >= interval[0]) & (values <= interval[1]))
+                valid = np.isfinite(values) & selected
+                indices = np.argmax(np.where(valid, np.abs(values), -np.inf), axis=axis)
+                colors = np.take_along_axis(r['eta_values'], np.expand_dims(indices, axis), axis=axis)
+                # Colour the Gamma peak at its own location. Undefined eta
+                # stays blank; never replace it with a different sightline sample.
+                panel['value'] = np.where(np.any(valid, axis=axis), colors.squeeze(axis), np.nan).ravel(order='F')
+            elif interval is not None:
                 selected_values = np.where((values >= interval[0]) & (values <= interval[1]), values, np.nan)
                 projected = _peak_projection(selected_values, axis).ravel(order='F')
             elif value_sign != 'both':
                 projected = _peak_projection(values, axis).ravel(order='F')
-            panel['value'] = projected if interval is not None else np.where(np.abs(projected) >= cutoff, projected, np.nan)
+            if not self.eta_colors:
+                panel['value'] = projected if interval is not None else np.where(np.abs(projected) >= cutoff, projected, np.nan)
             self._scalar(panel, 'projection')
-            self._title(axis + 2, f'{("YZ", "XZ", "XY")[axis]} signed peak along {"xyz"[axis]}')
+            peak = 'eta at Gamma peak' if self.eta_colors else 'signed peak'
+            self._title(axis + 2, f'{("YZ", "XZ", "XY")[axis]} {peak} along {"xyz"[axis]}')
         self.update_slice(render=False)
         self.update_visibility(render=False)
         p.subplot(0)
@@ -335,11 +462,12 @@ class GeometryScene:
         """Update mapper and legend ranges while retaining meshes and cameras."""
         if self.result is None:
             return
-        key = display_key(self.result)
-        self.limit = self.view['color_limits'].get(key, self.result['scale']['limit'])
-        shared = (-self.limit, self.limit)
+        key = self.color_key
+        self.limit = self.view['color_limits'].get(key, self.default_color_limit)
+        shared = self.color_range
         slice_range = self.view.get('slice_color_ranges', {}).get(key)
-        panels = (('arrows', 'slice'), ('slice',), ('projection',), ('projection',), ('projection',))
+        main = ('positive', 'negative', 'slice') if self.eta_colors else ('arrows', 'slice')
+        panels = (main, ('slice',), ('projection',), ('projection',), ('projection',))
         for index, names in enumerate(panels):
             renderer = self.p.renderers[index]
             for name in names:
@@ -351,33 +479,49 @@ class GeometryScene:
                 actor.mapper.lookup_table.scalar_range = limits
             bar_name = self._bar_name(index)
             if bar_name in self.p.scalar_bars:
-                manual_slice = index < 2 and slice_range is not None
+                regions = index == 0 and self._region_bar_actor() is not None
+                manual_slice = index < 2 and not regions and slice_range is not None
                 self.p.update_scalar_bar_range(slice_range if manual_slice else shared, name=bar_name)
                 self.p.scalar_bars[bar_name].SetTitle(
-                    self.result['label'] + (' / slice range' if manual_slice else ' / shared'))
+                    self.color_label + (' / regions' if regions else
+                                        ' / slice range' if manual_slice else ' / shared'))
         if render:
             self.p.render()
 
     def _bar_name(self, index):
-        return f"{self.result['label']} / shared [{index}]"
+        return f"{self.color_label} / shared [{index}]"
+
+    def _region_bar_actor(self):
+        if self.eta_colors:
+            actors = self.p.renderers[0].actors
+            return actors.get('positive') or actors.get('negative')
+        return None
 
     def _scalar(self, data, name, color_range=None):
         # Companion renderers use the same names. Plotter.remove_actor removes
         # matching actors in every renderer, including the shared 3D slice.
         self.p.renderer.remove_actor(name, reset_camera=False, render=False)
-        bar_name = self._bar_name(self.p.renderers.active_index)
-        if bar_name in self.p.scalar_bars:
-            self.p.remove_scalar_bar(bar_name, render=False)
-        actor = self._add(data, name, scalars='value', cmap='RdBu_r',
-                          clim=(-self.limit, self.limit) if color_range is None else color_range,
+        index = self.p.renderers.active_index
+        old_bar = self.bar_names.pop(index, None)
+        if old_bar in self.p.scalar_bars:
+            self.p.remove_scalar_bar(old_bar, render=False)
+        actor = self._add(data, name, scalars='value', cmap=_component_cmap(self.color_component),
+                          clim=self.color_range if color_range is None else color_range,
                           nan_opacity=0, lighting=False)
-        if actor is not None:
+        region_actor = self._region_bar_actor() if index == 0 else None
+        bar_actor = region_actor if region_actor is not None else actor
+        if bar_actor is not None:
             # One independent bar per renderer; slice bounds can be overridden.
-            bar = self.p.add_scalar_bar(title=bar_name, mapper=actor.mapper,
+            # In combined mode, the 3D legend belongs to the regions. The
+            # face-on slice legend reports any independent slice range.
+            bar_name = self._bar_name(index)
+            bar = self.p.add_scalar_bar(title=bar_name, mapper=bar_actor.mapper,
                                   color='#23344a', title_font_size=10, label_font_size=9,
                                   width=.8, height=.08, position_x=.1, position_y=.04,
                                   n_labels=3, render=False)
-            bar.SetTitle(self.result['label'] + (' / shared' if color_range is None else ' / slice range'))
+            bar.SetTitle(self.color_label + (' / regions' if region_actor is not None else
+                                            ' / shared' if color_range is None else ' / slice range'))
+            self.bar_names[index] = bar_name
         return actor
 
     def update_slice(self, render=True):
@@ -397,7 +541,9 @@ class GeometryScene:
                     sliced = sliced.clip(normal=axis, origin=axis * high, invert=True)
         if sliced.n_points:
             sliced['value'] = _values_for_sign(sliced['value'], self.view.get('value_sign', 'both'))
-        color_range = self.view.get('slice_color_ranges', {}).get(display_key(self.result))
+            if self.eta_colors:
+                sliced['value'] = np.where(np.isfinite(sliced['value']), sliced['eta'], np.nan)
+        color_range = self.view.get('slice_color_ranges', {}).get(self.color_key)
         self.p.subplot(0)
         actor = self._scalar(sliced, 'slice', color_range)
         if actor is not None:

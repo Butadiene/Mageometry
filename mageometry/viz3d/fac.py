@@ -7,8 +7,9 @@ from ._pv import get_plotter, require_pyvista
 from .mesh import to_rectilinear_grid, trace_polydata
 from .slicer import _face_camera
 from ._fac_slice import _FACSlice, _slice_settings
-from ._current import (COMPONENTS, COMPONENT_LABELS,
-                       TRANSVERSE_COMPONENTS, _component_label, _component_name)
+from ._current import (COMPONENTS, COMPONENT_LABELS, NONNEGATIVE_COMPONENTS,
+                       TRANSVERSE_COMPONENTS, _component_label, _component_name,
+                       _component_color_range, _component_cmap)
 from ._dropdown import _Dropdown
 from ._preview import _masked_field, _preview_indices, _sample_fac
 from ._overview_data import _OverviewData
@@ -84,7 +85,7 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
     component : str, optional
         Initial quantity: ``mu0J_T`` (default), ``mu0J_n``, ``mu0J_b``,
         ``mu0J_x``, ``mu0J_y``, ``mu0J_z``, ``alpha``, ``beta_g``, ``delta_g``,
-        ``gamma``, ``omega_c``, ``eta``, ``B_kappa``,
+        ``gamma``, ``gamma_over_abs_alpha``, ``omega_c``, ``eta``, ``B_kappa``,
         ``minus_dB_dn``, the parallel terms ``B_dT_dn_b`` / ``B_dn_db_T``,
         their signed difference ``B_twist_diff``, or the independent
         Cartesian ``fac`` diagnostic. Along-field scalar derivatives are
@@ -108,7 +109,8 @@ def current_view(gridded_field, component='mu0J_T', **kwargs):
         The same layout and controls as :func:`fac_view`, with component
         selection. Camera, slice position, and magnetic context lines stay
         fixed; each component remembers its threshold and has its own fixed
-        symmetric colour scale. Arrows follow its signed T/n/b or Cartesian
+        colour scale. Gamma, gamma_over_abs_alpha and B_kappa use [0, limit];
+        signed diagnostics use [-limit, limit]. Arrows follow its signed T/n/b or Cartesian
         basis. Transverse diagnostics and ``B_twist_diff`` have no current arrows.
 
     Notes
@@ -389,6 +391,8 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
         along = 'B' if direction == 'T' else direction
         positive = f'+ along {along}' if direction else '+ positive value'
         negative = f'- against {along}' if direction else '- negative value'
+        if component in NONNEGATIVE_COMPONENTS:
+            negative = ''
         plotter.add_text(positive, position=(0.035, 0.885), viewport=True,
                          font_size=12, color=_POSITIVE, name='fac-sign-positive')
         plotter.add_text(negative, position=(0.24, 0.885), viewport=True,
@@ -417,7 +421,7 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
         plotter.add_mesh(pv.Sphere(radius=planet_radius, center=planet_center),
                          color='#d7e0e8', smooth_shading=True, name='fac-planet')
 
-    # Peak maps retain a common zero-centred colour scale. Threshold masking
+    # Peak maps retain a common colour scale. Threshold masking
     # affects only their displayed arrays, never the underlying FAC values.
     panels = []
     for axis in range(3) if front_view else ():
@@ -428,8 +432,8 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
         panel = pv.RectilinearGrid(*axes)
         projected = _peak_projection(values, axis).ravel(order='F')
         panel.point_data[scalar_name] = projected.copy()
-        actor = plotter.add_mesh(panel, scalars=scalar_name, cmap='RdBu_r',
-                                 clim=(-limit, limit), nan_opacity=0,
+        actor = plotter.add_mesh(panel, scalars=scalar_name, cmap=_component_cmap(component),
+                                 clim=_component_color_range(component, limit), nan_opacity=0,
                                  lighting=False, show_scalar_bar=False,
                                  name='fac-projection')
         if axis == 2:
@@ -520,8 +524,9 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
             arrows['direction'] = np.sign(flat[selected, None]) * vectors[selected]
             arrows[scalar_name] = flat[selected]
             glyphs = arrows.glyph(orient='direction', scale=False, factor=0.035 * mesh.length)
-            actor = plotter.add_mesh(glyphs, scalars=scalar_name, clim=(-limit, limit),
-                                     cmap='RdBu_r', name='fac-arrows', show_scalar_bar=False,
+            actor = plotter.add_mesh(glyphs, scalars=scalar_name,
+                                     clim=_component_color_range(component, limit),
+                                     cmap=_component_cmap(component), name='fac-arrows', show_scalar_bar=False,
                                      reset_camera=False, render=False)
             actor.visibility = visibility['arrows']
         for panel, projected, _ in panels:
@@ -691,7 +696,9 @@ def _overview_view(gridded_field, field=None, delta=None, threshold=None,
             del panel.point_data[old_name]
             panel.point_data[scalar_name] = panels[axis][1].copy()
             actor.mapper.array_name = scalar_name
-            actor.mapper.scalar_range = (-limit, limit)
+            actor.mapper.lookup_table.apply_cmap(_component_cmap(component))
+            actor.mapper.scalar_range = _component_color_range(component, limit)
+            actor.mapper.lookup_table.scalar_range = actor.mapper.scalar_range
         if panels:
             plotter.remove_scalar_bar(old_label, render=False)
             plotter.subplot(3)

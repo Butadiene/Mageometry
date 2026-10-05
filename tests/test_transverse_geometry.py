@@ -27,7 +27,7 @@ class TestTransverseGeometry(unittest.TestCase):
         for x in (0., np.zeros((2, 3))):
             result = diagnostic(linear(p=2, q=-1, a=2, d=-2), x, 0., 0.)
             self.assertEqual(set(result), {'alpha', 'beta_g', 'delta_g', 'gamma',
-                                           'omega_c', 'eta', 'curvature'})
+                                           'gamma_over_abs_alpha', 'omega_c', 'eta', 'curvature'})
             np.testing.assert_allclose(result['alpha'], 3.)
             np.testing.assert_allclose(result['beta_g'], 1.)
             np.testing.assert_allclose(result['delta_g'], 4.)
@@ -54,6 +54,26 @@ class TestTransverseGeometry(unittest.TestCase):
                 for p, q, expected in ((2, -2, 1), (3, 3, -1), (4, 0, 0), (2, -1, 0.8)):
                     result = diagnostic(linear(p*strength, q*strength, k=0), 0., 0., 0.)
                     self.assertAlmostEqual(result['eta'], expected)
+
+    def test_gamma_ratio_is_nonnegative_unbounded_and_undefined_at_zero_alpha(self):
+        with np.errstate(all='raise'):
+            for strength in (1., 1e-100):
+                for p, q, a, d, expected in (
+                        (2, -2, 0, 0, 0.), (4, 0, 0, 0, 1.), (0, 4, 0, 0, 1.),
+                        (1, -1, 2, -2, 2.), (-1, 1, 2, -2, 2.)):
+                    with self.subTest(strength=strength, p=p, q=q, a=a):
+                        field = linear(p*strength, q*strength, a*strength, d*strength, k=0)
+                        result = diagnostic(field, 0., 0., 0.)
+                        self.assertIsInstance(result['gamma_over_abs_alpha'], float)
+                        self.assertAlmostEqual(result['gamma_over_abs_alpha'], expected)
+                        self.assertAlmostEqual(result['eta'], (1-expected**2)/(1+expected**2))
+            for field in (linear(0, 0, k=0), linear(3, 3, k=0), linear(0, 0, 2, -2, k=0)):
+                self.assertTrue(np.isnan(diagnostic(field, 0., 0., 0.)['gamma_over_abs_alpha']))
+            result = diagnostic(linear(1e-150, 0, .5, -.5, k=0), 0., 0., 0.)
+            self.assertAlmostEqual(result['gamma_over_abs_alpha'] / 1e150, 1.)
+        with np.errstate(over='raise', divide='raise', invalid='raise', under='ignore'):
+            result = diagnostic(linear(1e-310, 0, .5, -.5, k=0), 0., 0., 0.)
+            self.assertTrue(np.isnan(result['gamma_over_abs_alpha']))
 
     def test_straight_null_invalid_and_cutoff(self):
         r = diagnostic(linear(k=0), 0., 0., 0.)

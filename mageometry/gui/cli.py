@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ..session import empty_session, load_session, model_session, validate_session
 from ..session.cli import model_overrides, viewer_parser, validate_viewer_options
+from ..session.presets import comparison_session
 from ..session.specs import MODEL_PARAMETERS, new_id
 
 
@@ -41,8 +42,9 @@ def session_from_args(argv=None, *, default_component='alpha', description=None,
         parameters = {key: value for key, value in (default_model_parameters or {}).items()
                       if key in MODEL_PARAMETERS[model]}
         parameters.update(overrides.get('parameters', {}))
+        model_recipe = comparison_session if args.by is not None else model_session
         try:
-            session = empty_session() if has_file else model_session(args.by or (0.,),
+            session = empty_session() if has_file else model_recipe(args.by or (0.,),
                                                                      model=model, parameters=parameters)
         except ValueError as error:
             parser.error(str(error))

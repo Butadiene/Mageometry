@@ -20,12 +20,12 @@ analysis code; their controls and screenshots are specific to each interface.
 
 ```bash
 python -m mageometry.gui
-python -m mageometry.gui --by -5 -3 -1 1 3 5 --layout three_d_slice
+python -m mageometry.gui --by -10 -5 0 5 10 --layout three_d_slice
 python -m mageometry.gui --empty
 
 python -m mageometry.viz3d --component gamma
 python -m mageometry.viz3d --xmf snapshot.xmf --stride 4
-python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --component alpha
+python -m mageometry.viz3d --by -10 -5 0 5 10 --component alpha
 python -m mageometry.viz3d --background dipole --component eta --contribution residual
 python -m mageometry.viz3d --component fac --slice x --slice-origin -6 0 0 --slice-only --screenshot fac.png
 ```
@@ -68,8 +68,12 @@ Import model helpers (`model_snapshot`, `make_cases`, `make_fields`) from
 `mageometry.session.presets`. Replace imports from the removed `fac_viewer`
 example with `from mageometry.session.presets import model_snapshot`.
 `compare_t96_by.py` provides `make_cases` and `make_fields` wrappers using
-its five-case scan and shared Dst/Bz conditions. The underlying helpers accept
-explicit `dst` and `bz` keywords; their defaults remain −20 and −5 nT.
+the same five-case scan and Dst/Bz conditions as **New By comparison**, the
+desktop/standalone `--by` launchers, and the underlying helpers: Dst = −30 nT,
+Bz = −10 nT. Override these with CLI `--dst` / `--bz` or the helpers' `dst` /
+`bz` keywords. `comparison_session()` creates this preset as a portable recipe
+without evaluating fields. `model_snapshot()` and the standard single-model
+desktop retain Dst = −20 nT and Bz = −5 nT.
 
 ## Numerical examples and figures
 

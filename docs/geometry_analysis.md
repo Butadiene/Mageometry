@@ -118,7 +118,7 @@ np.testing.assert_allclose(rates['alpha'], 2 / (x**2 + 1), rtol=1e-5)
 | `field_line_current_density` | `mu0J_T/n/b`, `mu0J_x/y/z`, parallel terms, `B_twist_diff`, `alpha`, `B`, `curvature` | Currents in field/length; alpha and curvature in 1/length |
 | `field_aligned_current_density` | Cartesian curl(B)·T | Field/length |
 | `field_aligned_current_derivatives` | `dalpha_ds`, `dalpha_ds_over_B`, `dfac_ds` | 1/length²; 1/(field × length²); field/length² |
-| `field_line_transverse_geometry` | `alpha`, `beta_g`, `delta_g`, `gamma`, `omega_c`, `eta`, `curvature` | 1/length except dimensionless eta |
+| `field_line_transverse_geometry` | `alpha`, `beta_g`, `delta_g`, `gamma`, `gamma_over_abs_alpha`, `omega_c`, `eta`, `curvature` | 1/length except dimensionless eta and gamma_over_abs_alpha |
 
 The current API returns **μ₀J**, not J in SI units. In particular,
 `B_dT_dn_b + B_dn_db_T = mu0J_T`, while `B_twist_diff` is their signed

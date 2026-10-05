@@ -30,6 +30,21 @@ def small_session():
 
 
 class TestSessionRecipes(unittest.TestCase):
+    def test_gamma_eta_colouring_defaults_validates_and_round_trips(self):
+        session = small_session()
+        view = session['groups'][0]['view']
+        del view['gamma_eta']
+        self.assertFalse(validate_session(session)['groups'][0]['view']['gamma_eta'])
+        view.update(component='gamma', gamma_eta=True)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'gamma-eta.json'
+            save_session(session, path)
+            self.assertEqual(load_session(path)['groups'], session['groups'])
+        for value in (None, 0, 1, 'true', []):
+            view['gamma_eta'] = value
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, 'Gamma colouring'):
+                validate_session(session)
+
     def test_optional_ranges_and_trace_setting_preserve_legacy_defaults(self):
         session = small_session()
         group = session['groups'][0]
@@ -243,6 +258,9 @@ class TestSessionPreparation(unittest.TestCase):
                 result = engine.prepare(view)
                 expected = baseline.prepare(view['case'], component)
                 np.testing.assert_allclose(result['values'], expected.values, equal_nan=True)
+                if component == 'gamma':
+                    eta, _ = baseline.values(baseline.get(view['case']), 'eta')
+                    np.testing.assert_allclose(result['eta_values'], eta, equal_nan=True)
                 self.assertEqual(result['scale']['limit'], expected.scale.limit)
                 if result['basis'] is not None:
                     np.testing.assert_allclose(result['basis'], expected.basis, equal_nan=True)
@@ -266,6 +284,9 @@ class TestSessionPreparation(unittest.TestCase):
                     result = engine.prepare(dict(group['view'], case=case['id'], component=component, contribution=branch))
                     values, _ = expected.values(expected.get(branch), component)
                     np.testing.assert_allclose(result['values'], values, equal_nan=True)
+                    if component == 'gamma':
+                        eta, _ = expected.values(expected.get(branch), 'eta')
+                        np.testing.assert_allclose(result['eta_values'], eta, equal_nan=True)
                     finite = np.abs(values[np.isfinite(values)])
                     if len(finite):
                         percentiles.append(np.percentile(finite, 98))

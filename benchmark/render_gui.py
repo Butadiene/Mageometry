@@ -14,7 +14,9 @@ from pathlib import Path
 import sys
 import time
 
-from PySide6.QtCore import QPoint, Qt, QTimer
+import numpy as np
+from PySide6.QtCore import QPoint, QPointF, Qt, QTimer
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
@@ -23,8 +25,8 @@ from mageometry.gui.forms import SourceDialog
 from mageometry.session import load_session, model_session, save_session
 
 
-def check_3d_navigation(window):
-    """Send real Qt drags and ensure only the visible 3D camera rotates."""
+def check_3d_navigation(window, output):
+    """Send real Qt drags and check upright rotation of the visible 3D camera."""
     scene = window.scene
     assert window.plotter.renderers[0].lights, '3D illumination was lost during preparation'
     cameras = scene.camera_state()
@@ -47,13 +49,96 @@ def check_3d_navigation(window):
             QApplication.processEvents()
             after = scene.camera_state()
             assert before['0']['position'] != after['0']['position'], f'3D drag failed in {mode}'
+            np.testing.assert_allclose(after['0']['up'], [0., 0., 1.], atol=1e-12)
+            np.testing.assert_allclose(after['0']['focal_point'], before['0']['focal_point'])
             for index in range(1, 5):
                 assert before[str(index)] == after[str(index)], f'Hidden camera {index} moved'
+            QTest.mouseMove(target, start, delay=20)
+            assert scene.camera_state() == after, 'Hover continued a released orbit'
+        window.set_layout('three_d_slice')
+        for axis in ('x', 'y', 'z'):
+            window.axis_view(axis)
+            QApplication.processEvents()
+            for modifier in (Qt.KeyboardModifier.NoModifier, Qt.KeyboardModifier.ControlModifier):
+                QTest.mousePress(target, Qt.MouseButton.LeftButton, modifier, pos=start)
+                QTest.mouseMove(target, end, delay=30)
+                QTest.mouseRelease(target, Qt.MouseButton.LeftButton, modifier, pos=end)
+                QApplication.processEvents()
+                camera = window.plotter.renderers[0].camera
+                np.testing.assert_allclose(camera.up, [0., 0., 1.], atol=1e-12)
+                matrix = camera.GetViewTransformMatrix()
+                assert abs(matrix.GetElement(0, 2)) < 1e-12, 'World Z tilted sideways'
+                assert matrix.GetElement(1, 2) > 0., 'Orbit flipped upside down'
+        before = scene.camera_state()
+        QTest.mousePress(target, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, pos=start)
+        QTest.mouseMove(target, end, delay=30)
+        QTest.mouseRelease(target, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier, pos=end)
+        QApplication.processEvents()
+        after = scene.camera_state()
+        assert before['0']['focal_point'] != after['0']['focal_point'], 'Shift-pan failed in 3D'
+        np.testing.assert_allclose(
+            np.subtract(after['0']['position'], after['0']['focal_point']),
+            np.subtract(before['0']['position'], before['0']['focal_point']), atol=1e-10)
+        window.grab().save(str(output / 'workspace-turntable.png'))
+        save_session(window.saved_recipe(), output / 'workspace-turntable.session.json')
     finally:
         scene.view['plane'] = plane
         scene.restore_cameras(cameras)
         window.set_layout(layout)
-    print('Qt mouse rotation and layout round trips OK', flush=True)
+    print('Qt turntable rotation, axis views, Shift-pan and layout round trips OK', flush=True)
+
+
+def check_flat_navigation(window):
+    """Exercise face-on panning and zoom through real Qt mouse events."""
+    scene, target = window.scene, window.plotter.interactor
+    cameras, layout = scene.camera_state(), scene.view['layout']
+    normal, origin = list(scene.view['normal']), list(scene.view['origin'])
+    result, token = scene.result, window.request_token
+    try:
+        for mode in ('three_d_slice', 'slice', 'all', 'three_d_slice'):
+            window.set_layout(mode)
+            QApplication.processEvents()
+            for index in range(1, 5):
+                renderer = window.plotter.renderers[index]
+                if not renderer.GetDraw():
+                    continue
+                x0, y0, x1, y1 = renderer.GetViewport()
+                start = QPoint(int((x0 + .5*(x1 - x0))*target.width()),
+                               int((1 - y0 - .6*(y1 - y0))*target.height()))
+                end = start + QPoint(20, 15)
+                for button in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
+                    before = scene.camera_state()
+                    QTest.mousePress(target, button, pos=start)
+                    QTest.mouseMove(target, end, delay=30)
+                    QTest.mouseRelease(target, button, pos=end)
+                    QApplication.processEvents()
+                    after = scene.camera_state()
+                    key = str(index)
+                    np.testing.assert_allclose(
+                        np.subtract(after[key]['position'], after[key]['focal_point']),
+                        np.subtract(before[key]['position'], before[key]['focal_point']), atol=1e-10)
+                    np.testing.assert_allclose(after[key]['up'], before[key]['up'], atol=1e-10)
+                    assert before[key]['focal_point'] != after[key]['focal_point'], f'Pan failed in panel {index}'
+                    for other in before.keys() - {key}:
+                        assert before[other] == after[other], f'Pan moved panel {other}'
+                    QTest.mouseMove(target, start, delay=20)
+                    assert scene.camera_state() == after, 'Hover continued a released drag'
+                before = scene.camera_state()
+                wheel = QWheelEvent(QPointF(start), QPointF(target.mapToGlobal(start)),
+                                    QPoint(), QPoint(0, 120), Qt.MouseButton.NoButton,
+                                    Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+                QApplication.sendEvent(target, wheel)
+                QApplication.processEvents()
+                after = scene.camera_state()
+                assert before[str(index)]['parallel_scale'] != after[str(index)]['parallel_scale']
+                for other in before.keys() - {str(index)}:
+                    assert before[other] == after[other], f'Wheel moved panel {other}'
+        assert scene.view['normal'] == normal and scene.view['origin'] == origin
+        assert scene.result is result and window.request_token == token
+    finally:
+        scene.restore_cameras(cameras)
+        window.set_layout(layout)
+    print('Qt slice/projection pan, wheel zoom, hover and layout round trips OK', flush=True)
 
 
 def check_threshold_controls(window):
@@ -214,6 +299,7 @@ def main():
 
     def capture_first_field(result):
         accept_result(result)
+        assert window.result_mode.text() == 'Displayed: Model\nDirect model'
         if 'field_actors' not in state and result.get('trace_status') == 'pending':
             assert window.display_panel.isEnabled()
             assert not result['paths']
@@ -246,7 +332,8 @@ def main():
                     if name in state['field_actors'][index]:
                         assert renderer.actors[name] is state['field_actors'][index][name]
             print('Trace completion retained field actors and the adjusted camera', flush=True)
-            check_3d_navigation(window)
+            check_3d_navigation(window, args.output)
+            check_flat_navigation(window)
             check_threshold_controls(window)
             check_value_sign_control(window)
             check_model_source_forms(window, args.output)
@@ -297,6 +384,26 @@ def main():
             QApplication.processEvents()
             window.grab().save(str(args.output / 'workspace-no-trace.png'))
             save_session(window.saved_recipe(), args.output / 'workspace-no-trace.session.json')
+            window.components.setCurrentIndex(window.components.findData('gamma'))
+            state['index'] += 1
+        elif state['index'] == len(modes) + 3:
+            assert window.scene.result['component'] == 'gamma'
+            cameras = window.scene.camera_state()
+            result = window.scene.result
+            token = window.request_token
+            window.settings_dock.widget().setCurrentIndex(1)
+            window.display_panel.gamma_eta.setFocus()
+            QTest.keyClick(window.display_panel.gamma_eta, Qt.Key.Key_Space)
+            assert window.scene.eta_colors
+            assert window.scene.result is result and window.request_token == token
+            assert window.scene.camera_state() == cameras
+            actor = window.plotter.renderers[0].actors['positive']
+            assert actor.mapper.array_name == 'eta'
+            assert actor.mapper.scalar_range == (-1., 1.)
+            QApplication.processEvents()
+            window.grab().save(str(args.output / 'workspace-gamma-eta.png'))
+            window.scene.screenshot(args.output / 'plot-gamma-eta.png')
+            save_session(window.saved_recipe(), args.output / 'workspace-gamma-eta.session.json')
             window.set_layout('slice')
             save_session(window.saved_recipe(), args.output / 'session.json')
             window.new_session(load_session(args.output / 'session.json'))
@@ -308,7 +415,10 @@ def main():
             assert window.plotter.renderers[0].lights, '3D illumination was lost after restore'
             assert not window.analysis_form.trace_enabled.isChecked()
             assert not window.scene.result['paths']
+            assert window.scene.eta_colors and window.display_panel.gamma_eta.isChecked()
+            assert window.scene.result['component'] == 'gamma'
             print('Dataset switching, disabled tracing, numerical Apply and session restore OK', flush=True)
+            print('Gamma region selection, eta colours and session restore OK', flush=True)
             timer.stop()
             window.close()
 

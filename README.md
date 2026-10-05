@@ -60,7 +60,7 @@ Launch the unified desktop application after installing `.[gui]`:
 ```bash
 python -m mageometry.gui                          # one T96 + dipole case
 python -m mageometry.gui --model t89 --iopt 4     # T89 + dipole
-python -m mageometry.gui --by -5 -3 -1 1 3 5       # IMF By comparison
+python -m mageometry.gui --by -10 -5 0 5 10        # same preset as New By comparison
 python -m mageometry.gui --empty                  # add your own files
 python -m mageometry.gui --session session.json   # restore a saved recipe
 ```
@@ -79,7 +79,7 @@ session** stores the committed recipe and view as JSON; **Export PNG** saves
 the plot with a matching session recipe. The [workspace guide](docs/gui.md)
 covers background assignment, cancellation, input validation, and restore.
 The [3D viewer 日本語詳細ガイド](docs/gui_ja.md) explains every desktop
-control and all 21 diagnostics in Japanese, including units and sign conventions.
+control and all 22 diagnostics in Japanese, including units and sign conventions.
 
 ![Qt desktop workspace showing residual-gradient eta for IMF By = -5 nT, with case and analysis side panels](docs/images/gui-workspace.png)
 
@@ -96,7 +96,7 @@ standalone CLI with `.[viz3d]` (add `io` for XDMF/HDF5):
 ```bash
 python -m mageometry.viz3d --component gamma
 python -m mageometry.viz3d --xmf snapshot.xmf --stride 4
-python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --slice-only --screenshot comparison.png
+python -m mageometry.viz3d --by -10 -5 0 5 10 --slice-only --screenshot comparison.png
 ```
 
 `mageometry-viewer` launches the standalone CLI. Interactive example scripts
@@ -303,17 +303,20 @@ rates = field_line_transverse_geometry(field, x, y, z, delta=1e-3,
 # rates['alpha']: twice the azimuthal mean winding rate
 # rates['beta_g'], rates['delta_g']: signed shear components in the Frenet frame
 # rates['gamma']: nonnegative, basis-independent transverse anisotropy
+# rates['gamma_over_abs_alpha']: gamma/abs(alpha), dimensionless; NaN at alpha = 0
 # rates['omega_c']: signed local coiling rate
 # rates['eta']: (alpha**2-gamma**2)/(alpha**2+gamma**2), dimensionless
 # rates['curvature']: field-line curvature
 ```
 
-All returned values except dimensionless `eta` have inverse-length units.
-Eta is NaN when alpha and gamma are both zero. This API samples first
-Cartesian derivatives of B. `alpha`, `gamma`, `omega_c`, and `eta` do not require
-curved field lines; `beta_g` and `delta_g` need a curvature normal and become
-NaN at or below `curvature_tol`. Magnetic nulls and invalid stencils give
-NaN. The `alpha` returned by `field_line_current_density` uses the older
+All returned values except dimensionless `eta` and `gamma_over_abs_alpha`
+have inverse-length units. Eta is NaN when alpha and gamma are both zero;
+`gamma_over_abs_alpha` is NaN when alpha is zero. This API samples first
+Cartesian derivatives of B. `alpha`, `gamma`, `gamma_over_abs_alpha`,
+`omega_c`, and `eta` do not require curved field lines; `beta_g` and
+`delta_g` need a curvature normal and become NaN at or below `curvature_tol`.
+Magnetic nulls and invalid stencils give NaN. The `alpha` returned by
+`field_line_current_density` uses the older
 frame-derivative estimate and requires a valid Frenet frame; the estimates
 need not agree exactly at finite step size. See
 [definitions and interpretation](docs/transverse_geometry.md) and the
@@ -393,14 +396,15 @@ uses direct magnetic evaluations for derivatives and tracing; omitting
 `fields` uses grid interpolation.
 
 ```bash
-python -m mageometry.viz3d --by -5 -3 -1 1 3 5
+python -m mageometry.viz3d --by -10 -5 0 5 10
 python -m mageometry.viz3d --by -10 -5 0 5 10 --component gamma
-python -m mageometry.viz3d --by -5 -3 -1 1 3 5 --evaluation grid
+python -m mageometry.viz3d --by -10 -5 0 5 10 --evaluation grid
 ```
 
-The first command generates six independent T96 + dipole grids with IMF By
-`[-5, -3, -1, 1, 3, 5]` nT; other conditions stay fixed. No input data file
-is needed. The default directly evaluates the model with a 0.002 Re
+The first command generates five independent T96 + dipole grids with IMF By
+`[-10, -5, 0, 5, 10]` nT, with Dst = −30 nT and Bz = −10 nT shared across
+cases, matching **New By comparison** and `examples/compare_t96_by.py`.
+No input data file is needed. The default directly evaluates the model with a 0.002 Re
 difference step and a 65 × 49 × 49 display grid, matching the single-case
 model example's numerical settings. See the [comparison guide](docs/viewer.md#compare-datasets-in-python) for Python
 and file-input recipes, units, shared scales, memory limits, and screenshots.
@@ -420,7 +424,7 @@ python -m mageometry.viz3d --background dipole --component eta --contribution re
 ![Standalone total-field eta with source parameters, 3D regions, slice and peak maps](docs/images/viewer-eta-overview.png)
 
 The [component table](docs/viewer.md#read-the-colours-arrows-and-projections)
-defines all 21 choices, arrow directions and units. Red/blue encode the sign
+defines all 22 choices, arrow directions and units. Red/blue encode the sign
 in the selected basis. `B_twist_diff` is the signed shear difference of the
 two parallel-current terms; their **sum** remains the parallel current.
 Geometry rates and eta do not receive current conversion. Check numeric
