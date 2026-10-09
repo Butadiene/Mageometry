@@ -11,6 +11,7 @@ itself (|B| and components).
 """
 
 import numpy as np
+from ..geometry.line_profiles import _LineEvaluator, TRANSVERSE, ALONG_FIELD, CURRENT
 
 from ..geometry import (
     field_line_curvature,
@@ -103,6 +104,24 @@ _CURRENT_LABELS = {
 for _key, _label in _CURRENT_LABELS.items():
     QUANTITIES[_key] = Quantity(_current(_key), _label, symmetric=True)
 del _key, _label
+
+
+def _profile_quantity(key):
+    def evaluate(field, x, y, z, delta=0.01, **kw):
+        coords = np.broadcast_arrays(x, y, z)
+        points = np.column_stack([c.ravel() for c in coords])
+        return _LineEvaluator(field, points, delta).get(key).reshape(coords[0].shape)
+    return evaluate
+
+
+# Named plots and desktop profiles share the canonical first-gradient rates.
+for _key in TRANSVERSE + ALONG_FIELD + CURRENT:
+    _positive = _key in ('gamma', 'gamma_over_abs_alpha', 'B_kappa')
+    _label = {'gamma': 'Gamma', 'gamma_over_abs_alpha': 'Gamma/|alpha|'}.get(_key, _key)
+    QUANTITIES[_key] = Quantity(_profile_quantity(_key),
+                                _CURRENT_LABELS.get(_key, _label),
+                                symmetric=not _positive, positive=_positive)
+del _key, _positive, _label
 
 
 def resolve_quantity(quantity, label=None):

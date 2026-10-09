@@ -44,6 +44,7 @@ from .tracing import trace_field_lines, FieldLineTrace
 # Geometry analysis (primary API)
 from . import geometry
 from .geometry import (
+    field_line_profile,
     # Frenet-Serret frame
     field_line_tangent,
     field_line_curvature,
@@ -69,6 +70,7 @@ from .geometry import (
 )
 
 __all__ = [
+    "field_line_profile",
     # subpackages
     "geometry",
     "geopack",

@@ -361,7 +361,8 @@ class TestSessionJobs(unittest.TestCase):
                 self.assertEqual([kind for kind, _ in received], ['result', 'traces'])
                 self.assertEqual(received[0][1]['trace_status'], 'pending')
                 self.assertEqual(received[0][1]['paths'], [])
-                self.assertEqual(len(received[1][1]), 2)
+                self.assertEqual(len(received[1][1]['paths']), 2)
+                self.assertEqual(len(received[1][1]['records']), 2)
                 if repeat:
                     self.assertFalse(any(message.startswith('Loading') for message in messages))
                     self.assertFalse(any(message.startswith('Preparing') for message in messages))

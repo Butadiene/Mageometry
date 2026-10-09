@@ -15,7 +15,7 @@ On top of that foundation it provides:
 - **Field Line Tracing**: Batch tracing through any field callable with boundary interpolation, plus a separate tracer that follows the scalar geopack algorithm
 - **Coordinate Transforms**: Array-based transformations between GEI, GEO, GSM, GSE, SM, MAG, and GSW, plus spherical/Cartesian conversions
 - **Simulation Data and Visualization**: Rectilinear field grids, XDMF/HDF5 and VTK readers, optional Matplotlib plots and PyVista viewers
-- **Desktop Workspace (`mageometry.gui`)**: Optional Qt application for model/file setup, dataset and gradient-contribution comparisons, 3D/slice layouts, and saved analysis sessions
+- **Desktop Workspace (`mageometry.gui`)**: Optional Qt application for model/file setup, dataset and gradient-contribution comparisons, 3D/slice layouts, linked field-line profiles, and saved analysis sessions
 - **Validation**: Scalar/vectorized comparisons and analytic geometry tests with explicit numerical tolerances
 
 ## Installation
@@ -44,7 +44,7 @@ Choose optional dependencies for the features you use (run from the repository):
 | 2D plots (`matplotlib`) | `python -m pip install -e '.[viz]'` |
 | 3D viewers and VTK input (`pyvista >= 0.44`) | `python -m pip install -e '.[viz3d]'` |
 | XDMF/HDF5 in the 3D viewers | `python -m pip install -e '.[io,viz3d]'` |
-| Desktop workspace (PySide6, PyVistaQt, PyVista, h5py) | `python -m pip install -e '.[gui]'` |
+| Desktop workspace (PySide6, PyVistaQt, PyVista, Matplotlib, h5py) | `python -m pip install -e '.[gui]'` |
 | Tutorial notebooks and benchmarks | `python -m pip install -e '.[examples]'` |
 | Tests and optional plotting/input dependencies | `python -m pip install -e '.[dev]'` |
 
@@ -78,6 +78,10 @@ compare cases and total/background/residual gradient contributions. Choose
 session** stores the committed recipe and view as JSON; **Export PNG** saves
 the plot with a matching session recipe. The [workspace guide](docs/gui.md)
 covers background assignment, cancellation, input validation, and restore.
+Open **Line profile** to select a magnetic line, plot up to four pointwise
+diagnostics versus signed distance, and probe their positions in 3D. Profiles
+support image/CSV export with calculation metadata; see the
+[profile guide](docs/gui.md#profiles-along-a-magnetic-field-line).
 The [3D viewer 日本語詳細ガイド](docs/gui_ja.md) explains every desktop
 control and all 22 diagnostics in Japanese, including units and sign conventions.
 

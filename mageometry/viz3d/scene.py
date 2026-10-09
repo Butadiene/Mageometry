@@ -98,6 +98,8 @@ class GeometryScene:
         self.limit = 1.
         self.bar_names = {}
         self.updating = False
+        self.profile_pick = None
+        self.profile_cursor = None
         for index in range(5):
             self.p.subplot(index)
             self.p.set_background('#f5f7fa', all_renderers=False)
@@ -155,6 +157,13 @@ class GeometryScene:
                 renderer.UpdateLightsGeometryToFollowCamera()
             interactor.Render()
 
+        def right_press(style, event):
+            scene = owner()
+            if scene is not None and scene.profile_pick is not None:
+                scene.pick_profile_line(*style.GetInteractor().GetEventPosition())
+            else:
+                style.OnRightButtonDown()
+
         # PyVista retains responsibility for capturing the starting renderer
         # and releasing it, including drags that cross panel boundaries.
         style = self.p.iren.style
@@ -163,6 +172,8 @@ class GeometryScene:
         style.AddObserver('MouseMoveEvent', mouse_move)
         style.AddObserver('MouseWheelForwardEvent', wheel_zoom)
         style.AddObserver('MouseWheelBackwardEvent', wheel_zoom)
+        style.AddObserver('RightButtonPressEvent', right_press)
+        style.AddObserver('RightButtonReleaseEvent', lambda style, event: style.OnRightButtonUp())
 
     @property
     def eta_colors(self):
@@ -217,6 +228,7 @@ class GeometryScene:
         self.p.clear_plane_widgets()
         self.widget = None
         self.p.clear()
+        self.profile_cursor = None
         self.bar_names.clear()
         # Plotter.clear() removes lights as well as actors. Preserve the
         # light kit (or caller-supplied lights); otherwise even a smooth
@@ -295,26 +307,86 @@ class GeometryScene:
         """Replace context lines without rebuilding the field or moving cameras."""
         if self.result is None:
             return
-        points, cells, offset = [], [], 0
-        for path in paths:
+        points, cells, line_ids, offset = [], [], [], 0
+        for line_id, path in enumerate(paths):
             if len(path) >= 2:
                 points.append(path)
                 cells.extend([len(path), *range(offset, offset + len(path))])
+                line_ids.append(line_id)
                 offset += len(path)
         mesh = self.pv.PolyData(np.concatenate(points), lines=np.asarray(cells)) if points else None
+        if mesh is not None:
+            mesh.cell_data['line_id'] = np.asarray(line_ids)
+            mesh.cell_data.active_scalars_name = None
         active = self.p.renderers.active_index
         try:
             self.p.subplot(0)
             self.p.renderer.remove_actor('lines', reset_camera=False, render=False)
             if mesh is not None:
                 actor = self._add(mesh, 'lines', color='#778999', line_width=1.4,
-                                  opacity=.45, pickable=False)
+                                  opacity=.45, pickable=self.profile_pick is not None)
                 actor.visibility = self.view['lines']
             self.result['paths'] = paths
             self.set_trace_status(status, render=False)
         finally:
             self.p.subplot(active)
         if render:
+            self.p.render()
+
+    def set_profile_picking(self, callback=None):
+        """Enable explicit right-click selection of context lines only."""
+        self.profile_pick = callback
+        actor = self.p.renderers[0].actors.get('lines')
+        if actor is not None:
+            actor.SetPickable(callback is not None)
+        # The plane widget otherwise captures right-clicks before the style.
+        # Keep its slice visible while temporarily suspending its handle.
+        self._sync_plane_widget()
+        self.p.render()
+
+    def pick_profile_line(self, x, y):
+        from vtkmodules.vtkRenderingCore import vtkCellPicker
+
+        renderer = self.p.renderers[0]
+        actor = renderer.actors.get('lines')
+        if (self.profile_pick is None or actor is None or not actor.visibility
+                or not renderer.GetDraw() or not renderer.IsInViewport(x, y)):
+            return
+        picker = vtkCellPicker()
+        picker.SetTolerance(.004)
+        picker.PickFromListOn()
+        picker.AddPickList(actor)
+        if picker.Pick(x, y, 0, renderer) and picker.GetCellId() >= 0:
+            line_id = int(actor.mapper.dataset.cell_data['line_id'][picker.GetCellId()])
+            self.profile_pick(line_id)
+
+    def set_profile_line(self, record=None):
+        """Highlight an analysis line without changing cameras or scene filters."""
+        renderer = self.p.renderers[0]
+        for name in ('profile-line', 'profile-seed', 'profile-cursor'):
+            renderer.remove_actor(name, reset_camera=False, render=False)
+        self.profile_cursor = None
+        if record is not None:
+            active = self.p.renderers.active_index
+            try:
+                self.p.subplot(0)
+                if len(record['points']) > 1:
+                    mesh = self.pv.lines_from_points(record['points'])
+                    self._add(mesh, 'profile-line', color='#087f8c', line_width=4,
+                              pickable=False).SetUseBounds(False)
+                seed = self.pv.PolyData(np.array([record['seed']]))
+                self._add(seed, 'profile-seed', color='#087f8c', point_size=12,
+                          render_points_as_spheres=True, pickable=False).SetUseBounds(False)
+                self.profile_cursor = self.pv.PolyData(np.array([record['seed']]))
+                self._add(self.profile_cursor, 'profile-cursor', color='#ed9c28', point_size=10,
+                          render_points_as_spheres=True, pickable=False).SetUseBounds(False)
+            finally:
+                self.p.subplot(active)
+        self.p.render()
+
+    def set_profile_cursor(self, point):
+        if self.profile_cursor is not None:
+            self.profile_cursor.points = np.asarray(point).reshape(1, 3)
             self.p.render()
 
     def set_trace_status(self, status, render=True):
@@ -630,7 +702,7 @@ class GeometryScene:
 
     def _sync_plane_widget(self):
         if self.widget is not None and self.view is not None:
-            enabled = self.view['layout'] != 'slice' and self.view['plane']
+            enabled = self.view['layout'] != 'slice' and self.view['plane'] and self.profile_pick is None
             if bool(self.widget.GetEnabled()) != enabled:
                 if enabled:
                     # Disabling a VTK widget clears its renderer.

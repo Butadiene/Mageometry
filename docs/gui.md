@@ -18,7 +18,7 @@ python -m pip install -e '.[gui]'
 python -m mageometry.gui  # one T96 + dipole case, alpha, total field
 ```
 
-The extra installs PySide6, PyVistaQt, PyVista and h5py. A working desktop
+The extra installs PySide6, PyVistaQt, PyVista, Matplotlib and h5py. A working desktop
 OpenGL display is needed for the Qt window. `examples/geometry_gui.py` and
 the installed `mageometry-gui` command launch the same application.
 
@@ -201,6 +201,62 @@ label reads **Displayed: None / Awaiting calculation**. The label follows
 the displayed result, so draft edits, pending requests and failed calculations
 do not relabel an older plot. **Analysis → Evaluation** edits the method
 to use on the next Apply.
+
+## Profiles along a magnetic field line
+
+Open **Line profile** for a resizable panel below the spatial views. Select
+a seed from the list, or enable **Select line in 3D** and **right-click a
+visible grey line in the 3D panel**. Left-drag still rotates. The selected
+line and seed are teal; the orange marker follows the nearest evaluated
+sample under the graph cursor without changing the seed, plane or camera.
+
+The default graphs show the selected diagnostic and |B|. **Quantities…** pins
+up to four diagnostics in separate rows with a shared distance axis;
+**Follow diagnostic** restores the default. Use the graph toolbar to pan/zoom
+and **Fit graphs** to restore automatic ranges (eta uses [-1, 1]). Manual
+ranges report samples outside the visible y range. The 3D threshold, sign
+and visibility filters do not remove profile samples.
+
+Distance s is zero at the seed and increases along **B**, also for
+against-B-only traces. Both endpoint termination reasons are shown; a step
+limit or domain boundary is not an inferred magnetic footpoint. Missing
+diagnostics remain gaps, and completely undefined rows are labelled.
+Undefined Frenet components do not hide finite alpha, Gamma or |B|.
+
+Profiles evaluate diagnostics **at adaptive trace points**, using the same
+effective field as tracing: the model in direct mode, or the masked and
+possibly coarsened preview interpolant in grid mode. They do not interpolate
+displayed diagnostic arrays. Values can therefore differ from slice colours,
+especially grid FAC and along-B derivatives. Geometry uses the committed
+Geometry step. Pointwise FAC uses the committed FAC override in direct mode
+and Geometry step in grid mode; its derivative uses the same inner FAC step.
+This differs from the viewer's grid-node FAC and outer-derivative stencils.
+The panel identifies the method; its tooltip records preview spacing/shape
+and FAC step. Trace step, nonuniform sample spacing and derivative step have
+different roles. Check trace-step and derivative/grid convergence; accurate
+tracing alone does not guarantee resolution of every scalar feature.
+
+In **Gradient attribution**, profiles support the seven transverse diagnostics
+and total |B|. The selected contribution uses the total-field path, frame and
+normalization. This version shows one line and case/contribution at a time.
+Changing cases retains the physical seed when it exists.
+
+**Export…** writes PNG/SVG/PDF or CSV plus matching `.profile.json` metadata:
+source conditions, input fingerprints, numerical settings, units, multipliers,
+termination reasons and plot settings. CSV includes **every** evaluation point,
+also outside the zoomed range, with s/x/y/z, native/displayed values and validity.
+Session save/restore retains visibility, seed, pinned diagnostics, axis limits
+and cursor; arrays are recomputed. Unapplied edits never enter a displayed profile.
+
+If tracing is disabled or unfinished, the panel explains the state. Enter
+positions in **Trace seeds**, enable tracing and Apply. If a saved seed is
+removed, select a replacement explicitly. Slice-based seed creation and
+multi-line/case overlays are reserved for later work.
+
+![Pointwise alpha, Gamma and eta along a selected total-field line](images/gui-line-profile.png)
+
+Regenerate and exercise real Qt selection, export and restore with
+`python benchmark/profile_line_screenshot.py --output /tmp/mageometry-profiles`.
 
 ## Background contributions across cases
 

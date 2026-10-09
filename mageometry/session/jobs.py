@@ -12,22 +12,27 @@ class Cancelled(Exception):
     pass
 
 
-def _worker(requests, responses, generation):
+def _worker(requests, responses, generation, profile_generation):
     engine = None
     previous_key = None
     while True:
         request = requests.get()
         if request is None:
             return
-        token, group = request
+        token, group, profile = request
         if token != generation.value:
+            continue
+        if profile is not None and profile['id'] != profile_generation.value:
             continue
 
         def progress(message):
             if token != generation.value:
                 raise Cancelled()
+            if profile is not None and profile['id'] != profile_generation.value:
+                raise Cancelled()
             if message:
-                responses.put((token, 'progress', message))
+                if profile is None:
+                    responses.put((token, 'progress', message))
 
         try:
             key = calculation_key(group)
@@ -38,17 +43,26 @@ def _worker(requests, responses, generation):
             for identity, records in group.get('resolved', {}).get('inputs', {}).items():
                 if identity in engine.inputs:
                     engine._verify_fingerprint(records, engine.inputs[identity], identity)
+            if profile is not None:
+                data = engine.prepare_profile(group['view'], profile['seed_id'], profile['quantities'])
+                progress('')
+                responses.put((token, 'profile', dict(id=profile['id'], data=data)))
+                continue
             result = engine.prepare(group['view'], include_traces=False)
             progress('')
             responses.put((token, 'result', result))
             if result['trace_status'] == 'pending':
                 paths = engine.prepare_traces(group['view'])
                 progress('')
-                responses.put((token, 'traces', paths))
+                responses.put((token, 'traces', dict(paths=paths, records=engine.trace_records(group['view']))))
         except Cancelled:
-            responses.put((token, 'cancelled', None))
+            if profile is None:
+                responses.put((token, 'cancelled', None))
         except Exception as exc:
-            responses.put((token, 'error', (str(exc), traceback.format_exc())))
+            if profile is None:
+                responses.put((token, 'error', (str(exc), traceback.format_exc())))
+            else:
+                responses.put((token, 'profile_error', dict(id=profile['id'], message=str(exc))))
 
 
 class JobRunner:
@@ -57,10 +71,11 @@ class JobRunner:
     def __init__(self):
         context = mp.get_context('spawn')
         self.generation = context.Value('q', 0)
+        self.profile_generation = context.Value('q', 0)
         self.requests = context.Queue()
         self.responses = context.Queue()
         self.process = context.Process(target=_worker,
-                                       args=(self.requests, self.responses, self.generation),
+                                       args=(self.requests, self.responses, self.generation, self.profile_generation),
                                        daemon=True)
         self.process.start()
         self.closed = False
@@ -68,10 +83,22 @@ class JobRunner:
     def submit(self, group):
         self.cancel()
         token = self.generation.value
-        self.requests.put((token, deepcopy(group)))
+        self.requests.put((token, deepcopy(group), None))
         return token
 
+    def submit_profile(self, group, seed_id, quantities):
+        """Queue a profile without cancelling the field or its pending traces."""
+        self.cancel_profile()
+        token, identity = self.generation.value, self.profile_generation.value
+        self.requests.put((token, deepcopy(group), dict(id=identity, seed_id=seed_id, quantities=list(quantities))))
+        return token, identity
+
+    def cancel_profile(self):
+        with self.profile_generation.get_lock():
+            self.profile_generation.value += 1
+
     def cancel(self):
+        self.cancel_profile()
         with self.generation.get_lock():
             self.generation.value += 1
 

@@ -79,10 +79,12 @@ class FieldLineTrace:
     status_backward : ndarray of int or None
         Termination code at the -B end for ``direction='both'``; None
         otherwise.
+    direction : {1, -1, 'both'}
+        Integration direction. Profiles can use this to orient distance along B.
     """
 
     def __init__(self, x, y, z, s, nsteps, start_index, status,
-                 status_backward=None):
+                 status_backward=None, direction=None):
         self.x = x
         self.y = y
         self.z = z
@@ -91,6 +93,7 @@ class FieldLineTrace:
         self.start_index = start_index
         self.status = status
         self.status_backward = status_backward
+        self.direction = ('both' if status_backward is not None else 1) if direction is None else direction
 
     @property
     def n_lines(self):
@@ -216,7 +219,7 @@ def trace_field_lines(field, x, y, z, direction=1, ds=0.1, *, err=1e-3,
         x, y, z, s, nsteps, status = res
         n = x0.size
         return FieldLineTrace(x, y, z, s, nsteps, np.zeros(n, dtype=np.int64),
-                              status)
+                              status, direction=direction)
     raise ValueError("direction must be 1, -1, or 'both'.")
 
 

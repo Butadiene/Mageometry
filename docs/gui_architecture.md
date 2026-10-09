@@ -112,6 +112,29 @@ frame and total-field tracing; its mathematical contract is in the
 
 ## Persistence and validation
 
+Line profiles retain a separate oriented trace record (points, integrated s,
+physical seed identity, integration direction and both termination codes)
+alongside the existing renderer paths. The scientific profile evaluator lives
+in `geometry/line_profiles.py` and caches quantity families at adaptive points.
+`alpha` always uses first magnetic derivatives, independently of Frenet validity.
+Profiles use the trace's effective field; grid mode therefore retains preview
+coarsening and pointwise derivatives rather than sampling displayed arrays.
+
+Profile requests share the serial numerical process but have a separate request
+generation. Adding a quantity never cancels a field/trace request. Requests wait
+until context traces have arrived; superseded profile evaluations check their
+generation at field calls. The controller rejects stale source or profile
+responses before updating the panel. Workers return only arrays and metadata;
+cursor motion and line highlighting never evaluate the field. A bounded
+per-engine cache retains selected-line quantity families.
+
+The optional `view.profile` mapping stores visibility, physical seed ID, pinned
+quantities, axis ranges and cursor. Missing mappings receive closed-panel defaults.
+The panel uses committed recipes, and selection of a removed seed remains empty.
+CSV exports contain all native/displayed samples; image and CSV exports have
+matching provenance JSON. The screenshot/interaction recipe is
+`benchmark/profile_line_screenshot.py`.
+
 Save/export uses committed recipes plus their current view. A field published
 before its traces is already committed. Saving it retains requested trace
 settings and resolved seeds; reopening completes tracing again. Cancelled or

@@ -46,8 +46,10 @@ from .field_line_current import (
 
 from .field_line_transverse import (field_line_transverse_geometry,
                                     field_line_transverse_decomposition)
+from .line_profiles import field_line_profile
 
 __all__ = [
+    "field_line_profile",
     "field_line_transverse_geometry",
     "field_line_transverse_decomposition",
     "field_line_geometry",

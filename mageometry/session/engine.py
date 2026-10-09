@@ -8,12 +8,14 @@ from pathlib import Path
 import numpy as np
 
 from ..tracing import trace_field_lines
+from ..geometry.line_profiles import profile_coordinates, _LineEvaluator, TRANSVERSE
 from ..viz3d._overview_data import _OverviewData, _validate_cases
 from ..viz3d._contribution_data import _ContributionData, CONTRIBUTIONS
 from ..viz3d._current import COMPONENTS, _component_label
 from ..viz3d.fac import _region_seeds
 from .sources import load_source, fingerprint, source_label
 from .specs import DEFAULT_GEOMETRY_DELTA
+from .profiles import profile_label, profile_multiplier
 
 
 def calculation_key(group):
@@ -76,6 +78,7 @@ class SessionEngine:
         self.contributions = OrderedDict()
         self.statistics = {}
         self.traces = OrderedDict()
+        self.profiles = OrderedDict()
         self.seeds = None if a['seeds'] is None else np.array(a['seeds'], dtype=float).reshape(-1, 3)
         if a['kind'] == 'attribution':
             for key in ordered:
@@ -204,7 +207,7 @@ class SessionEngine:
     def _trace_paths(self, key, prepared):
         identity, options = self._trace_options(key, prepared)
         if identity not in self.traces:
-            paths = []
+            paths, records = [], []
 
             def field(x, y, z):
                 # Check cancellation at every RK field evaluation, including retries.
@@ -216,12 +219,82 @@ class SessionEngine:
                 seeds = self.seeds[start:start + 32]
                 trace = trace_field_lines(field, *seeds.T, **options)
                 paths.extend(np.column_stack(trace.path(i)) for i in range(len(seeds)))
+                for i in range(len(seeds)):
+                    record = profile_coordinates(trace, i)
+                    record['line_id'] = start + i
+                    # Physical coordinates survive reordering and case changes.
+                    record['seed_id'] = json.dumps(record['seed'].tolist())
+                    records.append(record)
             self.check()
-            self.traces[identity] = paths
+            self.traces[identity] = dict(paths=paths, records=records)
             while len(self.traces) > self.analysis['cache_size']:
                 self.traces.popitem(last=False)
         self.traces.move_to_end(identity)
-        return self.traces[identity]
+        return self.traces[identity]['paths']
+
+    def trace_records(self, view):
+        """Return completed oriented traces without initiating integration."""
+        if not self.analysis.get('trace_enabled', True) or self.seeds is None:
+            return []
+        prepared = self.total.get(view['case'])
+        identity, _ = self._trace_options(view['case'], prepared)
+        return self.traces.get(identity, {}).get('records', [])
+
+    def prepare_profile(self, view, seed_id, quantities):
+        """Evaluate only the requested line, using the committed effective field."""
+        self.verify_inputs()
+        if not self.analysis.get('trace_enabled', True):
+            raise ValueError('Enable tracing and Apply before requesting a profile.')
+        names = tuple(dict.fromkeys(quantities))
+        if not names or len(names) > 4:
+            raise ValueError('Select between one and four profile quantities.')
+        key, branch = view['case'], view['contribution']
+        if self.analysis['kind'] == 'attribution' and any(n not in TRANSVERSE + ('bmag',) for n in names):
+            raise ValueError('Attribution profiles support transverse diagnostics and total |B|.')
+        self._resolve_seeds(view['component'])
+        prepared = self.total.get(key)
+        self._trace_paths(key, prepared)
+        record = next((r for r in self.trace_records(view) if r['seed_id'] == seed_id), None)
+        if record is None:
+            raise ValueError('The selected seed is no longer in this result.')
+        identity, options = self._trace_options(key, prepared)
+        cache_key = identity, seed_id, branch
+        if cache_key not in self.profiles:
+            background = None
+            if self.analysis['kind'] == 'attribution':
+                background = self._data(key).profile_background()
+
+            def field(x, y, z):
+                self.check()
+                return prepared.field(x, y, z)
+
+            self.profiles[cache_key] = _LineEvaluator(
+                field, record['points'], prepared.cache.delta,
+                fac_delta=prepared.cache.fac_delta if self.fields is not None else prepared.cache.delta,
+                background=background, contribution=branch)
+        evaluator = self.profiles[cache_key]
+        self.profiles.move_to_end(cache_key)
+        while len(self.profiles) > self.analysis['cache_size'] * 4:
+            self.profiles.popitem(last=False)
+        native = {}
+        for name in names:
+            self.progress(f'Profile: {name}')
+            native[name] = evaluator.get(name).copy()
+        self.check()
+        metadata = deepcopy(self.grids[key].metadata)
+        return dict(record, native_values=native,
+                    values={name: values * profile_multiplier(name, self.analysis) for name, values in native.items()},
+                    labels={name: profile_label(name, self.analysis, metadata) for name in names},
+                    multipliers={name: profile_multiplier(name, self.analysis) for name in names},
+                    case=key, case_label=self.cases[key]['label'], contribution=branch,
+                    metadata=metadata, analysis=deepcopy(self.analysis), source=deepcopy(self.cases[key]),
+                    inputs=deepcopy(self.inputs), revision=self.group.get('revision'),
+                    evaluation='pointwise ' + ('direct model' if self.fields is not None else 'preview grid interpolant'),
+                    geometry_delta=evaluator.delta, fac_delta=evaluator.fac_delta,
+                    preview_shape=list(prepared.preview.shape),
+                    grid_spacing=[float(np.min(np.diff(axis))) for axis in
+                                  (prepared.preview.x, prepared.preview.y, prepared.preview.z)],
+                    trace_options=options)
 
     def prepare_traces(self, view):
         """Finish pending total-field paths after publishing diagnostic arrays."""
@@ -279,7 +352,7 @@ class SessionEngine:
                     contribution=branch, kind=self.analysis['kind'],
                     axes=(grid.x, grid.y, grid.z), values=values, basis=basis,
                     eta_values=eta_values,
-                    paths=paths, trace_status=trace_status, metadata=metadata, scale=scale,
+                    paths=paths, trace_records=self.trace_records(view), trace_status=trace_status, metadata=metadata, scale=scale,
                     label=_component_label(component, self.analysis['current_unit'],
                                            self.analysis['length_unit'],
                                            field_unit=metadata.get('field_unit', 'field unit')),

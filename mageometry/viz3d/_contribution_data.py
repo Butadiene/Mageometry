@@ -56,19 +56,22 @@ class _ContributionData(_OverviewData):
         metadata['parameters'] = parameters
         return metadata
 
+    def profile_background(self):
+        """Return the same masked background interpolant used by the preview."""
+        background = self.background
+        if isinstance(background, GriddedField):
+            indices = _preview_indices(background.shape, self.options['max_points'])
+            axes = [axis[index] for axis, index in zip((background.x, background.y, background.z), indices)]
+            components = [background.b[..., i][np.ix_(*indices)] for i in range(3)]
+            background = GriddedField(*axes, *components).field()
+        return _masked_field(background, self.options['mask'])
+
     def get(self, case):
         if case not in self.cases:
             raise ValueError(f'Unknown contribution {case!r}.')
         if not self.cache:
             total = _PreparedCase(self.cases[self.reference], **self.options)
-            background = self.background
-            if isinstance(background, GriddedField):
-                indices = _preview_indices(background.shape, self.options['max_points'])
-                axes = [axis[index] for axis, index in zip(
-                    (background.x, background.y, background.z), indices)]
-                components = [background.b[..., i][np.ix_(*indices)] for i in range(3)]
-                background = GriddedField(*axes, *components).field()
-            background = _masked_field(background, self.options['mask'])
+            background = self.profile_background()
             coords = np.meshgrid(total.preview.x, total.preview.y, total.preview.z, indexing='ij')
             valid = np.all(np.isfinite(total.preview.b), axis=-1)
             result = field_line_transverse_decomposition(

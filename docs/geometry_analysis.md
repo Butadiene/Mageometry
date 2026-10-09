@@ -129,9 +129,9 @@ J in nA/m²; other input units require their own conversion.
 The Frenet reconstruction needs a valid normal, including for its Cartesian
 outputs and `alpha`. The independent Cartesian FAC calculation does not.
 Transverse `alpha` uses first derivatives of B and is also defined on
-straight lines. General named-quantity plotters (`viz.plot_geometry_map`,
-`viz3d.slice_view`) use the legacy current API's `alpha`; the geometry
-overview uses transverse `alpha`. See [transverse definitions](transverse_geometry.md)
+straight lines. Named-quantity plotters, line profiles and the geometry
+overview use this first-gradient `alpha`. The explicit current API retains
+its Frenet reconstruction. See [transverse definitions](transverse_geometry.md)
 for the validity and interpretation of each rate.
 
 `verify_divergence_identity(field, x, y, z, delta=...)` returns the
@@ -219,3 +219,43 @@ NaN out-of-domain fill. `ds` is a nominal integration step; it is separate
 from the geometry derivative step `delta`. The engine tracer
 `geopack.trace_vectorized` has different return values and the opposite
 direction-sign convention; see its [reference table](../README.md#field-line-tracing-1).
+
+## Pointwise line profiles
+
+`field_line_profile` evaluates diagnostics at the adaptive trace points,
+without a plotting dependency. Use the same effective field for tracing
+and profiling:
+
+```python
+from mageometry.geometry import field_line_profile
+profile = field_line_profile(field, trace, line=0,
+                            quantities=('alpha', 'gamma', 'eta', 'bmag'), delta=delta)
+distance = profile['s']
+alpha = profile['values']['alpha']
+valid = profile['valid']['alpha']
+```
+
+The result also carries Cartesian `points`, `seed`, `seed_index`, the original
+`direction`, and `status_minus`/`status_plus` (None on an untraced side).
+Distance always increases along B and is zero at the seed. Against-B-only
+profiles reverse the coordinate ordering and negate distance, leaving the
+input trace and all physical component signs unchanged. `FieldLineTrace.direction`
+records the original integration direction; manually constructed traces
+should supply it explicitly when they represent against-B integration.
+
+Values are native-unit quantities; currents are mu0 J. Optional `fac_delta`
+overrides the Cartesian FAC stencil. `background=` and `contribution=` support
+the transverse gradient decomposition in the total-field frame, retaining
+total |B|. No undefined values are replaced by zeros or interpolated across.
+
+`viz.plot_line_profiles` uses the same orientation and first-gradient rates:
+
+```python
+from mageometry import viz
+axes = viz.plot_line_profiles(trace, field, quantities=('alpha', 'gamma', 'eta'),
+                              delta=delta, unit='length unit')
+```
+
+These are pointwise evaluations, not samples of the rendered diagnostic grid.
+For GUI controls and differences from grid-node derivatives, see
+[desktop profiles](gui.md#profiles-along-a-magnetic-field-line).

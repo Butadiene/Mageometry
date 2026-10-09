@@ -17,11 +17,12 @@ from ..viz3d._source_info import _source_lines
 from ..viz3d.scene import GeometryScene, difference_step_label, display_key
 from .forms import AnalysisForm, SourceDialog, numbers, line
 from .display import DisplayPanel
+from .profiles import ProfilePanel
 
 DISPLAY_KEYS = ('normal', 'origin', 'layout', 'previous_layout', 'panels_hidden',
                 'thresholds', 'threshold_slider_limits', 'threshold_modes', 'value_intervals',
                 'color_limits', 'slice_color_ranges', 'slice_extent', 'cameras',
-                'lines', 'arrows', 'regions', 'plane', 'value_sign', 'gamma_eta')
+                'lines', 'arrows', 'regions', 'plane', 'value_sign', 'gamma_eta', 'profile')
 
 
 class MainWindow(W.QMainWindow):
@@ -35,6 +36,7 @@ class MainWindow(W.QMainWindow):
         self.pending = None
         self.request_token = None
         self.trace_token = None
+        self.profile_request = None
         self.runner = runner
         self.busy = False
         self.syncing = False
@@ -111,6 +113,8 @@ class MainWindow(W.QMainWindow):
             button.setCheckable(True)
             self.mode_buttons[key] = button
         self.panels_button = self._button('Hide side panels', self.toggle_panels, modes)
+        self.profile_button = self._button('Line profile', self.toggle_profile, modes)
+        self.profile_button.setCheckable(True)
         self._button('Reset / fit', self.scene_reset, modes)
         for axis in 'xyz':
             self._button('View ' + axis, lambda a=axis: self.axis_view(a), modes)
@@ -154,8 +158,21 @@ class MainWindow(W.QMainWindow):
         self.slider.valueChanged.connect(self.move_slider)
 
         self.plotter = QtInteractor(central, shape='1|4', auto_update=False, border=False)
-        layout.addWidget(self.plotter.interactor, 1)
+        self.plot_splitter = W.QSplitter(C.Qt.Orientation.Vertical)
+        self.plot_splitter.addWidget(self.plotter.interactor)
+        layout.addWidget(self.plot_splitter, 1)
         self.scene = GeometryScene(self.plotter, self.plane_dragged)
+        self.profile_panel = ProfilePanel(central)
+        self.plot_splitter.addWidget(self.profile_panel)
+        self.plot_splitter.setCollapsible(0, False)
+        self.plot_splitter.setCollapsible(1, False)
+        self.profile_panel.hide()
+        self.profile_panel.requested.connect(self.request_profile)
+        self.profile_panel.selected.connect(self.scene.set_profile_line)
+        self.profile_panel.cursor_moved.connect(self.scene.set_profile_cursor)
+        self.profile_panel.picking_changed.connect(
+            lambda enabled: self.scene.set_profile_picking(self.profile_panel.select_line_id if enabled else None))
+        self.profile_panel.error.connect(self.report_error)
         self.status = W.QLabel('Ready')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -371,6 +388,8 @@ class MainWindow(W.QMainWindow):
         self._stop_traces('cancelled')
         self.pending = deepcopy(group)
         self.request_token = self.runner.submit(group)
+        self.profile_request = None
+        self.profile_panel.setEnabled(False)
         self.busy = True
         self.cancel_button.setEnabled(True)
         self.status.setText('Preparing requested selection; the displayed result remains unchanged.')
@@ -398,6 +417,14 @@ class MainWindow(W.QMainWindow):
         if self.runner is None:
             return
         for token, kind, value in self.runner.poll():
+            if kind in ('profile', 'profile_error'):
+                if self.profile_request == (token, value['id']):
+                    self.profile_request = None
+                    if kind == 'profile':
+                        self.profile_panel.set_data(value['data'])
+                    else:
+                        self.profile_panel.info.setText('Profile calculation failed: ' + value['message'])
+                continue
             if token != self.request_token:
                 continue
             if kind == 'progress':
@@ -413,7 +440,10 @@ class MainWindow(W.QMainWindow):
                     self.report_error(str(exc))
             elif kind == 'traces' and token == self.trace_token:
                 try:
-                    self.scene.update_traces(value)
+                    paths = value['paths'] if isinstance(value, dict) else value
+                    self.scene.update_traces(paths)
+                    self.scene.result['trace_records'] = value.get('records', []) if isinstance(value, dict) else []
+                    self.profile_panel.set_context(self.scene.result, self.scene.view['profile'])
                     self.trace_token = None
                     self.busy = False
                     self.cancel_button.setEnabled(False)
@@ -430,7 +460,8 @@ class MainWindow(W.QMainWindow):
                 self.report_error(value[0])
                 self.last_error = value[1]
                 self.restore_selection()
-        if self.busy and hasattr(self.runner, 'process') and not self.runner.process.is_alive():
+                self.profile_panel.setEnabled(True)
+        if (self.busy or self.profile_request is not None) and hasattr(self.runner, 'process') and not self.runner.process.is_alive():
             self.cancel()
             self.report_error('The numerical worker stopped. Apply again to restart it.')
             self.runner.close()
@@ -452,6 +483,7 @@ class MainWindow(W.QMainWindow):
                 candidate['view']['value_intervals'] = {}
                 candidate['view']['color_limits'] = {}
                 candidate['view']['slice_color_ranges'] = {}
+                candidate['view']['profile']['ylims'] = {}
         candidate['view']['thresholds'].setdefault(display_key(result), result['scale']['threshold'])
         same_group = self.displayed is not None and self.displayed['id'] == candidate['id']
         self.scene.set_result(result, candidate['view'], preserve_camera=same_group)
@@ -483,6 +515,11 @@ class MainWindow(W.QMainWindow):
                                if pending_edits else 'Displayed settings committed. Further numerical edits require Apply.')
         self._populate(form=False)
         self.sync_display()
+        self.profile_request = None
+        self.profile_panel.setEnabled(True)
+        self.profile_button.setChecked(candidate['view']['profile']['visible'])
+        self.profile_panel.setVisible(candidate['view']['profile']['visible'])
+        self.profile_panel.set_context(result, candidate['view']['profile'])
 
     def restore_selection(self):
         base = self.committed.get(self.group['id'])
@@ -496,6 +533,8 @@ class MainWindow(W.QMainWindow):
             self.runner.cancel()
         self._stop_traces('cancelled')
         self.request_token = None
+        self.profile_request = None
+        self.profile_panel.setEnabled(True)
         self.busy = False
         self.pending = None
         self.cancel_button.setEnabled(False)
@@ -506,7 +545,33 @@ class MainWindow(W.QMainWindow):
     def _stop_traces(self, status):
         if self.trace_token is not None:
             self.scene.set_trace_status(status)
+            self.profile_panel.info.setText('Field lines ' + status + '. Apply again to complete tracing.')
             self.trace_token = None
+
+    def toggle_profile(self):
+        visible = self.profile_button.isChecked()
+        state = self.scene.view['profile'] if self.scene.view is not None else self.group['view']['profile']
+        state['visible'] = visible
+        self.profile_panel.state = state
+        self.profile_panel.setVisible(visible)
+        if visible:
+            self.plot_splitter.setSizes([450, 330])
+            self.profile_panel.request_current()
+        else:
+            self.profile_request = None
+            if self.runner is not None and hasattr(self.runner, 'cancel_profile'):
+                self.runner.cancel_profile()
+            self.profile_panel.pick.setChecked(False)
+            self.scene.set_profile_line()
+
+    def request_profile(self, seed_id, quantities):
+        if self.displayed is None or self.pending is not None:
+            return
+        if self.runner is None:
+            self.runner = JobRunner()
+        group = deepcopy(self.displayed)
+        group['view'] = deepcopy(self.scene.view)
+        self.profile_request = self.runner.submit_profile(group, seed_id, quantities)
 
     def discard(self):
         self.cancel()
@@ -535,6 +600,10 @@ class MainWindow(W.QMainWindow):
         self.displayed = None
         self._update_result_mode()
         self.scene.clear()
+        self.profile_request = None
+        self.profile_panel.set_context(None, self.group['view']['profile'])
+        self.profile_panel.hide()
+        self.profile_button.setChecked(False)
         self.sync_display()
         self.header.setText('No prepared result in this session.')
         self.restore_window()

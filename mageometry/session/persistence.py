@@ -43,7 +43,7 @@ def save_session(session, path):
     destination = Path(path).resolve()
     _map_paths(result, lambda p: os.path.relpath(Path(p).resolve(), destination.parent))
     result['saved_with'] = dict(mageometry=__version__, python=platform.python_version())
-    for package in ('numpy', 'scipy', 'pyvista', 'vtk', 'PySide6', 'pyvistaqt', 'h5py'):
+    for package in ('numpy', 'scipy', 'pyvista', 'vtk', 'PySide6', 'pyvistaqt', 'h5py', 'matplotlib'):
         try:
             result['saved_with'][package] = version(package)
         except PackageNotFoundError:

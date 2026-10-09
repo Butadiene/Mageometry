@@ -44,6 +44,24 @@ checks. No external image or simulation data is used.
 
 ## Qt desktop workspace
 
+`gui-line-profile.png` shows the pointwise alpha, Gamma and eta panel under
+the 3D/slice views. Reproduce it with a working Qt/OpenGL display:
+
+```bash
+python benchmark/profile_line_screenshot.py --output /tmp/mageometry-profiles
+```
+
+The script exercises actual Qt right-click line selection, profile export and
+session restoration. It uses T96 + dipole at By = +5 nT, Dst = -20 nT,
+Bz = -5 nT, Pdyn = 2 nPa, epoch 100, a 17 × 13 × 13 display grid and direct
+geometry step 0.002 Re. It selects seed (-6, 2, 1) Re from the six fixed
+model seeds. Trace step is 0.15 Re, maximum steps 350 per direction,
+mask/inner radius 2.5 Re, and the 3D camera is zoomed 1.4 times after resizing
+the profile panel. The cursor is at s = -6 Re. The graph samples the direct
+field, not the display grid.
+Copy the resulting `gui-line-profile.png` here after inspecting it; the script
+also writes CSV/SVG, provenance and a saved session to its output directory.
+
 `gui-alpha-gradient.png` shows `(dalpha/ds)/|B|` in the desktop plot layout
 (without the Qt control panels), with a YZ slice at x = -6 Re. It uses a
 25 × 19 × 19 T96 + dipole grid, By = 0 nT, Dst = -20 nT, Bz = -5 nT,

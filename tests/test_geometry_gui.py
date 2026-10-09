@@ -11,7 +11,7 @@ import numpy as np
 from mageometry.session import model_session
 from test_session_scene import packet, gamma_packet
 
-HAVE_GUI = all(importlib.util.find_spec(module) for module in ('PySide6', 'pyvistaqt', 'pyvista'))
+HAVE_GUI = all(importlib.util.find_spec(module) for module in ('PySide6', 'pyvistaqt', 'pyvista', 'matplotlib'))
 
 
 class FakeRunner:
@@ -19,6 +19,8 @@ class FakeRunner:
         self.requests = []
         self.events = []
         self.token = 0
+        self.profile_id = 0
+        self.profile_requests = []
 
     def submit(self, group):
         self.token += 1
@@ -28,6 +30,14 @@ class FakeRunner:
     def poll(self):
         events, self.events = self.events, []
         return events
+
+    def submit_profile(self, group, seed_id, quantities):
+        self.profile_id += 1
+        self.profile_requests.append((deepcopy(group), seed_id, list(quantities)))
+        return self.token, self.profile_id
+
+    def cancel_profile(self):
+        self.profile_id += 1
 
     def cancel(self):
         self.token += 1
@@ -92,6 +102,105 @@ class TestGeometryGUI(unittest.TestCase):
                          {k: v for k, v in expected['view'].items() if k != 'case'})
         self.assertEqual(group['reference'], group['cases'][0]['id'])
         self.assertEqual(group['view']['case'], group['reference'])
+
+    def _prepare_profile_result(self):
+        from mageometry.session import SessionEngine
+        from test_line_profiles import profile_group, load_profile_source
+        group = profile_group()
+        group['id'] = self.window.group['id']
+        with patch('mageometry.session.engine.load_source', side_effect=load_profile_source):
+            engine = SessionEngine(group)
+            result = engine.prepare(group['view'])
+        self.window.session['groups'][0] = deepcopy(group)
+        self.window.pending = deepcopy(group)
+        self.window.accept_result(result)
+        return engine, group, result
+
+    def test_profiles_use_committed_settings_and_hover_submits_no_jobs(self):
+        engine, group, result = self._prepare_profile_result()
+        window, panel = self.window, self.window.profile_panel
+        window.analysis_form.fields['geometry_delta'].setText('.7')
+        window.profile_button.click()
+        request_group, identity, names = self.runner.profile_requests[-1]
+        self.assertEqual(request_group['analysis']['geometry_delta'], .001)
+        data = engine.prepare_profile(group['view'], identity, names)
+        token, request_id = window.profile_request
+        self.runner.events = [(token, 'profile', dict(id=request_id, data=data))]
+        window.poll()
+        self.assertIs(panel.data, data)
+        self.assertEqual(len(panel.axes), 2)
+        before = len(self.runner.profile_requests)
+        camera, origin = window.scene.camera_state(), list(window.scene.view['origin'])
+        panel.probe_at(.4)
+        index = np.argmin(np.abs(data['s'] - .4))
+        np.testing.assert_allclose(window.scene.profile_cursor.points[0], data['points'][index])
+        self.assertEqual(len(self.runner.profile_requests), before)
+        self.assertEqual(window.scene.camera_state(), camera)
+        self.assertEqual(window.scene.view['origin'], origin)
+        panel.axes[0].set_xlim(-.5, .5)
+        panel.axes[0].set_ylim(-2, 3)
+        recipe = window.saved_recipe()
+        profile = recipe['groups'][0]['view']['profile']
+        self.assertTrue(profile['visible'])
+        self.assertEqual(profile['seed_id'], identity)
+        self.assertEqual(profile['xlim'], [-.5, .5])
+        self.assertEqual(profile['ylims']['alpha'], [-2, 3])
+        self.assertEqual(recipe['groups'][0]['analysis']['geometry_delta'], .001)
+        window.profile_button.click()
+        self.assertNotIn('profile-line', window.plotter.renderers[0].actors)
+
+    def test_late_profile_cannot_replace_new_selection_or_new_result(self):
+        engine, group, result = self._prepare_profile_result()
+        window, panel = self.window, self.window.profile_panel
+        window.profile_button.click()
+        first = window.profile_request
+        old_data = engine.prepare_profile(group['view'], panel.lines.currentData(), panel.active_quantities())
+        panel.lines.setCurrentIndex(1)
+        latest = window.profile_request
+        self.assertNotEqual(first, latest)
+        self.runner.events = [(first[0], 'profile', dict(id=first[1], data=old_data))]
+        window.poll()
+        self.assertIsNone(panel.data)
+        new_data = engine.prepare_profile(group['view'], panel.lines.currentData(), panel.active_quantities())
+        self.runner.events = [(latest[0], 'profile', dict(id=latest[1], data=new_data))]
+        window.poll()
+        self.assertIs(panel.data, new_data)
+        window.submit(group)
+        self.runner.events = [(latest[0], 'profile', dict(id=latest[1], data=old_data))]
+        window.poll()
+        self.assertIs(panel.data, new_data)
+
+    def test_profile_undefined_rows_and_picking_keep_other_samples(self):
+        engine, group, result = self._prepare_profile_result()
+        window, panel = self.window, self.window.profile_panel
+        window.profile_button.click()
+        panel._quantity('beta_g', True)
+        data = engine.prepare_profile(group['view'], panel.lines.currentData(), panel.active_quantities())
+        panel.set_data(data)
+        self.assertTrue(np.all(np.isnan(panel.axes[2].lines[0].get_ydata())))
+        self.assertTrue(np.all(np.isfinite(panel.axes[0].lines[0].get_ydata())))
+        self.assertIn('Undefined throughout', panel.axes[2].texts[0].get_text())
+        panel.axes[0].set_xlim(-.2, .2)
+        panel.axes[0].set_ylim(-.1, .1)
+        camera = window.scene.camera_state()
+        panel.pick.setChecked(True)
+        self.assertFalse(window.scene.widget.GetEnabled())
+        self.assertTrue(window.scene.view['plane'])
+        window.scene.profile_pick(1)
+        self.assertIsNone(panel.state['xlim'])
+        self.assertEqual(panel.state['ylims'], {})
+        self.assertEqual(panel.lines.currentData(), result['trace_records'][1]['seed_id'])
+        data = engine.prepare_profile(group['view'], panel.lines.currentData(), panel.active_quantities())
+        panel.set_data(data)
+        np.testing.assert_allclose(panel.axes[-1].get_xlim(), data['s'][[0, -1]])
+        panel.probe_at(.5)
+        self.assertEqual(panel.state['cursor_s'], data['s'][np.argmin(abs(data['s'] - .5))])
+        self.assertEqual(window.scene.camera_state(), camera)
+        # A removed seed is not silently replaced by another line.
+        panel.set_context(dict(result, trace_records=result['trace_records'][:1]), panel.state)
+        self.assertTrue(window.scene.widget.GetEnabled())
+        self.assertEqual(panel.lines.currentIndex(), -1)
+        self.assertIsNone(panel.data)
 
     def test_gamma_eta_display_uses_separate_units_without_jobs_and_survives_pending_result(self):
         window, panel = self.window, self.window.display_panel

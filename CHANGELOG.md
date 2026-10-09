@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add a desktop Line profile panel with pointwise diagnostics along a selected
+  field line, signed distance increasing along B, shared graph/3D probing,
+  right-click line selection, session restoration and CSV/PNG/SVG/PDF exports
+  with provenance. Preserve trace endpoints and native samples in the worker;
+  profile requests do not cancel scene work. The gui extra now includes Matplotlib.
+- Add `geometry.field_line_profile` and `FieldLineTrace.direction`. Named plots
+  now use first-gradient alpha, support transverse and along-B diagnostics, and
+  orient against-B-only profiles along B without changing the trace API's s.
+
 - Start shared colour scales at zero for Gamma, Gamma/|alpha| and |B| kappa
   in desktop and standalone viewers, using sequential red colours. Keep
   signed diagnostics and eta-coloured Gamma on diverging scales, preserve

@@ -6,6 +6,7 @@ import numpy as np
 from ._mpl import require_matplotlib, get_axes, is_3d, axis_label, label_axes, color_norm
 from ._quantities import resolve_quantity
 from .planes import plane_labels, project
+from ..geometry.line_profiles import profile_coordinates, _LineEvaluator, PROFILE_QUANTITIES
 
 __all__ = ["plot_field_lines", "plot_line_profiles"]
 
@@ -151,11 +152,15 @@ def plot_line_profiles(trace, field, quantities=('curvature', 'torsion'), delta=
     if np.isscalar(log) or log is None:
         log = [log] * len(qs)
     lines = range(trace.n_lines) if lines is None else lines
-    for ax, q, lg in zip(axes, qs, log):
-        for k, i in enumerate(lines):
-            x, y, z = trace.path(i)
-            s = trace.arc_length(i)
-            vals = q.evaluate(field, x, y, z, delta=delta)
+    profiles = []
+    for i in lines:
+        coordinates = profile_coordinates(trace, i)
+        profiles.append((i, coordinates, _LineEvaluator(field, coordinates['points'], delta)))
+    for ax, q, lg, name in zip(axes, qs, log, quantities):
+        for k, (i, coordinates, evaluator) in enumerate(profiles):
+            s = coordinates['s']
+            vals = (evaluator.get(name) if isinstance(name, str) and name in PROFILE_QUANTITIES
+                    else q.evaluate(field, *coordinates['points'].T, delta=delta))
             lab = labels[k] if labels is not None else f"line {i}"
             ax.plot(s, vals, label=lab, **kwargs)
         ax.set_ylabel(q.label)
@@ -166,7 +171,7 @@ def plot_line_profiles(trace, field, quantities=('curvature', 'torsion'), delta=
         ax.grid(alpha=0.3)
     axes[0].legend(fontsize='small')
     if unit is not None or not axes[-1].get_xlabel():
-        axes[-1].set_xlabel(axis_label('arc length s from seed', unit))
+        axes[-1].set_xlabel(axis_label('arc length s from seed, increasing along B', unit))
     return axes
 
 

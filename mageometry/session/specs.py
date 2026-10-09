@@ -7,6 +7,8 @@ import uuid
 import numpy as np
 
 from ..viz3d._current import COMPONENTS, TRANSVERSE_COMPONENTS
+from ..geometry.line_profiles import PROFILE_QUANTITIES
+from .profiles import default_profile_view
 
 SCHEMA_VERSION = 2
 DEFAULT_GEOMETRY_DELTA = 0.002
@@ -34,7 +36,7 @@ def default_view():
                 thresholds={}, threshold_slider_limits={}, threshold_modes={}, value_intervals={},
                 color_limits={}, slice_color_ranges={}, slice_extent=None, cameras={},
                 lines=True, arrows=True, regions=True, plane=True, value_sign='both',
-                gamma_eta=False)
+                gamma_eta=False, profile=default_profile_view())
 
 
 def default_analysis(model=False):
@@ -278,6 +280,30 @@ def validate_session(session):
         view['normal'] = (normal / np.linalg.norm(normal)).tolist()
         if view['origin'] is not None:
             vector(view['origin'], 'slice origin')
+        profile = view.setdefault('profile', default_profile_view())
+        if not isinstance(profile, dict):
+            raise ValueError('Profile settings must be a mapping.')
+        for name, value in default_profile_view().items():
+            profile.setdefault(name, value)
+        if type(profile['visible']) is not bool:
+            raise ValueError('Profile visibility must be a boolean.')
+        if profile['seed_id'] is not None and not isinstance(profile['seed_id'], str):
+            raise ValueError('Profile seed ID must be a string or null.')
+        names = profile['quantities']
+        if (not isinstance(names, list) or len(names) > 4 or
+                any(not isinstance(name, str) or name not in PROFILE_QUANTITIES for name in names) or
+                len(set(names)) != len(names)):
+            raise ValueError('Profile quantities must contain up to four distinct diagnostic names.')
+        finite(profile['cursor_s'], 'profile cursor')
+        if not isinstance(profile['ylims'], dict) or any(name not in PROFILE_QUANTITIES for name in profile['ylims']):
+            raise ValueError('Profile y ranges must use known diagnostic names.')
+        ranges = list(profile['ylims'].values())
+        if profile['xlim'] is not None:
+            ranges.append(profile['xlim'])
+        for bounds in ranges:
+            vector(bounds, 'profile range', 2)
+            if bounds[0] >= bounds[1]:
+                raise ValueError('Profile range requires lower < upper.')
         slider_limits = view.setdefault('threshold_slider_limits', {})
         if not isinstance(slider_limits, dict):
             raise ValueError('Threshold slider limits must be a mapping.')
