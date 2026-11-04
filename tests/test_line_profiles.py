@@ -95,6 +95,23 @@ class TestLineProfiles(unittest.TestCase):
         with self.assertRaises(ValueError):
             evaluator.get('unknown')
 
+    def test_current_density_does_not_compute_binormal_terms_and_options_are_forwarded(self):
+        from mageometry.geometry import field_line_current_density
+        from mageometry.viz._quantities import QUANTITIES
+        points = np.array([[.8, .1, 1.], [.3, -.2, .5]])
+        evaluator = _LineEvaluator(varying_twist, points, .01)
+        with patch('mageometry.geometry.line_profiles.field_line_frenet_frame',
+                   side_effect=AssertionError('Binormal terms computed')), \
+                patch('mageometry.geometry.line_profiles.field_magnitude_derivatives',
+                      side_effect=AssertionError('Binormal terms computed')):
+            evaluator.get('mu0J_T')
+        strict = field_line_current_density(varying_twist, *points.T, delta=.01, normal_flip_tol=.999999)
+        np.testing.assert_array_equal(
+            QUANTITIES['mu0J_T'].evaluate(varying_twist, *points.T, delta=.01, normal_flip_tol=.999999),
+            strict['mu0J_T'])
+        with self.assertRaises(TypeError):
+            QUANTITIES['mu0J_T'].evaluate(varying_twist, *points.T, delta=.01, unknown_option=1)
+
     def test_basic_geometry_keeps_primary_api_stencils_regardless_of_quantity_order(self):
         from mageometry.geometry import field_line_curvature, field_line_torsion
         trace = trace_field_lines(varying_twist, .8, .1, 1., direction='both', ds=.05, max_steps=8)
@@ -140,6 +157,17 @@ class TestSessionProfiles(unittest.TestCase):
         self.assertEqual(data['evaluation'], 'pointwise direct model')
         with patch('mageometry.geometry.line_profiles.field_line_transverse_geometry', side_effect=AssertionError('Recomputed family')):
             self.engine.prepare_profile(self.group['view'], self.identity, ['gamma', 'eta'])
+
+    def test_repeated_seeds_receive_distinct_identities(self):
+        self.group['analysis']['seeds'] = [[.8, 0., 0.], [0., 0., 0.], [.8, 0., 0.]]
+        engine = SessionEngine(self.group)
+        records = engine.prepare(self.group['view'])['trace_records']
+        identities = [record['seed_id'] for record in records]
+        self.assertEqual(len(set(identities)), 3)
+        self.assertEqual(identities[0], json.dumps([.8, 0., 0.]))
+        self.assertEqual(identities[2], json.dumps([.8, 0., 0.]) + '#1')
+        data = engine.prepare_profile(self.group['view'], identities[2], ['alpha'])
+        self.assertEqual(data['line_id'], 2)
 
     def test_grid_mode_uses_preview_field_and_records_steps(self):
         self.group['analysis']['evaluation'] = 'grid'

@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `geometry.field_line_profile` and `FieldLineTrace.direction`. Named plots
   now use first-gradient alpha, support transverse and along-B diagnostics, and
   orient against-B-only profiles along B without changing the trace API's s.
+  `field_line_profile` and named profile quantities forward
+  `orthogonality_tol`, `normal_flip_tol` and `curvature_tol` (unknown keywords
+  raise). Current-density components no longer also evaluate the binormal
+  terms (`B_kappa`, `minus_dB_dn`). Repeated trace seeds get distinct profile
+  IDs (`#n` suffix), and a profile requested during Apply is resumed if the
+  calculation fails or is cancelled.
 
 - Start shared colour scales at zero for Gamma, Gamma/|alpha| and |B| kappa
   in desktop and standalone viewers, using sequential red colours. Keep

@@ -108,9 +108,11 @@ del _key, _label
 
 def _profile_quantity(key):
     def evaluate(field, x, y, z, delta=0.01, **kw):
+        # Validity knobs (orthogonality_tol, normal_flip_tol, curvature_tol)
+        # are forwarded; anything else is rejected rather than ignored.
         coords = np.broadcast_arrays(x, y, z)
         points = np.column_stack([c.ravel() for c in coords])
-        return _LineEvaluator(field, points, delta).get(key).reshape(coords[0].shape)
+        return _LineEvaluator(field, points, delta, **kw).get(key).reshape(coords[0].shape)
     return evaluate
 
 

@@ -37,6 +37,9 @@ class MainWindow(W.QMainWindow):
         self.request_token = None
         self.trace_token = None
         self.profile_request = None
+        # A profile requested while an Apply is pending is re-requested once
+        # that calculation ends without a new result (error or cancel).
+        self.profile_deferred = False
         self.runner = runner
         self.busy = False
         self.syncing = False
@@ -460,9 +463,11 @@ class MainWindow(W.QMainWindow):
                 self.report_error(value[0])
                 self.last_error = value[1]
                 self.restore_selection()
-                self.profile_panel.setEnabled(True)
+                self._resume_profile()
         if (self.busy or self.profile_request is not None) and hasattr(self.runner, 'process') and not self.runner.process.is_alive():
+            self.profile_deferred = False
             self.cancel()
+            self.profile_panel.info.setText('The numerical worker stopped. Apply again to compute profiles.')
             self.report_error('The numerical worker stopped. Apply again to restart it.')
             self.runner.close()
             self.runner = None
@@ -516,6 +521,7 @@ class MainWindow(W.QMainWindow):
         self._populate(form=False)
         self.sync_display()
         self.profile_request = None
+        self.profile_deferred = False
         self.profile_panel.setEnabled(True)
         self.profile_button.setChecked(candidate['view']['profile']['visible'])
         self.profile_panel.setVisible(candidate['view']['profile']['visible'])
@@ -534,13 +540,13 @@ class MainWindow(W.QMainWindow):
         self._stop_traces('cancelled')
         self.request_token = None
         self.profile_request = None
-        self.profile_panel.setEnabled(True)
         self.busy = False
         self.pending = None
         self.cancel_button.setEnabled(False)
         self.status.setText('Cancelled. The displayed field and unapplied edits are retained.')
         if restore:
             self.restore_selection()
+        self._resume_profile()
 
     def _stop_traces(self, status):
         if self.trace_token is not None:
@@ -564,8 +570,19 @@ class MainWindow(W.QMainWindow):
             self.profile_panel.pick.setChecked(False)
             self.scene.set_profile_line()
 
+    def _resume_profile(self):
+        self.profile_panel.setEnabled(True)
+        if self.profile_deferred:
+            self.profile_deferred = False
+            self.profile_panel.request_current()
+
     def request_profile(self, seed_id, quantities):
-        if self.displayed is None or self.pending is not None:
+        if self.displayed is None:
+            return
+        if self.pending is not None:
+            self.profile_deferred = True
+            self.profile_panel.info.setText('Waiting for the current calculation; '
+                                            'the profile is computed when it finishes.')
             return
         if self.runner is None:
             self.runner = JobRunner()

@@ -207,7 +207,7 @@ class SessionEngine:
     def _trace_paths(self, key, prepared):
         identity, options = self._trace_options(key, prepared)
         if identity not in self.traces:
-            paths, records = [], []
+            paths, records, occurrences = [], [], {}
 
             def field(x, y, z):
                 # Check cancellation at every RK field evaluation, including retries.
@@ -222,8 +222,12 @@ class SessionEngine:
                 for i in range(len(seeds)):
                     record = profile_coordinates(trace, i)
                     record['line_id'] = start + i
-                    # Physical coordinates survive reordering and case changes.
-                    record['seed_id'] = json.dumps(record['seed'].tolist())
+                    # Physical coordinates survive reordering and case changes;
+                    # repeated seeds get an occurrence suffix to stay distinct.
+                    base = json.dumps(record['seed'].tolist())
+                    count = occurrences.get(base, 0)
+                    occurrences[base] = count + 1
+                    record['seed_id'] = base if count == 0 else f'{base}#{count}'
                     records.append(record)
             self.check()
             self.traces[identity] = dict(paths=paths, records=records)

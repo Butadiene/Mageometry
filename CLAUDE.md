@@ -58,8 +58,13 @@ There is no top-level `geopack` package anymore — this also avoids shadowing t
 - `mageometry/io/binary.py` — Fortran unformatted record helpers for custom readers
 - `mageometry/viz/` — `maps.py` (`plot_geometry_map`, `plot_field_direction`), `lines.py` (`plot_field_lines`, `plot_line_profiles`), `frames.py` (`plot_frenet_frame`), `planes.py`, `_quantities.py` (quantity registry), `_mpl.py` (lazy matplotlib, colour norms)
 - `mageometry/geometry/field_line_geometry.py` — Frenet-Serret frame calculations
+- `mageometry/geometry/field_line_transverse.py` — Transverse gradient decomposition (alpha, beta_g, delta_g, Gamma, omega_c, eta) and background/residual attribution
+- `mageometry/geometry/line_profiles.py` — `field_line_profile`: pointwise diagnostics at the adaptive points of a traced line, oriented along B with s = 0 at the seed; `_LineEvaluator` caches quantity families and is shared by `viz` named quantities and the GUI profile panel
 - `mageometry/geometry/field_line_directional_derivatives.py` — Directional derivatives along field lines
 - `mageometry/geometry/field_line_current.py` — |B| gradients along the frame; current density μ₀J = ∇×B in the Frenet frame; ∇·B check
+- `mageometry/viz3d/` — Interactive PyVista/VTK 3D viewer (`[viz3d]` extra, `mageometry-viewer` CLI); `scene.py` (`GeometryScene`, shared with the GUI)
+- `mageometry/session/` — Headless, GUI-free analysis recipes: `specs.py` (session schema/validation), `engine.py` (`SessionEngine`), `jobs.py` (spawned worker `JobRunner`; profile requests use their own cancellation generation), `persistence.py`, `profiles.py` (profile labels/export)
+- `mageometry/gui/` — PySide6 desktop app (`[gui]` extra, `mageometry-gui`): `window.py` (`MainWindow`), `profiles.py` (Line profile panel, Matplotlib), `forms.py`, `display.py`
 - `mageometry/geopack/geopack.py` — Core scalar functions: coordinate transforms, IGRF, tracing, recalc
 - `mageometry/geopack/core.py` — Currently an empty placeholder (reserved for restructuring)
 - `mageometry/geopack/models/` — Scalar field models (t89, t96, t01, t04)

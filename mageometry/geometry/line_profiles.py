@@ -2,16 +2,22 @@
 
 import numpy as np
 
-from .field_line_geometry import (field_line_curvature, field_line_torsion,
+from .field_line_geometry import (DEFAULT_ORTHOGONALITY_TOL, field_line_curvature, field_line_torsion,
                                   field_line_frame_quality, field_line_frenet_frame)
+from .field_line_directional_derivatives import DEFAULT_NORMAL_FLIP_TOL
 from .field_line_current import (field_aligned_current_density, field_aligned_current_derivatives,
                                  field_line_current_density, field_magnitude_derivatives)
 from .field_line_transverse import field_line_transverse_geometry, field_line_transverse_decomposition
 
 TRANSVERSE = ('alpha', 'beta_g', 'delta_g', 'gamma', 'gamma_over_abs_alpha', 'omega_c', 'eta')
 ALONG_FIELD = ('dalpha_ds', 'dalpha_ds_over_B', 'dfac_ds')
-CURRENT = ('mu0J_T', 'mu0J_n', 'mu0J_b', 'mu0J_x', 'mu0J_y', 'mu0J_z',
-           'B_dT_dn_b', 'B_dn_db_T', 'B_twist_diff', 'B_kappa', 'minus_dB_dn')
+# Keys returned by field_line_current_density, and the binormal-current terms
+# that need their own frame / |B|-gradient pass (kept separate so requesting
+# one current component does not pay for the other family).
+CURRENT_DENSITY = ('mu0J_T', 'mu0J_n', 'mu0J_b', 'mu0J_x', 'mu0J_y', 'mu0J_z',
+                   'B_dT_dn_b', 'B_dn_db_T', 'B_twist_diff')
+BINORMAL_TERMS = ('B_kappa', 'minus_dB_dn')
+CURRENT = CURRENT_DENSITY + BINORMAL_TERMS
 BASIC = ('bmag', 'bx', 'by', 'bz', 'curvature', 'torsion', 'frame_quality')
 PROFILE_QUANTITIES = BASIC + TRANSVERSE + ('fac',) + CURRENT + ALONG_FIELD
 
@@ -53,7 +59,9 @@ def profile_coordinates(trace, line=0):
 class _LineEvaluator:
     """Cache numerical families in native units for one immutable set of points."""
 
-    def __init__(self, field, points, delta, fac_delta=None, background=None, contribution='total'):
+    def __init__(self, field, points, delta, fac_delta=None, background=None, contribution='total',
+                 *, orthogonality_tol=DEFAULT_ORTHOGONALITY_TOL,
+                 normal_flip_tol=DEFAULT_NORMAL_FLIP_TOL, curvature_tol=0.0):
         self.field = field
         self.points = np.asarray(points, dtype=float)
         if self.points.ndim != 2 or self.points.shape[1] != 3:
@@ -66,6 +74,9 @@ class _LineEvaluator:
             raise ValueError('A background is required for gradient attribution.')
         self.delta, self.fac_delta = float(delta), fac_delta
         self.background, self.contribution = background, contribution
+        self.orthogonality_tol = orthogonality_tol
+        self.normal_flip_tol = normal_flip_tol
+        self.curvature_tol = curvature_tol
         self.values = {}
 
     def get(self, name):
@@ -75,6 +86,7 @@ class _LineEvaluator:
             raise ValueError('Gradient attribution supports transverse diagnostics and total |B| only.')
         if name not in self.values:
             field, coords, delta = self.field, self.points.T, self.delta
+            ortho = dict(orthogonality_tol=self.orthogonality_tol)
             if name in ('bmag', 'bx', 'by', 'bz'):
                 components = np.broadcast_arrays(*field(*coords), np.empty(len(self.points)))[:3]
                 for key, values in zip(('bx', 'by', 'bz'), components):
@@ -82,11 +94,13 @@ class _LineEvaluator:
                 self.values['bmag'] = np.linalg.norm(components, axis=0)
             elif name in TRANSVERSE:
                 if self.background is None:
-                    result = field_line_transverse_geometry(field, *coords, delta=delta)
+                    result = field_line_transverse_geometry(field, *coords, delta=delta,
+                                                            curvature_tol=self.curvature_tol)
                     self.values.update({key: result[key] for key in TRANSVERSE})
                 else:
                     result = field_line_transverse_decomposition(
-                        field, self.background, *coords, delta=delta)
+                        field, self.background, *coords, delta=delta,
+                        curvature_tol=self.curvature_tol)
                     self.values.update({key: result[self.contribution][key] for key in TRANSVERSE})
             elif name == 'fac':
                 self.values[name] = field_aligned_current_density(
@@ -94,23 +108,30 @@ class _LineEvaluator:
             elif name in ALONG_FIELD:
                 self.values.update(field_aligned_current_derivatives(
                     field, *coords, delta=delta, fac_delta=self.fac_delta))
-            elif name in CURRENT:
-                result = field_line_current_density(field, *coords, delta=delta)
+            elif name in CURRENT_DENSITY:
+                result = field_line_current_density(field, *coords, delta=delta,
+                                                    normal_flip_tol=self.normal_flip_tol, **ortho)
                 # Never overwrite the canonical first-gradient alpha with the
                 # legacy current reconstruction's Frenet-dependent alpha.
-                self.values.update({key: result[key] for key in CURRENT if key in result})
-                frame = field_line_frenet_frame(field, *coords, delta=delta)
-                self.values['B_kappa'] = np.where(np.isfinite(frame[3]), result['B'] * frame[9], np.nan)
-                self.values['minus_dB_dn'] = -field_magnitude_derivatives(field, *coords, delta=delta)['dB_dn']
+                self.values.update({key: result[key] for key in CURRENT_DENSITY})
+            elif name in BINORMAL_TERMS:
+                frame = field_line_frenet_frame(field, *coords, delta=delta, **ortho)
+                self.values['B_kappa'] = np.where(np.isfinite(frame[3]), self.get('bmag') * frame[9], np.nan)
+                self.values['minus_dB_dn'] = -field_magnitude_derivatives(
+                    field, *coords, delta=delta, **ortho)['dB_dn']
+            elif name == 'torsion':
+                self.values[name] = field_line_torsion(field, *coords, delta=delta, **ortho)
             else:
-                function = {'curvature': field_line_curvature, 'torsion': field_line_torsion,
+                function = {'curvature': field_line_curvature,
                             'frame_quality': field_line_frame_quality}[name]
                 self.values[name] = function(field, *coords, delta=delta)
         return np.asarray(self.values[name], dtype=float)
 
 
 def field_line_profile(field, trace, line=0, quantities=('alpha', 'bmag'), *, delta=0.01,
-                       fac_delta=None, background=None, contribution='total'):
+                       fac_delta=None, background=None, contribution='total',
+                       orthogonality_tol=DEFAULT_ORTHOGONALITY_TOL,
+                       normal_flip_tol=DEFAULT_NORMAL_FLIP_TOL, curvature_tol=0.0):
     """Evaluate native-unit diagnostics at the adaptive points of a traced line.
 
     Parameters
@@ -131,6 +152,9 @@ def field_line_profile(field, trace, line=0, quantities=('alpha', 'bmag'), *, de
         Background for gradient attribution in the total-field frame.
     contribution : {'total', 'background', 'residual'}, optional
         Gradient branch. Non-total branches support transverse rates and |B|.
+    orthogonality_tol, normal_flip_tol, curvature_tol : float, optional
+        Validity knobs forwarded to the underlying geometry functions that
+        accept them (same meaning and defaults as there).
 
     Returns
     -------
@@ -141,7 +165,9 @@ def field_line_profile(field, trace, line=0, quantities=('alpha', 'bmag'), *, de
         conversion is applied. Undefined geometry remains NaN.
     """
     result = profile_coordinates(trace, line)
-    evaluator = _LineEvaluator(field, result['points'], delta, fac_delta, background, contribution)
+    evaluator = _LineEvaluator(field, result['points'], delta, fac_delta, background, contribution,
+                               orthogonality_tol=orthogonality_tol,
+                               normal_flip_tol=normal_flip_tol, curvature_tol=curvature_tol)
     result['values'] = {key: evaluator.get(key).copy() for key in quantities}
     result['valid'] = {key: np.isfinite(values) for key, values in result['values'].items()}
     return result

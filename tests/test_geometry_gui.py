@@ -170,6 +170,21 @@ class TestGeometryGUI(unittest.TestCase):
         window.poll()
         self.assertIs(panel.data, new_data)
 
+    def test_profile_requested_during_apply_is_resumed_after_failure(self):
+        engine, group, result = self._prepare_profile_result()
+        window, panel = self.window, self.window.profile_panel
+        window.submit(group)
+        before = len(self.runner.profile_requests)
+        window.profile_button.click()
+        self.assertEqual(len(self.runner.profile_requests), before)
+        self.assertIn('Waiting for the current calculation', panel.info.text())
+        self.runner.events = [(window.request_token, 'error', ('boom', 'traceback'))]
+        with patch.object(window, 'report_error'):
+            window.poll()
+        self.assertEqual(len(self.runner.profile_requests), before + 1)
+        self.assertIsNotNone(window.profile_request)
+        self.assertIn('Computing', panel.info.text())
+
     def test_profile_undefined_rows_and_picking_keep_other_samples(self):
         engine, group, result = self._prepare_profile_result()
         window, panel = self.window, self.window.profile_panel
