@@ -46,8 +46,10 @@ def load_vtk(path, name="B", region=None, stride=1):
 
     Notes
     -----
-    Curvilinear (``StructuredGrid``) and unstructured meshes carry no
-    rectilinear axes and are rejected; see the "Curvilinear, AMR,
+    ImageData extents may start at nonzero indices. ImageData with a
+    nonidentity direction matrix is rejected; resample it onto an
+    axis-aligned grid before loading. Curvilinear (``StructuredGrid``) and
+    unstructured meshes are also rejected; see the "Curvilinear, AMR,
     unstructured" section of ``docs/simulation_data_formats.md``.
     """
     try:
@@ -60,8 +62,14 @@ def load_vtk(path, name="B", region=None, stride=1):
 
     mesh = pv.read(path)
     if isinstance(mesh, pv.ImageData):
-        axes = [o + s * np.arange(n)
-                for o, s, n in zip(mesh.origin, mesh.spacing, mesh.dimensions)]
+        direction = mesh.GetDirectionMatrix()
+        if any(direction.GetElement(i, j) != float(i == j)
+               for i in range(3) for j in range(3)):
+            raise ValueError('ImageData direction matrix must be identity; '
+                             'resample onto an axis-aligned grid before loading.')
+        axes = [o + s * (lo + np.arange(n))
+                for o, s, lo, n in zip(mesh.origin, mesh.spacing,
+                                       mesh.extent[::2], mesh.dimensions)]
     elif isinstance(mesh, pv.RectilinearGrid):
         axes = [np.asarray(a, dtype=np.float64)
                 for a in (mesh.x, mesh.y, mesh.z)]

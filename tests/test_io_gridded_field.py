@@ -185,6 +185,23 @@ class TestGriddedField(unittest.TestCase):
     def test_views_share_memory(self):
         self.assertTrue(np.shares_memory(self.grid.bx, self.grid.b))
 
+    def test_mixed_precision_preserves_each_component(self):
+        axis = np.arange(3.)
+        x, y, z = np.meshgrid(axis, axis, axis, indexing='ij')
+        for component in range(3):
+            with self.subTest(component=component):
+                values = [np.ones(x.shape, dtype=np.float32) for _ in range(3)]
+                values[component] = 1. + 1e-8 * (x + 2 * y + 3 * z)
+                grid = GriddedField(axis, axis, axis, *values)
+                for actual, expected in zip((grid.bx, grid.by, grid.bz), values):
+                    np.testing.assert_array_equal(actual, expected)
+
+    def test_float32_components_keep_their_storage_precision(self):
+        axis = np.arange(3.)
+        values = np.ones((3, 3, 3), dtype=np.float32)
+        grid = GriddedField(axis, axis, axis, values, values, values)
+        self.assertEqual(grid.b.dtype, np.float32)
+
 
 @unittest.skipUnless(HAVE_H5PY, "h5py not installed")
 class TestXdmfHdf5Readers(unittest.TestCase):

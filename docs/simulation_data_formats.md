@@ -293,9 +293,11 @@ ordering or ghost width shows up as block-shaped discontinuities, and
 This recipe ships as `mageometry.io.load_vtk` (with `region`/`stride`
 applied in memory after the read, and `name=('bx', 'by', 'bz')` accepted
 for three scalar arrays); the code below stays as a reference for writing
-your own variant. Use `pyvista` (or `vtk` directly). `ImageData` and
-`RectilinearGrid` map onto `GriddedField` one-to-one; VTK stores point data
-in x-fastest order.
+your own variant. Use `pyvista` (or `vtk` directly). Axis-aligned `ImageData`
+and `RectilinearGrid` map onto `GriddedField`; VTK stores point data in
+x-fastest order. Nonzero extent indices are part of the physical coordinates.
+ImageData with a nonidentity direction matrix must first be resampled onto
+an axis-aligned grid; the reader rejects it.
 
 ```python
 import numpy as np
@@ -306,7 +308,13 @@ def load_vtk(path, name="B"):
     mesh = pv.read(path)                     # ImageData or RectilinearGrid
     nx, ny, nz = mesh.dimensions             # point counts
     if isinstance(mesh, pv.ImageData):
-        axes = [o + s * np.arange(n) for o, s, n in zip(mesh.origin, mesh.spacing, mesh.dimensions)]
+        direction = mesh.GetDirectionMatrix()
+        if any(direction.GetElement(i, j) != float(i == j)
+               for i in range(3) for j in range(3)):
+            raise ValueError('Resample ImageData onto an axis-aligned grid first.')
+        axes = [o + s * (lo + np.arange(n))
+                for o, s, lo, n in zip(mesh.origin, mesh.spacing,
+                                       mesh.extent[::2], mesh.dimensions)]
     elif isinstance(mesh, pv.RectilinearGrid):
         axes = [np.asarray(mesh.x), np.asarray(mesh.y), np.asarray(mesh.z)]
     else:

@@ -168,7 +168,8 @@ class GriddedField:
     -----
     The three components are stored stacked in a single
     ``(len(x), len(y), len(z), 3)`` array; `bx`/`by`/`bz` are views into it,
-    so no memory is duplicated. Large float32 inputs are kept as float32.
+    so no memory is duplicated. Float32 inputs are kept as float32 when all
+    components have that precision; mixed inputs use their common dtype.
     """
 
     def __init__(self, x, y, z, bx, by, bz, metadata=None):
@@ -182,7 +183,8 @@ class GriddedField:
                 raise ValueError(f"Axis {name!r} must be strictly increasing.")
 
         shape = (self.x.size, self.y.size, self.z.size)
-        dtype = np.result_type(np.asarray(bx).dtype, np.float32)
+        dtype = np.result_type(np.asarray(bx).dtype, np.asarray(by).dtype,
+                               np.asarray(bz).dtype, np.float32)
         self.b = np.empty(shape + (3,), dtype=dtype)
         for i, (name, comp) in enumerate((('bx', bx), ('by', by), ('bz', bz))):
             comp = np.asarray(comp)

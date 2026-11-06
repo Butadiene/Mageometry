@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   including inner-sphere entry and exit within a single step and steps that
   land on a sphere within rounding. Preserve the corresponding termination
   status and partial-step arc length.
+- Preserve nonzero ImageData extents when loading VTK point/cell fields;
+  reject nonidentity direction matrices until the data is resampled onto
+  an axis-aligned grid.
+- Preserve the common precision of all three `GriddedField` components
+  when their input dtypes differ, while retaining float32-only storage.
 
 ### Changed
 

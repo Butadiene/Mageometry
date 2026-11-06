@@ -102,6 +102,33 @@ class TestLoadVtk(unittest.TestCase):
         back = load_vtk(path, name=('bx', 'by', 'bz'))
         np.testing.assert_array_equal(back.b, gf.b)
 
+    def test_imagedata_nonzero_extent_preserves_point_and_cell_positions(self):
+        img = pv.ImageData(spacing=(1., 2., 3.), origin=(10., 20., 30.))
+        img.extent = (5, 8, -2, 1, 7, 10)
+        img.point_data['B'] = img.points.copy()
+        img.cell_data['Bc'] = img.cell_centers().points.copy()
+        path = self.path('extent.vti')
+        img.save(path)
+        for name, points in (('B', img.points), ('Bc', img.cell_centers().points)):
+            with self.subTest(association=name):
+                back = load_vtk(path, name=name)
+                coords = np.meshgrid(back.x, back.y, back.z, indexing='ij')
+                actual = np.column_stack([c.ravel(order='F') for c in coords])
+                np.testing.assert_allclose(actual, points)
+                for axis in range(3):
+                    np.testing.assert_allclose(back.b[..., axis], coords[axis])
+        subset = load_vtk(path, region=((16., 18.), None, None))
+        np.testing.assert_array_equal(subset.x, [16., 17., 18.])
+
+    def test_imagedata_rejects_nonidentity_direction(self):
+        img = pv.ImageData(dimensions=(3, 3, 3))
+        img.SetDirectionMatrix((0., -1., 0., 1., 0., 0., 0., 0., 1.))
+        img.point_data['B'] = img.points.copy()
+        path = self.path('rotated.vti')
+        img.save(path)
+        with self.assertRaisesRegex(ValueError, 'direction matrix'):
+            load_vtk(path)
+
     def test_errors(self):
         img = pv.ImageData(dimensions=(3, 4, 5))
         img.point_data['scalar'] = np.zeros(3 * 4 * 5)
