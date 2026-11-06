@@ -180,6 +180,71 @@ class TestDipoleTracing(unittest.TestCase):
             trace_field_lines(dipole_b, 5.0, 0.0, 0.0, max_steps=0)
 
 
+class TestBoundaryCrossings(unittest.TestCase):
+    """Analytic intersections of straight field lines with multiple boundaries."""
+
+    @staticmethod
+    def uniform_field(x, y, z):
+        return np.ones_like(x), np.zeros_like(y), np.zeros_like(z)
+
+    def test_inner_sphere_entry_and_exit_in_one_step(self):
+        for direction in (1, -1):
+            with self.subTest(direction=direction):
+                tr = trace_field_lines(self.uniform_field, -2. * direction, 0., 0.,
+                                      direction=direction, ds=4., r0=1., max_steps=1)
+                np.testing.assert_array_equal(tr.status, STATUS_INNER)
+                np.testing.assert_allclose(np.array(tr.end).ravel(), [-direction, 0., 0.])
+                np.testing.assert_allclose(tr.arc_length(0), [0., 1.])
+
+    def test_grazing_crossings_and_tangent_contact(self):
+        offsets = np.array([0., .9999, 1., 1.001])
+        tr = trace_field_lines(self.uniform_field, np.full(4, -.05), offsets,
+                              np.zeros(4), ds=.1, r0=1., max_steps=1)
+        # The first seed is already inside; a tangency never enters r < r0.
+        np.testing.assert_array_equal(tr.status,
+                                      [STATUS_INNER, STATUS_INNER,
+                                       STATUS_MAX_STEPS, STATUS_MAX_STEPS])
+        np.testing.assert_allclose(tr.end[0][1], -np.sqrt(1. - offsets[1]**2), atol=1e-12)
+        np.testing.assert_allclose(tr.end[0][2:], .05)
+
+    def test_first_crossed_boundary_determines_endpoint_and_status(self):
+        cases = (
+            (2., 2., dict(rlim=3., bounds=((-10., 2.5), (-1., 1.), (-1., 1.))),
+             2.5, STATUS_OUTER),
+            (-3., 4., dict(r0=1., bounds=((-4., -2.5), (-1., 1.), (-1., 1.))),
+             -2.5, STATUS_OUTER),
+            (-3., 4., dict(r0=1., bounds=((-4., .5), (-1., 1.), (-1., 1.))),
+             -1., STATUS_INNER),
+        )
+        for seed, ds, options, endpoint, status in cases:
+            with self.subTest(options=options):
+                tr = trace_field_lines(self.uniform_field, seed, 0., 0., ds=ds,
+                                      max_steps=1, **options)
+                np.testing.assert_array_equal(tr.status, status)
+                np.testing.assert_allclose(np.array(tr.end).ravel(), [endpoint, 0., 0.])
+                np.testing.assert_allclose(tr.arc_length(0)[-1], endpoint - seed)
+
+    def test_step_landing_on_outer_sphere_terminates_there(self):
+        # The exit root can round to just above 1 (e.g. 1.0000000000000002
+        # for seed 0.3, ds 0.7); it must still end the trace on this step.
+        seeds = np.linspace(-.9, .9, 101)
+        for max_steps in (1, 2):
+            with self.subTest(max_steps=max_steps):
+                for seed in seeds:
+                    tr = trace_field_lines(self.uniform_field, seed, 0., 0., ds=1. - seed,
+                                          rlim=1., max_steps=max_steps)
+                    np.testing.assert_array_equal(tr.status, STATUS_OUTER)
+                    np.testing.assert_array_equal(tr.nsteps, 1)
+                    np.testing.assert_allclose(np.array(tr.end).ravel(), [1., 0., 0.])
+                    np.testing.assert_allclose(tr.arc_length(0), [0., 1. - seed])
+
+    def test_endpoint_stop_does_not_override_earlier_boundary(self):
+        tr = trace_field_lines(self.uniform_field, -2., 0., 0., ds=4., r0=1.,
+                              stop=lambda x, y, z: x > 0, max_steps=1)
+        np.testing.assert_array_equal(tr.status, STATUS_INNER)
+        np.testing.assert_allclose(tr.end[0], -1.)
+
+
 class TestAgainstGeopackTrace(unittest.TestCase):
     """The generic tracer reproduces the geopack reference tracer on a
     Tsyganenko field (same RK5 scheme; different boundary handling)."""

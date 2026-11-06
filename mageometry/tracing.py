@@ -42,6 +42,10 @@ the data domain of an interpolated field, or a magnetic null."""
 STATUS_STOPPED = 4
 """The user-supplied ``stop`` condition became true."""
 
+# Relative tolerance on a crossing's fraction along the step chord: roots
+# that rounding pushes just outside [0, 1] still terminate on this step.
+_CHORD_TOL = 1e-9
+
 _STATUS_NAMES = {
     STATUS_INNER: "inner",
     STATUS_OUTER: "outer",
@@ -185,7 +189,10 @@ def trace_field_lines(field, x, y, z, direction=1, ds=0.1, *, err=1e-3,
     Integration scheme: the fifth-order Runge-Kutta formula of geopack's
     ``step()`` with its L1 error estimate. Unlike `geopack.trace_vectorized`,
     step halving does not depend on any Earth-specific radius, boundary
-    crossings are interpolated, and the field is a generic callable.
+    crossings are interpolated, and the field is a generic callable. Each
+    accepted step is checked along its straight chord, including inner-sphere
+    entry and exit within one step. The earliest geometric boundary wins;
+    a custom stop at the step endpoint cannot override an earlier crossing.
     """
     x0 = np.atleast_1d(np.asarray(x, dtype=np.float64)).ravel()
     y0 = np.atleast_1d(np.asarray(y, dtype=np.float64)).ravel()
@@ -312,6 +319,14 @@ def _terminate(xp, yp, zp, xc, yc, zc, r0, rlim, bounds, stop):
     status = np.full(n, -1, dtype=np.int64)
     t = np.ones(n, dtype=np.float64)
 
+    def consider(candidate, code):
+        # Crossing fractions within rounding of the chord ends count as on it.
+        candidate = np.where((candidate >= -_CHORD_TOL) & (candidate <= 1 + _CHORD_TOL),
+                             np.clip(candidate, 0., 1.), np.inf)
+        hit = np.isfinite(candidate) & ((status < 0) | (candidate < t))
+        t[hit] = candidate[hit]
+        status[hit] = code
+
     # Custom stop: terminates exactly at the current point.
     if stop is not None:
         st = np.asarray(stop(xc, yc, zc), dtype=bool)
@@ -320,26 +335,21 @@ def _terminate(xp, yp, zp, xc, yc, zc, r0, rlim, bounds, stop):
         status[st] = STATUS_STOPPED
 
     dx, dy, dz = xc - xp, yc - yp, zc - zp
-    r_c = np.sqrt(xc * xc + yc * yc + zc * zc)
+    r_p = np.sqrt(xp * xp + yp * yp + zp * zp)
 
     if r0 is not None:
-        hit = (status < 0) & (r_c < r0)
-        if np.any(hit):
-            t[hit] = _sphere_fraction(xp[hit], yp[hit], zp[hit],
-                                      dx[hit], dy[hit], dz[hit], r0, entering=True)
-            status[hit] = STATUS_INNER
+        candidate = _sphere_fraction(xp, yp, zp, dx, dy, dz, r0, entering=True)
+        consider(np.where(r_p < r0, 0., candidate), STATUS_INNER)
 
     if rlim is not None:
-        hit = (status < 0) & (r_c >= rlim)
-        if np.any(hit):
-            t[hit] = _sphere_fraction(xp[hit], yp[hit], zp[hit],
-                                      dx[hit], dy[hit], dz[hit], rlim, entering=False)
-            status[hit] = STATUS_OUTER
+        candidate = _sphere_fraction(xp, yp, zp, dx, dy, dz, rlim, entering=False)
+        consider(np.where(r_p >= rlim, 0., candidate), STATUS_OUTER)
 
     if bounds is not None:
         lo, hi = bounds[:, 0], bounds[:, 1]
         t_box = np.ones(n, dtype=np.float64)
         outside = np.zeros(n, dtype=bool)
+        started_outside = np.zeros(n, dtype=bool)
         for c, p, d, lo_i, hi_i in ((xc, xp, dx, lo[0], hi[0]),
                                     (yc, yp, dy, lo[1], hi[1]),
                                     (zc, zp, dz, lo[2], hi[2])):
@@ -349,11 +359,10 @@ def _terminate(xp, yp, zp, xc, yc, zc, r0, rlim, bounds, stop):
                 t_lo = np.where(below, (lo_i - p) / d, 1.0)
                 t_hi = np.where(above, (hi_i - p) / d, 1.0)
             outside |= below | above
+            started_outside |= (p < lo_i) | (p > hi_i)
             t_box = np.minimum(t_box, np.where(below, t_lo, t_hi))
-        hit = (status < 0) & outside
-        if np.any(hit):
-            t[hit] = np.clip(np.nan_to_num(t_box[hit], nan=0.0), 0.0, 1.0)
-            status[hit] = STATUS_OUTER
+        candidate = np.where(started_outside, 0., np.where(outside, t_box, np.inf))
+        consider(candidate, STATUS_OUTER)
 
     xe = xp + t * dx
     ye = yp + t * dy
@@ -395,15 +404,28 @@ def _sphere_fraction(xp, yp, zp, dx, dy, dz, radius, entering):
 
     ``entering=True`` selects the crossing from outside to inside (smaller
     root), ``False`` the crossing from inside to outside (larger root).
+    Roots within `_CHORD_TOL` of the chord ends (rounding) are clipped onto
+    it. Return infinity when there is no such crossing on the chord. A tangent
+    contact does not enter the inner sphere.
     """
     a = dx * dx + dy * dy + dz * dz
     b = 2.0 * (xp * dx + yp * dy + zp * dz)
     c = xp * xp + yp * yp + zp * zp - radius * radius
-    disc = np.maximum(b * b - 4.0 * a * c, 0.0)
+    # The cross-product form avoids subtracting |p|^2 and radius^2 near
+    # tangency before forming the discriminant.
+    cross2 = ((yp * dz - zp * dy)**2 + (zp * dx - xp * dz)**2
+              + (xp * dy - yp * dx)**2)
+    disc = 4.0 * (a * radius * radius - cross2)
     with np.errstate(divide='ignore', invalid='ignore'):
-        sq = np.sqrt(disc)
-        t = (-b - sq) / (2.0 * a) if entering else (-b + sq) / (2.0 * a)
-    return np.clip(np.nan_to_num(t, nan=0.0), 0.0, 1.0)
+        sq = np.sqrt(np.maximum(disc, 0.))
+        # Avoid cancellation in the root near the starting point.
+        q = -0.5 * (b + np.copysign(sq, b))
+        first, second = q / a, c / q
+        t = np.minimum(first, second) if entering else np.maximum(first, second)
+        t = np.where(q == 0, -b / (2 * a), t)
+    valid = ((a > 0) & (disc > 0 if entering else disc >= 0)
+             & (t >= -_CHORD_TOL) & (t <= 1 + _CHORD_TOL))
+    return np.where(valid, np.clip(t, 0., 1.), np.inf)
 
 
 def _trace_one_direction(field, x0, y0, z0, sign, *, ds, err, r0, rlim,

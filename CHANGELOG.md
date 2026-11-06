@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop generic field-line traces at the first sphere or box intersection,
+  including inner-sphere entry and exit within a single step and steps that
+  land on a sphere within rounding. Preserve the corresponding termination
+  status and partial-step arc length.
+
 ### Changed
 
 - Add a desktop Line profile panel with pointwise diagnostics along a selected
