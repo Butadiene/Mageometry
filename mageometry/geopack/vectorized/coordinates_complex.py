@@ -23,6 +23,7 @@ def sphcar(r, theta, phi, j):
     -------
     tuple of (float or ndarray)
         Transformed coordinates (x,y,z if j>0, r,theta,phi if j<0)
+        For j<0, phi is in [0, 2*pi), with phi=0 at the poles.
     """
     # Check if input is scalar
     scalar_input = all(np.isscalar(c) for c in (r, theta, phi))
@@ -50,6 +51,7 @@ def sphcar(r, theta, phi, j):
         
         # Handle conditional logic for phi
         phi_out = np.where(sq != 0, np.arctan2(y, x), 0.0)
+        phi_out = np.where(phi_out < 0, phi_out + 2 * np.pi, phi_out)
         
         # Handle conditional logic for theta
         theta_out = np.where(sq != 0, 

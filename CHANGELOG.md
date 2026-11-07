@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Import the numerical fixes and regression tests from
+  [geopack-vectorize 2.0.3](https://github.com/Butadiene/geopack-vectorize/tree/140cb56b07d9239a19c836f8d6945022e8e53465)
+  ([upstream PR](https://github.com/Butadiene/geopack-vectorize/pull/4)):
+  return NaN fields for NaN coordinates in vectorized T01/T96 while
+  preserving valid samples in the same batch, and normalize vectorized
+  `sphcar` longitude to the scalar convention of [0, 2*pi), retaining
+  zero longitude at the poles.
 - Import the numerical fixes and input regression tests from
   [geopack-vectorize 2.0.2](https://github.com/Butadiene/geopack-vectorize/tree/117eaaf29cc25220182fe3ca0b20181fa8ff2ee0)
   ([upstream fix](https://github.com/Butadiene/geopack-vectorize/commit/f1dfc1a53253bbbaf7b832f98d2b49a4b3e88b71)):

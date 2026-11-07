@@ -125,10 +125,10 @@ def t96(parmod, ps, x, y, z):
     sqrt_arg = np.maximum(sqrt_arg, 0)  # Ensure non-negative
     sigma = np.sqrt((aro + axx0 + np.sqrt(sqrt_arg)) / (2.0 * asq))
     
-    # Initialize output arrays
-    bx = np.zeros_like(x)
-    by = np.zeros_like(y)
-    bz = np.zeros_like(z)
+    # NaN sigma matches no region, so invalid coordinates must stay undefined.
+    bx = np.full_like(x, np.nan)
+    by = np.full_like(y, np.nan)
+    bz = np.full_like(z, np.nan)
     
     # Define masks for three regions
     mask_inside = sigma < (s0 - dsig)

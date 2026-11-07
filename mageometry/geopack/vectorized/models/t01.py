@@ -249,7 +249,8 @@ def extall(iopgen,iopt,iopb,iopr,a,ntot,pdyn,dst,byimf,bzimf,vbimf1,vbimf2,ps,x,
     mask_interp = (sigma >= (s0 - dsig)) & (sigma < (s0 + dsig))
     mask_out = sigma >= (s0 + dsig)
 
-    bx, by, bz = np.zeros_like(x), np.zeros_like(y), np.zeros_like(z)
+    # NaN sigma matches no region, so invalid coordinates must stay undefined.
+    bx, by, bz = np.full_like(x, np.nan), np.full_like(y, np.nan), np.full_like(z, np.nan)
 
     # Case 1: Inside the magnetosphere
     bx = np.where(mask_in, bbx, bx)

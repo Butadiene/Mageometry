@@ -12,6 +12,35 @@ PARMOD = [2., -20., 2., -5., 1., 1., 1., 1., 1., 1.]
 
 
 class TestModelInputRegressions(unittest.TestCase):
+    def test_nan_coordinates_return_nan_for_scalar_inputs(self):
+        for name in ('t01', 't96'):
+            for axis in range(3):
+                point = [-6., 1., 2.]
+                point[axis] = np.nan
+                with self.subTest(model=name, nan_axis=axis), np.errstate(invalid='ignore'):
+                    expected = getattr(models, name)(PARMOD, .2, *point)
+                    actual = getattr(vectorized, name)(PARMOD, .2, *point)
+                    self.assertTrue(np.all(np.isnan(expected)))
+                    self.assertTrue(np.all(np.isnan(actual)))
+                    self.assertTrue(all(isinstance(c, float) for c in actual))
+
+    def test_nan_coordinates_preserve_valid_points_in_multidimensional_batches(self):
+        valid_points = np.array([[-6., 1., 2.], [10.0655881232758, 2., 1.], [15., 3., 1.]])
+        for name in ('t01', 't96'):
+            expected = np.full((3, len(valid_points), 2), np.nan)
+            expected[:, :, 0] = np.array([
+                getattr(models, name)(PARMOD, .2, *point) for point in valid_points
+            ]).T
+            self.assertTrue(np.all(np.isfinite(expected[:, :, 0])))
+            for axis in range(3):
+                points = np.repeat(valid_points[:, None, :], 2, axis=1)
+                points[:, 1, axis] = np.nan
+                with self.subTest(model=name, nan_axis=axis), np.errstate(invalid='ignore'):
+                    actual = getattr(vectorized, name)(PARMOD, .2, *np.moveaxis(points, -1, 0))
+                    self.assertEqual(np.shape(actual), expected.shape)
+                    np.testing.assert_allclose(actual, expected, rtol=1e-10, atol=1e-6,
+                                               equal_nan=True)
+
     def test_t01_imf_interconnection_preserves_clock_angle(self):
         # With G1/G2 held fixed, the IMF dependence is exactly the prescribed
         # T01 interconnection field, including outside the magnetopause.

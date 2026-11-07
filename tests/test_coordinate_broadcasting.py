@@ -65,6 +65,22 @@ class TestCoordinateBroadcasting(unittest.TestCase):
             result = getattr(coordinates_complex, name)(*base)
             self.assertTrue(all(isinstance(c, float) for c in result))
 
+    def test_cartesian_to_spherical_longitude_matches_scalar_in_all_quadrants(self):
+        # Include the negative x axis, signed zero, both poles, and the origin.
+        points = np.array([[1., 1., 0.], [-1., 1., 0.], [-1., -1., 0.], [1., -1., 0.],
+                           [-1., 0., 0.], [-1., -0., 0.], [1., -0., 0.],
+                           [0., 0., 1.], [0., 0., -1.], [0., 0., 0.]])
+        for point in points:
+            with self.subTest(point=point):
+                actual = coordinates_complex.sphcar(*point, -1)
+                self.assertTrue(all(isinstance(c, float) for c in actual))
+                np.testing.assert_allclose(actual, scalar.sphcar(*point, -1), atol=1e-14)
+                self.assertGreaterEqual(actual[2], 0.)
+                self.assertLess(actual[2], 2 * np.pi)
+        self.assert_pointwise(coordinates_complex.sphcar, scalar.sphcar, points.T, (-1,))
+        self.assert_pointwise(coordinates_complex.sphcar, scalar.sphcar,
+                              (np.array([-1., 1.])[:, None], np.array([-1., 1.]), 0.), (-1,))
+
     def test_igrf_cartesian_wrappers_broadcast(self):
         for name in ('igrf_gsm', 'igrf_gsw'):
             for coords in ((5., np.array([1., 2.]), 1.),
