@@ -25,12 +25,13 @@ def sphcar(r, theta, phi, j):
         Transformed coordinates (x,y,z if j>0, r,theta,phi if j<0)
     """
     # Check if input is scalar
-    scalar_input = np.isscalar(r)
+    scalar_input = all(np.isscalar(c) for c in (r, theta, phi))
     
     # Ensure arrays
     r = np.atleast_1d(r)
     theta = np.atleast_1d(theta)
     phi = np.atleast_1d(phi)
+    r, theta, phi = np.broadcast_arrays(r, theta, phi)
     
     if j > 0:  # Spherical to Cartesian
         sq = r * np.sin(theta)
@@ -81,7 +82,7 @@ def bspcar(theta, phi, br, btheta, bphi):
         Magnetic field components in Cartesian coordinates (bx, by, bz)
     """
     # Check if input is scalar
-    scalar_input = np.isscalar(theta)
+    scalar_input = all(np.isscalar(c) for c in (theta, phi, br, btheta, bphi))
     
     # Ensure arrays
     theta = np.atleast_1d(theta)
@@ -89,6 +90,7 @@ def bspcar(theta, phi, br, btheta, bphi):
     br = np.atleast_1d(br)
     btheta = np.atleast_1d(btheta)
     bphi = np.atleast_1d(bphi)
+    theta, phi, br, btheta, bphi = np.broadcast_arrays(theta, phi, br, btheta, bphi)
     
     # Calculate trigonometric values
     s = np.sin(theta)
@@ -126,7 +128,7 @@ def bcarsp(x, y, z, bx, by, bz):
         Magnetic field components in spherical coordinates (br, btheta, bphi)
     """
     # Check if input is scalar
-    scalar_input = np.isscalar(x)
+    scalar_input = all(np.isscalar(c) for c in (x, y, z, bx, by, bz))
     
     # Ensure arrays
     x = np.atleast_1d(x)
@@ -135,6 +137,7 @@ def bcarsp(x, y, z, bx, by, bz):
     bx = np.atleast_1d(bx)
     by = np.atleast_1d(by)
     bz = np.atleast_1d(bz)
+    x, y, z, bx, by, bz = np.broadcast_arrays(x, y, z, bx, by, bz)
     
     # Calculate distances
     rho2 = x*x + y*y

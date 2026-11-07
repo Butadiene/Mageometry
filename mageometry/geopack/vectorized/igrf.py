@@ -225,7 +225,7 @@ def igrf_gsm(xgsm, ygsm, zgsm):
         Magnetic field components in GSM coordinates (nT)
     """
     # Handle scalar inputs
-    scalar_input = np.isscalar(xgsm)
+    scalar_input = all(np.isscalar(c) for c in (xgsm, ygsm, zgsm))
     xgsm = np.atleast_1d(xgsm)
     ygsm = np.atleast_1d(ygsm)
     zgsm = np.atleast_1d(zgsm)
@@ -270,7 +270,7 @@ def igrf_gsw(xgsw, ygsw, zgsw):
         Magnetic field components in GSW coordinates (nT)
     """
     # Handle scalar inputs
-    scalar_input = np.isscalar(xgsw)
+    scalar_input = all(np.isscalar(c) for c in (xgsw, ygsw, zgsw))
     xgsw = np.atleast_1d(xgsw)
     ygsw = np.atleast_1d(ygsw)
     zgsw = np.atleast_1d(zgsw)

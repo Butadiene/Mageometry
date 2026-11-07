@@ -84,6 +84,18 @@ class TestLineProfiles(unittest.TestCase):
         np.testing.assert_allclose(result['values']['alpha'], 2/1.64, rtol=1e-9)
         np.testing.assert_allclose(result['values']['bmag'], np.sqrt(1.64), rtol=1e-9)
 
+    def test_uniform_field_profile_masks_undefined_normal_gradients(self):
+        def field(x, y, z):
+            return np.ones_like(x), np.zeros_like(y), np.zeros_like(z)
+
+        trace = trace_field_lines(field, 0., 0., 0., direction='both', max_steps=4)
+        result = field_line_profile(field, trace, quantities=('bmag', 'B_kappa', 'minus_dB_dn'))
+        np.testing.assert_allclose(result['values']['bmag'], 1.)
+        self.assertTrue(np.all(result['valid']['bmag']))
+        for name in ('B_kappa', 'minus_dB_dn'):
+            self.assertTrue(np.all(np.isnan(result['values'][name])), name)
+            self.assertFalse(np.any(result['valid'][name]), name)
+
     def test_quantity_family_is_cached_and_invalid_names_rejected(self):
         from mageometry.geometry import field_line_transverse_geometry
         evaluator = _LineEvaluator(helix, np.array([[1., 0., 0.]]), .001)

@@ -230,7 +230,9 @@ def field_magnitude_derivatives(field, x, y, z, delta=0.01,
                               ('dB_db', (bnx, bny, bnz))):
         bp = _bmag(field, x + delta * ux, y + delta * uy, z + delta * uz)
         bm = _bmag(field, x - delta * ux, y - delta * uy, z - delta * uz)
-        results[key] = (bp - bm) * inv2d
+        # A field callable may return finite values even at NaN coordinates.
+        valid = np.isfinite(ux) & np.isfinite(uy) & np.isfinite(uz)
+        results[key] = np.where(valid, (bp - bm) * inv2d, np.nan)
 
     return {key: _finish(scalar_input, val) for key, val in results.items()}
 

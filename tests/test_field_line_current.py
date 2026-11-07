@@ -103,6 +103,36 @@ class TestFieldMagnitudeDerivatives(unittest.TestCase):
             for key in ('dB_dT', 'dB_dn', 'dB_db'):
                 self.assertTrue(np.isfinite(mag[key]), msg=key)
 
+    def test_constant_fields_mask_undefined_directions(self):
+        for strength in (0., 1.):
+            def field(x, y, z):
+                return np.full_like(x, strength), np.zeros_like(y), np.zeros_like(z)
+
+            for coords in ((0., 0., 0.), (np.array([0., 1.]), 0., 0.)):
+                with self.subTest(strength=strength, shape=np.shape(coords[0])):
+                    mag = field_magnitude_derivatives(field, *coords)
+                    np.testing.assert_allclose(mag['B'], strength)
+                    if strength == 0:
+                        self.assertTrue(np.all(np.isnan(mag['dB_dT'])))
+                    else:
+                        np.testing.assert_allclose(mag['dB_dT'], 0.)
+                    self.assertTrue(np.all(np.isnan(mag['dB_dn'])))
+                    self.assertTrue(np.all(np.isnan(mag['dB_db'])))
+
+    def test_mixed_straight_and_curved_field_validity(self):
+        def field(x, y, z):
+            # At x < 0 the field is straight. NaN coordinates also yield a
+            # finite constant field, so field-value propagation cannot mask it.
+            return np.ones_like(x), np.where(x > 0, x, 0.), np.zeros_like(z)
+
+        mag = field_magnitude_derivatives(field, np.array([-1., 1.]), 0., 0., delta=1e-4)
+        np.testing.assert_allclose(mag['B'], [1., np.sqrt(2)])
+        np.testing.assert_allclose(mag['dB_dT'], [0., .5], atol=1e-7)
+        self.assertTrue(np.isnan(mag['dB_dn'][0]))
+        self.assertTrue(np.isnan(mag['dB_db'][0]))
+        np.testing.assert_allclose(mag['dB_dn'][1], -.5, atol=1e-7)
+        np.testing.assert_allclose(mag['dB_db'][1], 0., atol=1e-7)
+
 
 class TestFieldLineCurrentDensity(unittest.TestCase):
 

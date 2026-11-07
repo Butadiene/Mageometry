@@ -34,12 +34,13 @@ def gsmgse(xgsm, ygsm, zgsm, j):
         Transformed coordinates (GSE if j>0, GSM if j<0)
     """
     # Check if input is scalar
-    scalar_input = np.isscalar(xgsm)
+    scalar_input = all(np.isscalar(c) for c in (xgsm, ygsm, zgsm))
     
     # Ensure arrays
     xgsm = np.atleast_1d(xgsm)
     ygsm = np.atleast_1d(ygsm)
     zgsm = np.atleast_1d(zgsm)
+    xgsm, ygsm, zgsm = np.broadcast_arrays(xgsm, ygsm, zgsm)
     
     # Get transformation angles from geopack globals
     chi = gp.chi
@@ -83,12 +84,13 @@ def geigeo(xgei, ygei, zgei, j):
         Transformed coordinates (GEO if j>0, GEI if j<0)
     """
     # Check if input is scalar
-    scalar_input = np.isscalar(xgei)
+    scalar_input = all(np.isscalar(c) for c in (xgei, ygei, zgei))
     
     # Ensure arrays
     xgei = np.atleast_1d(xgei)
     ygei = np.atleast_1d(ygei)
     zgei = np.atleast_1d(zgei)
+    xgei, ygei, zgei = np.broadcast_arrays(xgei, ygei, zgei)
     
     # Get transformation angles from geopack globals
     cgst = gp.cgst
@@ -132,12 +134,13 @@ def magsm(xmag, ymag, zmag, j):
         Transformed coordinates (SM if j>0, MAG if j<0)
     """
     # Check if input is scalar
-    scalar_input = np.isscalar(xmag)
+    scalar_input = all(np.isscalar(c) for c in (xmag, ymag, zmag))
     
     # Ensure arrays
     xmag = np.atleast_1d(xmag)
     ymag = np.atleast_1d(ymag)
     zmag = np.atleast_1d(zmag)
+    xmag, ymag, zmag = np.broadcast_arrays(xmag, ymag, zmag)
     
     # Get transformation angles from geopack globals
     sfi = gp.sfi
@@ -181,12 +184,13 @@ def smgsm(xsm, ysm, zsm, j):
         Transformed coordinates (GSM if j>0, SM if j<0)
     """
     # Check if input is scalar
-    scalar_input = np.isscalar(xsm)
+    scalar_input = all(np.isscalar(c) for c in (xsm, ysm, zsm))
     
     # Ensure arrays
     xsm = np.atleast_1d(xsm)
     ysm = np.atleast_1d(ysm)
     zsm = np.atleast_1d(zsm)
+    xsm, ysm, zsm = np.broadcast_arrays(xsm, ysm, zsm)
     
     # Get transformation angles from geopack globals
     sps = gp.sps
@@ -230,12 +234,13 @@ def geomag(xgeo, ygeo, zgeo, j):
         Transformed coordinates (MAG if j>0, GEO if j<0)
     """
     # Check if input is scalar
-    scalar_input = np.isscalar(xgeo)
+    scalar_input = all(np.isscalar(c) for c in (xgeo, ygeo, zgeo))
     
     # Ensure arrays
     xgeo = np.atleast_1d(xgeo)
     ygeo = np.atleast_1d(ygeo)
     zgeo = np.atleast_1d(zgeo)
+    xgeo, ygeo, zgeo = np.broadcast_arrays(xgeo, ygeo, zgeo)
     
     # Get transformation matrix elements from geopack globals
     # These are set by recalc() based on IGRF coefficients
@@ -286,12 +291,13 @@ def geogsm(xgeo, ygeo, zgeo, j):
         Transformed coordinates (GSM if j>0, GEO if j<0)
     """
     # Check if input is scalar
-    scalar_input = np.isscalar(xgeo)
+    scalar_input = all(np.isscalar(c) for c in (xgeo, ygeo, zgeo))
     
     # Ensure arrays
     xgeo = np.atleast_1d(xgeo)
     ygeo = np.atleast_1d(ygeo)
     zgeo = np.atleast_1d(zgeo)
+    xgeo, ygeo, zgeo = np.broadcast_arrays(xgeo, ygeo, zgeo)
     
     # Get transformation matrix elements from geopack globals
     a11 = gp.a11
@@ -342,12 +348,13 @@ def gswgsm(xgsw, ygsw, zgsw, j):
         Transformed coordinates (GSM if j>0, GSW if j<0)
     """
     # Check if input is scalar
-    scalar_input = np.isscalar(xgsw)
+    scalar_input = all(np.isscalar(c) for c in (xgsw, ygsw, zgsw))
     
     # Ensure arrays
     xgsw = np.atleast_1d(xgsw)
     ygsw = np.atleast_1d(ygsw)
     zgsw = np.atleast_1d(zgsw)
+    xgsw, ygsw, zgsw = np.broadcast_arrays(xgsw, ygsw, zgsw)
     
     # Get transformation matrix elements from geopack globals
     e11 = gp.e11

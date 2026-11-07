@@ -60,10 +60,11 @@ def t01(parmod, ps, x, y, z):
     # Track if all inputs were scalar
     scalar_input = np.isscalar(x) and np.isscalar(y) and np.isscalar(z)
     
-    # Convert inputs to numpy arrays
-    x = np.atleast_1d(x)
-    y = np.atleast_1d(y)
-    z = np.atleast_1d(z)
+    # Normalize dtype and shape before masked coordinate iterations.
+    x, y, z = np.broadcast_arrays(
+        np.atleast_1d(np.asarray(x, dtype=float)),
+        np.atleast_1d(np.asarray(y, dtype=float)),
+        np.atleast_1d(np.asarray(z, dtype=float)))
 
     a = np.array([
         1.00000, 2.47341, 0.40791, 0.30429, -0.10637, -0.89108, 3.29350,
@@ -133,7 +134,7 @@ def extall(iopgen,iopt,iopb,iopr,a,ntot,pdyn,dst,byimf,bzimf,vbimf1,vbimf2,ps,x,
         theta = 0.
     else:
         theta=np.arctan2(byimf,bzimf)
-        if theta <= 0: theta = 2*np.pi
+        if theta <= 0: theta += 2*np.pi
 
     ct=np.cos(theta)
     st=np.sin(theta)
@@ -172,8 +173,7 @@ def extall(iopgen,iopt,iopb,iopr,a,ntot,pdyn,dst,byimf,bzimf,vbimf1,vbimf2,ps,x,
         zss[active] = znew
 
         # Skip already-converged points in subsequent iterations
-        active_idx = np.where(active)[0]
-        active[active_idx] = dd > 1e-6
+        active[active] = dd > 1e-6
 
     rho2=y**2+zss**2
     asq=am**2

@@ -46,9 +46,9 @@ def t96(parmod, ps, x, y, z):
     scalar_input = np.isscalar(x) and np.isscalar(y) and np.isscalar(z)
     
     # Convert inputs to numpy arrays
-    x = np.atleast_1d(x)
-    y = np.atleast_1d(y)
-    z = np.atleast_1d(z)
+    x = np.atleast_1d(np.asarray(x, dtype=float))
+    y = np.atleast_1d(np.asarray(y, dtype=float))
+    z = np.atleast_1d(np.asarray(z, dtype=float))
     
     # Broadcast arrays to same shape
     x, y, z = np.broadcast_arrays(x, y, z)

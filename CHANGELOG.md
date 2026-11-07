@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Import the numerical fixes and input regression tests from
+  [geopack-vectorize 2.0.2](https://github.com/Butadiene/geopack-vectorize/tree/117eaaf29cc25220182fe3ca0b20181fa8ff2ee0)
+  ([upstream fix](https://github.com/Butadiene/geopack-vectorize/commit/f1dfc1a53253bbbaf7b832f98d2b49a4b3e88b71)):
+  preserve the T01 IMF clock angle for negative By in both implementations,
+  prevent integer-coordinate truncation in vectorized T01/T96, and support
+  broadcast/multidimensional T01 inputs and mixed scalar/array inputs in
+  coordinate transforms and IGRF GSM/GSW wrappers.
+- Return NaN for magnetic-magnitude derivatives along undefined Frenet
+  directions even when the field callable returns finite values at NaN
+  coordinates. Line profiles now mark those normal-gradient values invalid;
+  the tangent derivative of a uniform nonzero field remains zero.
 - Stop generic field-line traces at the first sphere or box intersection,
   including inner-sphere entry and exit within a single step and steps that
   land on a sphere within rounding. Preserve the corresponding termination
